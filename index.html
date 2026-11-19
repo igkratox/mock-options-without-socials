@@ -742,7 +742,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
       <button type="button" class="btn sec" id="lcSaveKeyBtn" style="flex:1;min-width:140px">Save Answer Key</button>
-      <button type="button" class="btn" id="lcPublishBtn" style="flex:2;margin-top:0;min-width:180px">Grade & Publish Results to All</button>
+      <button type="button" class="btn" id="lcPublishBtn" style="flex:2;margin-top:0;min-width:180px">Grade & Preview (Only Sensei)</button>
     </div>
   </div>
 
@@ -753,8 +753,19 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-      <h3 style="margin:0">Exam Result Summary</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        <h3 style="margin:0">Exam Result Summary</h3>
+        <span class="pill live hide" id="lcPubBadge">PUBLISHED ✓</span>
+      </div>
       <button type="button" class="btn sec" id="lcSumPngBtn">Download Summary PNG</button>
+    </div>
+    <div id="lcPubBar" class="hide" style="margin-top:10px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="lcResultType" style="flex:1;min-width:210px;font-size:13px;padding:8px 10px">
+        <option value="1">Type 1: Only Number & Question Count</option>
+        <option value="2">Type 2: Number + Student Answers (Green/Red)</option>
+        <option value="3" selected>Type 3: Full Answer + Correction (→)</option>
+      </select>
+      <button type="button" class="btn" id="lcFinalPublishBtn" style="width:auto;margin-top:0;padding:9px 16px">Publish Result to All Students</button>
     </div>
     <div id="lcSumBody" style="overflow:auto;margin-top:8px"></div>
   </div>
@@ -1589,6 +1600,11 @@ function showReport(keepTime){
   saveCurrentExamToHistory();
   $('repName').textContent=(cfg.examName?'Exam Name: '+cfg.examName+' · ':'')+cfg.name+' · '+repTime;
   let html='',txt=`Report Card\n${cfg.examName?'Exam Name: '+cfg.examName+'\n':''}Name: ${cfg.name}\nDate: ${repTime}\n`;
+  const rType=liveRoomId&&liveRoom?String(liveRoom.resultType||'3'):'3';
+  const k1=liveRoom&&liveRoom.keys?parseKeyTokens(liveRoom.keys.k1):[];
+  const k2=liveRoom&&liveRoom.keys?parseKeyTokens(liveRoom.keys.k2):[];
+  const k3=liveRoom&&liveRoom.keys?parseKeyTokens(liveRoom.keys.k3):[];
+  const keyForPart=pi=>liveRoom&&liveRoom.onlyListen?k3:(liveRoom&&liveRoom.onePart?(pi===0?k1:k3):(pi===0?k1:(pi===1?k2:k3)));
   if(liveRoomId&&liveRoom&&liveRoom.published&&liveRoom.students&&liveRoom.students[liveStuId]){
     const stuObjs=Object.values(liveRoom.students);
     const disp=buildStuDisp(stuObjs);
@@ -1596,13 +1612,13 @@ function showReport(keepTime){
     const stRows=stuObjs.map(s=>({...calcStuSummary(liveRoom,s),dName:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
     const rModeLbl=liveRoom.onlyListen?`Only Listening (${meSm.maxTot} Marks)`:(liveRoom.onePart?`${meSm.maxTot} Marks`:'Scaled 60/Part');
     const meStatsHtml=liveRoom.onlyListen
-      ?`<div class="stat" style="margin-top:8px"><span>Listening</span><b>${meSm.s3} / ${meSm.maxTot}</b></div>`
+      ?`<div class="stat" style="margin-top:8px"><span>Listening (${meSm.p3}/${LISTEN_TOTAL} টি সঠিক)</span><b>${meSm.s3} / ${meSm.maxTot}</b></div>`
       :(liveRoom.onePart
-        ?`<div class="stat" style="margin-top:8px"><span>Part 1</span><b>${meSm.s1} / ${meSm.p1Tot}</b></div>
-          ${liveRoom.hasListen?`<div class="stat"><span>Listening</span><b>${meSm.s3} / 60</b></div>`:''}`
-        :`<div class="stat" style="margin-top:8px"><span>Part 1 (Min 19)</span><b>${meSm.s1} / 60 <span style="color:${meSm.s1>=19?'var(--ok)':'var(--bad)'}">${meSm.s1>=19?'✓':'✕'}</span></b></div>
-          <div class="stat"><span>Part 2 (Min 19)</span><b>${meSm.s2} / 60 <span style="color:${meSm.s2>=19?'var(--ok)':'var(--bad)'}">${meSm.s2>=19?'✓':'✕'}</span></b></div>
-          ${liveRoom.hasListen?`<div class="stat"><span>Listening (Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}`);
+        ?`<div class="stat" style="margin-top:8px"><span>Part 1 (${meSm.p1}/${liveRoom.p1q} টি সঠিক)</span><b>${meSm.s1} / ${meSm.p1Tot}</b></div>
+          ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${LISTEN_TOTAL} টি সঠিক)</span><b>${meSm.s3} / 60</b></div>`:''}`
+        :`<div class="stat" style="margin-top:8px"><span>Part 1 (${meSm.p1}/${liveRoom.p1q} টি সঠিক · Min 19)</span><b>${meSm.s1} / 60 <span style="color:${meSm.s1>=19?'var(--ok)':'var(--bad)'}">${meSm.s1>=19?'✓':'✕'}</span></b></div>
+          <div class="stat"><span>Part 2 (${meSm.p2}/${liveRoom.p2q} টি সঠিক · Min 19)</span><b>${meSm.s2} / 60 <span style="color:${meSm.s2>=19?'var(--ok)':'var(--bad)'}">${meSm.s2>=19?'✓':'✕'}</span></b></div>
+          ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${LISTEN_TOTAL} টি সঠিক · Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}`);
     const lbHeadHtml=liveRoom.onlyListen?'':(liveRoom.onePart?(liveRoom.hasListen?'<th>P1</th><th>List.</th>':''):`<th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}`);
     html+=`<div class="card" style="border-color:${meSm.pass?'var(--ok)':'var(--bad)'}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
@@ -1629,7 +1645,9 @@ function showReport(keepTime){
       </table></div>
     </div>`;
   }
-  html+='<div class="rep-grid">';
+  const showGrid=!(liveRoomId&&rType==='1');
+  const showCorr=!(liveRoomId&&rType!=='3');
+  if(showGrid)html+='<div class="rep-grid">';
   let totAns=0,totQ=0,totTime=0,totOk=0,totBad=0;
   cfg.parts.forEach((P,i)=>{
     const A=ans[i],{M,ok,bad,has}=markStats(i);
@@ -1639,6 +1657,9 @@ function showReport(keepTime){
     const n=A.filter(Boolean).length;
     totAns+=n;totQ+=dispQ;totTime+=used[i];totOk+=ok;totBad+=bad;
     const pct=has&&dispQ?Math.round(ok*100/dispQ):0;
+    const keyArr=liveRoomId?keyForPart(i):[];
+    txt+=`\n${P.label} — time ${fmt(used[i])} / ${fmt(P.m*60)}, answered ${n}/${dispQ}`+(has?`, right ${ok}, wrong ${bad} (${pct}%)`:'')+'\n';
+    if(!showGrid)return;
     const fullStyle=P.listen&&cfg.parts.length===3?' style="grid-column:1/-1"':'';
     html+=`<div class="rep-card"${fullStyle}><h3>${P.label}</h3>
       <div class="stat"><span>Time used</span><b>${fmt(used[i])} / ${fmt(P.m*60)}</b></div>
@@ -1646,7 +1667,6 @@ function showReport(keepTime){
     if(has){
       html+=`<div class="stat"><span>Right / Wrong</span><b><span style="color:var(--ok)">✓ ${ok}</span> · <span style="color:var(--bad)">✕ ${bad}</span> (${pct}%)</b></div>`;
     }
-    txt+=`\n${P.label} — time ${fmt(used[i])} / ${fmt(P.m*60)}, answered ${n}/${dispQ}`+(has?`, right ${ok}, wrong ${bad} (${pct}%)`:'')+'\n';
     if(P.listen){
       html+=`<div style="margin-top:8px;border-top:1px solid var(--bd);padding-top:4px">`;
       for(const md of mds){
@@ -1657,8 +1677,9 @@ function showReport(keepTime){
           const idx=md.off+j,val=A[idx],a=val?lbl(val):'—',mk=M[idx];
           const cls=mk==='ok'?' ok':mk==='bad'?' bad':val?'':' empty';
           const badge=mk==='ok'?' ✓':mk==='bad'?' ✕':'';
-          html+=`<div class="ans-item${cls}"><span>${j})</span><b>${a}${badge}</b></div>`;
-          txt+=`${j}) ${a}${badge}\n`;
+          const corr=showCorr&&mk!=='ok'&&keyArr[idx-1]?` → ${lbl(keyArr[idx-1])}`:'';
+          html+=`<div class="ans-item${cls}"><span>${j})</span><b>${a}${badge}${corr?`<span style="color:var(--ok)">${corr}</span>`:''}</b></div>`;
+          txt+=`${j}) ${a}${badge}${corr}\n`;
         }
         html+='</div>';
       }
@@ -1671,8 +1692,9 @@ function showReport(keepTime){
         const val=A[q],a=val?lbl(val):'—',mk=M[q];
         const cls=mk==='ok'?' ok':mk==='bad'?' bad':val?'':' empty';
         const badge=mk==='ok'?' ✓':mk==='bad'?' ✕':'';
-        html+=`<div class="ans-item${cls}"><span>${q})</span><b>${a}${badge}</b></div>`;
-        txt+=`${q}) ${a}${badge}\n`;
+        const corr=showCorr&&mk!=='ok'&&keyArr[q-1]?` → ${lbl(keyArr[q-1])}`:'';
+        html+=`<div class="ans-item${cls}"><span>${q})</span><b>${a}${badge}${corr?`<span style="color:var(--ok)">${corr}</span>`:''}</b></div>`;
+        txt+=`${q}) ${a}${badge}${corr}\n`;
       }
       html+='</div>';
     }
@@ -1681,7 +1703,8 @@ function showReport(keepTime){
   const ded=liveRoomId?(liveDeduct||0):0;
   const finalOk=Math.max(0,totOk-ded);
   const hasTot=(totOk+totBad)>0,totPct=hasTot&&totQ?Math.round(finalOk*100/totQ):0;
-  html+=`</div><div class="card"><div class="stat"><span>Total answered</span><b>${totAns} / ${totQ}</b></div>`;
+  if(showGrid)html+='</div>';
+  html+=`<div class="card"><div class="stat"><span>Total answered</span><b>${totAns} / ${totQ}</b></div>`;
   if(hasTot){
     const scoreStr=ded>0?`<span style="color:var(--ok)">${totOk} − ${ded} = <b>${finalOk}</b></span> / ${totQ} (${totPct}%)`:`<span style="color:var(--ok)">✓ ${totOk}</span> / ${totQ} · <span style="color:var(--bad)">✕ ${totBad}</span> (${totPct}%)`;
     html+=`<div class="stat"><span>Total score</span><b>${scoreStr}</b></div>`;
@@ -3435,13 +3458,41 @@ $('lcPublishBtn').onclick=async()=>{
     upd[`rooms/${rmId}/keys`]=keysObj;
     upd[`rooms/${rmId}/qPts`]=qPts;
     upd[`rooms/${rmId}/qStats`]=qStats;
-    upd[`rooms/${rmId}/published`]=true;
+    upd[`rooms/${rmId}/graded`]=true;
     if(!r.onlyListen)upd[`rooms/${rmId}/batchGroupId`]=gid;
   });
   upd[`rooms/${lcRoomId}/chors`]=chors;
   if(r.onlyListen)upd[`rooms/${lcRoomId}/pdfPages`]=null;
   await db().ref().update(upd);
-  toast(targetRooms.length>1?`সব Batch (${targetRooms.length}টি) মিলিয়ে Combined Weighted Results আপডেট হয়েছে!`:'Weighted Results সবার কাছে publish হয়েছে!');
+  $('lcSumBody')?.scrollIntoView({behavior:'smooth'});
+  toast(r.published?'Graded Preview আপডেট হয়েছে!':'খাতা দেখা হয়েছে (Only Sensei Preview) — নিচে Publish বাটনে চাপো।');
+};
+async function setRoomsPublishState(pub,rType){
+  if(!lcRoomData)return;
+  const r=lcRoomData;
+  let targetRooms=[[lcRoomId,r]];
+  if(!r.onlyListen&&r.examinerId){
+    await refreshBatchRooms(r,lcRoomId);
+    if(lcBatchRooms.length)targetRooms=lcBatchRooms;
+  }
+  const upd={};
+  targetRooms.forEach(([rmId])=>{
+    upd[`rooms/${rmId}/resultType`]=rType;
+    if(pub)upd[`rooms/${rmId}/published`]=true;
+  });
+  await db().ref().update(upd);
+}
+$('lcResultType').onchange=async()=>{
+  if(!lcRoomData)return;
+  const rType=$('lcResultType').value;
+  await setRoomsPublishState(false,rType);
+  toast('Result Type '+rType+' সিলেক্ট হয়েছে!');
+};
+$('lcFinalPublishBtn').onclick=async()=>{
+  if(!lcRoomData)return;
+  const rType=$('lcResultType').value;
+  await setRoomsPublishState(true,rType);
+  toast('Result সবার কাছে Publish হয়েছে (Type '+rType+')!');
 };
 function scorePartFromMarks(markStr,qCount,ptsArr,partTotal){
   const targetTot=partTotal||60;
@@ -3493,6 +3544,11 @@ function buildStuDisp(stuObjs){
   };
 }
 function renderLiveSummary(r,stus){
+  const showPubBar=!!(r.graded||r.published);
+  $('lcPubBar').classList.toggle('hide',!showPubBar);
+  $('lcPubBadge').classList.toggle('hide',!r.published);
+  $('lcResultType').value=String(r.resultType||'3');
+  $('lcFinalPublishBtn').textContent=r.published?'Update Published Result':'Publish Result to All Students';
   const disp=buildStuDisp(stus.map(([,s])=>s));
   const chors=r.chors||[];
   const tabChors=stus.filter(([,s])=>(s.tabSwitches||0)>0).map(([,s])=>`<div style="padding:3px 0;color:#d97706">⚠ <b>${esc(disp(s))}</b>: ${s.tabSwitches}x Tab/App switch করেছে</div>`);
@@ -3508,12 +3564,12 @@ function renderLiveSummary(r,stus){
     $('lcQStatsBody').innerHTML=(minPt?`<div class="mu" style="margin-bottom:6px">সবচেয়ে কম নম্বরের প্রশ্ন: <b>${minPt}m</b> (−Ans দিলে প্রতি প্রশ্নে ${minPt}m করে কাটা যাবে)</div>`:'')+r.qStats.map((arr,pi)=>{
       const missed=[...arr].filter(q=>q.errPct>0).sort((a,b)=>b.errPct-a.errPct);
       if(!missed.length)return `<div style="margin-top:8px"><b>${labels[pi]||('Part '+(pi+1))}:</b> <span class="mu">সবাই সব প্রশ্ন পেরেছে!</span></div>`;
-      return `<div style="margin-top:10px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(যেগুলো ভুল হয়েছে, 👁 চাপলে নাম দেখবে)</span>
+      return `<div style="margin-top:10px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(বেশি ভুল হওয়া প্রশ্নে নম্বর বেশি · 👁 চাপলে কারা পারেনি দেখবে)</span>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${missed.map(q=>{
           const wNames=wrongByQ(pi,q.q);
           return `<span class="badge" style="background:rgba(220,38,38,.12);color:var(--bad);display:inline-flex;align-items:center;gap:5px;padding:4px 8px">
-            <span>Q${q.q}: ${q.pts}m (${q.errPct}% ভুল)</span>
-            <button type="button" class="q-eye" data-msg="${esc(labels[pi]+' Q'+q.q+' ('+q.errPct+'% ভুল) — '+wNames.join(', '))}" style="border:0;background:transparent;cursor:pointer;padding:0;font-size:13px" title="কারা ভুল করেছে দেখো">👁</button>
+            <span>Q${q.q}: <b>${q.pts}m</b> (${wNames.length}/${stus.length} ভুল · ${q.errPct}%)</span>
+            <button type="button" class="q-eye" data-msg="${esc(labels[pi]+' Q'+q.q+' ('+wNames.length+'/'+stus.length+' জন পারেনি · '+q.errPct+'%) — '+wNames.join(', '))}" style="border:0;background:transparent;cursor:pointer;padding:0;font-size:13px" title="কারা ভুল করেছে দেখো">👁</button>
           </span>`;
         }).join('')}</div>
       </div>`;
