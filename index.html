@@ -597,8 +597,15 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div id="exStuAccList" class="mu">Loading…</div>
   </div>
   <div class="card">
-    <h3>My Exams History</h3>
-    <div id="exHistoryList" class="mu">Loading…</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <h3 style="margin:0">My Exams History</h3>
+      <select id="exHistFilter" style="width:auto;padding:5px 10px;font-size:13px">
+        <option value="all">All</option>
+        <option value="live">Live Only</option>
+        <option value="ended">Ended Only</option>
+      </select>
+    </div>
+    <div id="exHistoryList" class="mu" style="margin-top:6px">Loading…</div>
   </div>
 </div>
 
@@ -669,8 +676,11 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">
         <button type="button" class="btn sec" id="lcYtPlayBtn">▶ Play</button>
         <button type="button" class="btn sec" id="lcYtPauseBtn">⏸ Pause</button>
+        <button type="button" class="btn sec" id="lcYtBack60">−1m</button>
         <button type="button" class="btn sec" id="lcYtBack10">« 10s</button>
         <button type="button" class="btn sec" id="lcYtFwd10">10s »</button>
+        <button type="button" class="btn sec" id="lcYtFwd60">+1m</button>
+        <button type="button" class="btn sec" id="lcYtFwd120">+2m</button>
         <div class="yt-spd" id="lcYtSpd" style="margin-left:0">
           <button type="button" data-r="0.75">0.75x</button>
           <button type="button" data-r="1" class="sel">1x</button>
@@ -2155,13 +2165,26 @@ $('stuAuthBtn').onclick=async()=>{
   }catch(e){$('stuAuthErr').textContent='Connection error: '+e.message}
 };
 
+const PORTAL_SESS_KEY='mock_exam_portal_v1';
+function savePortalSess(obj){try{localStorage.setItem(PORTAL_SESS_KEY,JSON.stringify(obj))}catch(e){}}
+function clearPortalSess(){try{localStorage.removeItem(PORTAL_SESS_KEY)}catch(e){}}
 (()=>{
   applyTheme(localStorage.getItem(THEME_KEY)||'auto');
   try{const s=JSON.parse(localStorage.getItem(STU_SESS_KEY)||'null');if(s&&s.username)curStudent=s}catch(e){}
+  let pSess=null;
+  try{pSess=JSON.parse(localStorage.getItem(PORTAL_SESS_KEY)||'null')}catch(e){}
   if(location.hash.startsWith('#r=')){
     renderHistory();checkHashReview();
   }else if(location.hash.startsWith('#live=')){
     checkHashLive();
+  }else if(pSess&&pSess.role==='admin'){
+    curAdmin=true;
+    if(pSess.lcRoomId){lcReturnView='adminDash';openLiveControl(pSess.lcRoomId)}
+    else openAdminDash();
+  }else if(pSess&&pSess.role==='examiner'&&pSess.examiner){
+    curExaminer=pSess.examiner;
+    if(pSess.lcRoomId){lcReturnView='examinerDash';openLiveControl(pSess.lcRoomId)}
+    else openExaminerDash();
   }else if(curStudent){
     enterNormalMode();
   }else{
@@ -2211,7 +2234,9 @@ function applyYtSync(){
   try{
     if(y.rate&&ytPlayer.setPlaybackRate)ytPlayer.setPlaybackRate(y.rate);
     const elapsed=y.playing?(Date.now()-y.ts)/1000*(y.rate||1):0;
-    ytPlayer.seekTo(Math.max(0,(y.time||0)+elapsed),true);
+    const target=Math.max(0,(y.time||0)+elapsed);
+    const curT=ytPlayer.getCurrentTime?ytPlayer.getCurrentTime():0;
+    if(y.force||Math.abs(curT-target)>2.5)ytPlayer.seekTo(target,true);
     if(y.playing)ytPlayer.playVideo();else ytPlayer.pauseVideo();
     if(ytMuted)ytPlayer.mute();else ytPlayer.unMute();
   }catch(e){}
@@ -2544,10 +2569,11 @@ $('authLoginBtn').onclick=async()=>{
 
 /* Admin Dashboard */
 function openAdminDash(){
+  savePortalSess({role:'admin'});
   hideAllViews();$('adminDash').classList.remove('hide');
   loadAdminData();
 }
-$('adminLogoutBtn').onclick=()=>{curAdmin=false;goHome()};
+$('adminLogoutBtn').onclick=()=>{curAdmin=false;clearPortalSess();goHome()};
 $('addExBtn').onclick=async()=>{
   const name=$('newExName').value.trim(),id=$('newExId').value.trim().replace(/[^a-zA-Z0-9_-]/g,''),pass=$('newExPass').value.trim();
   if(!name||!id||!pass){toast('Name, ID ও Password সব দাও।');return}
@@ -2653,8 +2679,9 @@ $('exHasListen').onchange=()=>{
   $('exPassTotal').value=has?90:58;
   $('exPassHint').textContent=has?'(180-এর মধ্যে 90, প্রতি Part-এ কমপক্ষে 19)':'(120-এর 48% = 58, প্রতি Part-এ কমপক্ষে 19)';
 };
-$('exLogoutBtn').onclick=()=>{curExaminer=null;goHome()};
+$('exLogoutBtn').onclick=()=>{curExaminer=null;clearPortalSess();goHome()};
 function openExaminerDash(){
+  savePortalSess({role:'examiner',examiner:curExaminer});
   hideAllViews();$('examinerDash').classList.remove('hide');
   $('exDashTitle').textContent=curExaminer.name+' — Dashboard';
   loadExaminerHistory();
@@ -2688,7 +2715,12 @@ async function loadExaminerHistory(){
   const snap=await db().ref('rooms').orderByChild('examinerId').equalTo(curExaminer.id).once('value');
   const rms=snap.val()||{};
   renderExaminerRanking(rms);
-  const list=Object.entries(rms).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  const flt=$('exHistFilter')?$('exHistFilter').value:'all';
+  const list=Object.entries(rms).filter(([,r])=>{
+    if(flt==='live')return r.status!=='ended';
+    if(flt==='ended')return r.status==='ended';
+    return true;
+  }).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
   $('exHistoryList').innerHTML=list.length?list.map(([rid,r])=>{
     const sc=r.students?Object.keys(r.students).length:0;
     return `<div class="hist-item">
@@ -2699,9 +2731,10 @@ async function loadExaminerHistory(){
       <div class="hist-acts">
         <button type="button" class="btn sec ex-open-rm" data-id="${esc(rid)}">Control</button>
         <button type="button" class="btn sec ex-sum-rm" data-id="${esc(rid)}">Summary</button>
+        <button type="button" class="btn sec ex-del-rm" data-id="${esc(rid)}" style="color:var(--bad)" title="Delete">✕</button>
       </div>
     </div>`;
-  }).join(''):'<div class="mu">এখনো কোনো Live Exam নেওয়া হয়নি।</div>';
+  }).join(''):'<div class="mu">কোনো Exam পাওয়া যায়নি।</div>';
   $('exHistoryList').querySelectorAll('.ex-open-rm').forEach(b=>b.onclick=()=>{
     lcReturnView='examinerDash';
     openLiveControl(b.dataset.id);
@@ -2711,7 +2744,13 @@ async function loadExaminerHistory(){
     openLiveControl(b.dataset.id);
     setTimeout(()=>$('lcSumBody')?.scrollIntoView({behavior:'smooth'}),250);
   });
+  $('exHistoryList').querySelectorAll('.ex-del-rm').forEach(b=>b.onclick=async()=>{
+    if(!confirm('এই Exam-টি permanently delete করবে?'))return;
+    await db().ref('rooms/'+b.dataset.id).remove();
+    loadExaminerHistory();
+  });
 }
+$('exHistFilter').onchange=loadExaminerHistory;
 let exPdf=null,pendingExDraft=null;
 async function detectExPdf(){
   const st=$('exDetect');st.textContent='PDF scan হচ্ছে…';
@@ -2827,10 +2866,14 @@ $('ecGoBtn').onclick=async()=>{
 };
 
 /* Live Examiner Control Room */
+let lcYtTimer=null;
 function openLiveControl(rid){
   lcRoomId=rid;
+  if(curAdmin)savePortalSess({role:'admin',lcRoomId:rid});
+  else if(curExaminer)savePortalSess({role:'examiner',examiner:curExaminer,lcRoomId:rid});
   hideAllViews();$('liveControl').classList.remove('hide');
   if(lcRoomRef)lcRoomRef.off();
+  if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
   if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
   let ytMounted=false;
   lcRoomRef=db().ref('rooms/'+rid);
@@ -2859,7 +2902,10 @@ function openLiveControl(rid){
           $('lcYtBox').innerHTML='<div id="lcYtTarget"></div>';
           const pv={playsinline:1,rel:0,modestbranding:1};
           if(location.protocol.startsWith('http'))pv.origin=location.origin;
-          lcYtPlayer=new YT.Player('lcYtTarget',{width:'100%',height:'100%',videoId:r.ytId,playerVars:pv});
+          lcYtPlayer=new YT.Player('lcYtTarget',{width:'100%',height:'100%',videoId:r.ytId,playerVars:pv,events:{
+            onStateChange:e=>{if(e.data===1||e.data===2)pushYtSync(e.data===1,null,true)}
+          }});
+          lcYtTimer=setInterval(()=>{try{if(lcYtPlayer&&lcYtPlayer.getPlayerState&&lcYtPlayer.getPlayerState()===1)pushYtSync(true)}catch(e){}},5000);
         }).catch(()=>{});
       }
     }
@@ -2965,6 +3011,7 @@ $('lcLinkLockBtn').onclick=()=>{
 };
 $('lcBackBtn').onclick=()=>{
   if(lcRoomRef){lcRoomRef.off();lcRoomRef=null}
+  if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
   if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
   if(lcReturnView==='adminDash')openAdminDash();else openExaminerDash();
 };
@@ -3003,15 +3050,25 @@ document.querySelectorAll('.lc-gansded').forEach(b=>b.onclick=async()=>{
   toast(`সবার থেকে ${d}টি Answer (lowest mark) deduct হয়েছে!`);
 });
 $('lcStartListenBtn').onclick=()=>db().ref('rooms/'+lcRoomId+'/listenStarted').set(true);
-function pushYtSync(playing,rateOverride){
+function pushYtSync(playing,rateOverride,force){
   if(!lcYtPlayer||typeof lcYtPlayer.getCurrentTime!=='function')return;
   const rate=rateOverride||(lcYtPlayer.getPlaybackRate?lcYtPlayer.getPlaybackRate():1)||1;
-  db().ref('rooms/'+lcRoomId+'/ytSync').set({playing,time:lcYtPlayer.getCurrentTime()||0,rate,ts:Date.now()});
+  db().ref('rooms/'+lcRoomId+'/ytSync').set({playing,time:lcYtPlayer.getCurrentTime()||0,rate,force:!!force,ts:Date.now()});
 }
-$('lcYtPlayBtn').onclick=()=>{try{lcYtPlayer.playVideo();pushYtSync(true)}catch(e){}};
-$('lcYtPauseBtn').onclick=()=>{try{lcYtPlayer.pauseVideo();pushYtSync(false)}catch(e){}};
-$('lcYtBack10').onclick=()=>{try{lcYtPlayer.seekTo(Math.max(0,(lcYtPlayer.getCurrentTime()||0)-10),true);pushYtSync(lcYtPlayer.getPlayerState()===1)}catch(e){}};
-$('lcYtFwd10').onclick=()=>{try{lcYtPlayer.seekTo((lcYtPlayer.getCurrentTime()||0)+10,true);pushYtSync(lcYtPlayer.getPlayerState()===1)}catch(e){}};
+function seekLcYt(sec){
+  try{
+    const t=Math.max(0,(lcYtPlayer.getCurrentTime()||0)+sec);
+    lcYtPlayer.seekTo(t,true);
+    pushYtSync(lcYtPlayer.getPlayerState()===1,null,true);
+  }catch(e){}
+}
+$('lcYtPlayBtn').onclick=()=>{try{lcYtPlayer.playVideo();pushYtSync(true,null,true)}catch(e){}};
+$('lcYtPauseBtn').onclick=()=>{try{lcYtPlayer.pauseVideo();pushYtSync(false,null,true)}catch(e){}};
+$('lcYtBack60').onclick=()=>seekLcYt(-60);
+$('lcYtBack10').onclick=()=>seekLcYt(-10);
+$('lcYtFwd10').onclick=()=>seekLcYt(10);
+$('lcYtFwd60').onclick=()=>seekLcYt(60);
+$('lcYtFwd120').onclick=()=>seekLcYt(120);
 $('lcYtSpd').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   const r=+b.dataset.r;
   $('lcYtSpd').querySelectorAll('button').forEach(x=>x.classList.toggle('sel',x===b));
@@ -3188,16 +3245,17 @@ $('lcSumPngBtn').onclick=()=>{
   const r=lcRoomData,stus=r.students?Object.entries(r.students):[];
   const disp=buildStuDisp(stus.map(([,s])=>s));
   const rows=stus.map(([,s])=>({...calcStuSummary(r,s),name:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
-  const W=980,pad=28,rowH=34,headH=110,H=headH+Math.max(1,rows.length)*rowH+pad+16;
+  const W=1080,pad=28,rowH=34,headH=110,H=headH+Math.max(1,rows.length)*rowH+pad+16;
   const dpr=2,c=document.createElement('canvas');c.width=W*dpr;c.height=H*dpr;
   const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
   ctx.fillStyle='#f4f5f7';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#18181b';ctx.font='bold 22px system-ui,sans-serif';
   ctx.fillText((r.examName||'Live Exam')+' — Result Summary',pad,38);
   ctx.fillStyle='#6b7280';ctx.font='14px system-ui,sans-serif';
-  const passInfo=rows.length?`Pass: ${rows[0].passTot}/${rows[0].maxTot} (Min 19/part)`:'';
+  const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
+  const passInfo=rows.length?`PASS: ${passCnt} · FAIL: ${failCnt} · Pass Mark: ${rows[0].passTot}/${rows[0].maxTot}`:'';
   ctx.fillText(`Examiner: ${r.examinerName||'Sensei'}  ·  ${r.dateStr||''}  ·  ${passInfo}`,pad,62);
-  const cols=r.hasListen?[pad,245,405,565,710,875]:[pad,280,480,680,860];
+  const cols=r.hasListen?[pad,240,395,550,695,840]:[pad,275,470,665,830];
   ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
   ctx.fillText('Student Name',cols[0]+8,96);
   ctx.fillText('Part 1 (Time)',cols[1],96);
