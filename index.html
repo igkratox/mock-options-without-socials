@@ -3070,7 +3070,7 @@ function scorePartFromMarks(markStr,qCount,ptsArr){
       raw+=(ptsArr&&ptsArr[q]!==undefined)?ptsArr[q]:(60/Math.max(1,qCount));
     }
   }
-  const scaled=ok===qCount?60:Math.min(60,Math.round(raw));
+  const scaled=ok===qCount?60:Math.min(60,Math.round(raw*10)/10);
   return{ok,scaled};
 }
 function calcStuSummary(r,s){
@@ -3081,9 +3081,9 @@ function calcStuSummary(r,s){
   const s1=p1Res.scaled,s2=p2Res.scaled,s3=p3Res.scaled;
   const maxTot=r.hasListen?180:120;
   const passTot=r.passTotal||(r.hasListen?90:58);
-  const rawTot=s1+s2+s3;
+  const rawTot=Math.round((s1+s2+s3)*10)/10;
   const allPts=qPts.flat().filter(v=>typeof v==='number'&&v>0);
-  const minQPt=allPts.length?Math.min(...allPts):Math.round((60/Math.max(1,r.p1q,r.p2q))*10)/10;
+  const minQPt=allPts.length?Math.round(Math.min(...allPts)*10)/10:Math.round((60/Math.max(1,r.p1q,r.p2q))*10)/10;
   const markDed=+(s.deduct||0),ansDed=+(s.ansDeduct||0);
   const ansDedMarks=Math.round(ansDed*minQPt*10)/10;
   const ded=Math.round((markDed+ansDedMarks)*10)/10;
