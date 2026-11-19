@@ -494,8 +494,11 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div id="adminStuAccList" class="mu">Loading…</div>
   </div>
   <div class="card">
-    <h3>All Teachers' Exams</h3>
-    <div id="adminExamsList" class="mu">Loading…</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <h3 style="margin:0">All Teachers' Exams</h3>
+      <button type="button" class="btn sec" id="admClean30Btn" style="padding:6px 10px;font-size:12px;color:var(--bad)">Clear >30 Days</button>
+    </div>
+    <div id="adminExamsList" class="mu" style="margin-top:6px">Loading…</div>
   </div>
   <div class="card">
     <h3>Change Admin Credentials</h3>
@@ -2558,6 +2561,18 @@ $('saveAdmCredBtn').onclick=async()=>{
   $('chgAdmId').value='';$('chgAdmPass').value='';
   toast('Admin login update হয়েছে!');
 };
+$('admClean30Btn').onclick=async()=>{
+  if(!confirm('৩০ দিনের বেশি পুরনো সব Live Exam data Firebase থেকে delete করবে?'))return;
+  const cutoff=Date.now()-30*24*60*60*1000;
+  const snap=await db().ref('rooms').once('value');
+  const rms=snap.val()||{},upd={};
+  let cnt=0;
+  Object.entries(rms).forEach(([rid,r])=>{if((r.createdAt||0)<cutoff){upd['rooms/'+rid]=null;cnt++}});
+  if(!cnt){toast('৩০ দিনের পুরনো কোনো exam পাওয়া যায়নি।');return}
+  await db().ref().update(upd);
+  toast(`${cnt}টি পুরনো exam delete হয়েছে!`);
+  loadAdminData();
+};
 async function loadAdminData(){
   const [exSnap,rmSnap]=await Promise.all([db().ref('examiners').once('value'),db().ref('rooms').once('value')]);
   const exs=exSnap.val()||{},rms=rmSnap.val()||{};
@@ -2950,7 +2965,7 @@ $('lcCopyLinkBtn').onclick=async()=>{
   catch(e){prompt('Student Link:',url)}
 };
 $('lcEndBtn').onclick=()=>{
-  if(confirm('Exam বন্ধ করে দেবে? আর কেউ নতুন করে join করতে পারবে না।'))db().ref('rooms/'+lcRoomId+'/status').set('ended');
+  if(confirm('Exam বন্ধ করে দেবে? (PDF pages-ও Firebase থেকে delete হয়ে যাবে, result থাকবে)'))db().ref('rooms/'+lcRoomId).update({status:'ended',pdfPages:null});
 };
 document.querySelectorAll('.lc-gtime').forEach(b=>b.onclick=()=>{
   db().ref('rooms/'+lcRoomId).update({globalDeltaSec:+b.dataset.d,globalDeltaTs:Date.now()});
@@ -3059,6 +3074,7 @@ $('lcPublishBtn').onclick=async()=>{
   upd[`rooms/${lcRoomId}/qStats`]=qStats;
   upd[`rooms/${lcRoomId}/chors`]=chors;
   upd[`rooms/${lcRoomId}/published`]=true;
+  upd[`rooms/${lcRoomId}/pdfPages`]=null;
   await db().ref().update(upd);
   toast('Weighted Results সবার কাছে publish হয়েছে!');
 };
