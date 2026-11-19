@@ -178,6 +178,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 .tabs{display:flex;gap:8px;margin-bottom:12px}
 .tabs button{flex:1;padding:9px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--mu);font-weight:700}
 .tabs button.sel{background:var(--ac);border-color:var(--ac);color:var(--acx)}
+#exam.no-copy .qpane,#exam.no-copy #pages,#exam.no-copy #pages img,#exam.no-copy #pages canvas,#exam.no-copy #driveWrap{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#exam.no-copy #pages img,#exam.no-copy #pages canvas{pointer-events:none;-webkit-user-drag:none}
+.wm-ov{position:fixed;inset:52px 0 90px 0;pointer-events:none;z-index:4;overflow:hidden;opacity:.13;display:grid;grid-template-columns:repeat(3,1fr);gap:28px;align-content:space-around;justify-items:center}
+.wm-ov span{transform:rotate(-28deg);font-size:14px;font-weight:800;color:var(--tx);white-space:nowrap}
 </style>
 </head>
 <body>
@@ -342,7 +346,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div class="yt-top hide" id="ytTopWrap"></div>
   <div id="stuNoticeBanner" class="hide" style="padding:7px 12px;background:#fef3c7;color:#92400e;font-size:13px;font-weight:700;border-bottom:1px solid #f59e0b;text-align:center"></div>
   <div class="main">
-    <div class="qpane" id="qpane"><div id="pages"></div><div id="driveWrap" class="hide" style="width:100%;height:100%"></div></div>
+    <div class="qpane" id="qpane"><div id="pages"></div><div id="driveWrap" class="hide" style="width:100%;height:100%"></div><div id="wmOverlay" class="wm-ov hide"></div></div>
     <div class="zoom"><button id="zIn">+</button><button id="zOut">−</button><button id="zFit" style="font-size:14px">Fit</button></div>
   </div>
   <div class="dock">
@@ -970,6 +974,15 @@ async function startPart(i,auto,resumeSec){
   const usePad=P.listen&&!cfg.driveId&&!P.pages.length;
   const hasYt=!!(P.listen&&cfg.ytId);
   const isLive=!!liveRoomId;
+  const prot=isLive&&!P.listen;
+  $('exam').classList.toggle('no-copy',prot);
+  if(prot){
+    const wmTxt=`${cfg.name}${curStudent?' (@'+curStudent.username+')':''}`;
+    $('wmOverlay').innerHTML=Array.from({length:12},()=>`<span>${esc(wmTxt)}</span>`).join('');
+    $('wmOverlay').classList.remove('hide');
+  }else{
+    $('wmOverlay').classList.add('hide');$('wmOverlay').innerHTML='';
+  }
   $('pauseBtn').classList.toggle('hide',isLive);
   $('flagBtn').classList.toggle('hide',isLive);
   $('listenMode').disabled=isLive;
@@ -2328,6 +2341,24 @@ function startLiveStudent(room){
   beginExam(stuName,room.driveId||'',parts,room.examName||'',room.ytId||'');
   syncStudentLive();
 }
+function isProtectedPart(){return !!(liveRoomId&&!$('exam').classList.contains('hide')&&cfg?.parts?.[part]&&!cfg.parts[part].listen)}
+['contextmenu','copy','cut','dragstart'].forEach(ev=>document.addEventListener(ev,e=>{if(isProtectedPart())e.preventDefault()}));
+document.addEventListener('keydown',e=>{
+  if(!isProtectedPart())return;
+  if((e.ctrlKey||e.metaKey)&&['c','s','p','u','a'].includes(e.key.toLowerCase()))e.preventDefault();
+  if(e.key==='PrintScreen'){
+    $('qpane').style.filter='blur(14px)';
+    setTimeout(()=>{$('qpane').style.filter=''},1500);
+    db().ref(`rooms/${liveRoomId}/students/${liveStuId}/ssAttempts`).transaction(v=>(v||0)+1);
+  }
+});
+document.addEventListener('keyup',e=>{
+  if(isProtectedPart()&&e.key==='PrintScreen'){
+    $('qpane').style.filter='blur(14px)';
+    setTimeout(()=>{$('qpane').style.filter=''},1500);
+    db().ref(`rooms/${liveRoomId}/students/${liveStuId}/ssAttempts`).transaction(v=>(v||0)+1);
+  }
+});
 let lastStuResumeTs=0,lastNoticeTs=0,lastTabSwitchAt=0;
 function recordTabSwitch(){
   if(!liveRoomId||!liveStuId||$('exam').classList.contains('hide'))return;
@@ -2917,9 +2948,9 @@ function openLiveControl(rid){
       if(s.status==='waiting_listen'&&!s.kicked)waitCnt++;
       const stTxt=s.kicked?'🚫 Kicked':s.locked?'🔒 Locked':s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
-      const ded=+(s.deduct||0),aded=+(s.ansDeduct||0),tsw=+(s.tabSwitches||0);
+      const ded=+(s.deduct||0),aded=+(s.ansDeduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0);
       return `<tr>
-        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${aded?`<div class="mu" style="color:var(--bad);font-size:11px">Ans Deduct: −${aded} Q</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}</td>
+        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${aded?`<div class="mu" style="color:var(--bad);font-size:11px">Ans Deduct: −${aded} Q</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(s.rem||0)}</td>
@@ -3192,8 +3223,9 @@ function renderLiveSummary(r,stus){
   const disp=buildStuDisp(stus.map(([,s])=>s));
   const chors=r.chors||[];
   const tabChors=stus.filter(([,s])=>(s.tabSwitches||0)>0).map(([,s])=>`<div style="padding:3px 0;color:#d97706">⚠ <b>${esc(disp(s))}</b>: ${s.tabSwitches}x Tab/App switch করেছে</div>`);
-  $('lcChorCard').classList.toggle('hide',!chors.length&&!tabChors.length);
-  $('lcChorBody').innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('')+tabChors.join('');
+  const ssChors=stus.filter(([,s])=>(s.ssAttempts||0)>0).map(([,s])=>`<div style="padding:3px 0;color:var(--bad)">📸 <b>${esc(disp(s))}</b>: ${s.ssAttempts}x Screenshot চেষ্টা করেছে</div>`);
+  $('lcChorCard').classList.toggle('hide',!chors.length&&!tabChors.length&&!ssChors.length);
+  $('lcChorBody').innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('')+tabChors.join('')+ssChors.join('');
   if(Array.isArray(r.qStats)&&r.qStats.length){
     $('lcQStatsCard').classList.remove('hide');
     const labels=['Part 1','Part 2','Listening'];
