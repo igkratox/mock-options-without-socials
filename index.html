@@ -2784,9 +2784,17 @@ function renderExaminerRanking(rms){
     }).join('')}</tbody>
   </table>`:'<div class="mu">Result publish হলে এখানে Student Ranking দেখাবে।</div>';
 }
+const BATCH_TTL_MS=24*60*60*1000;
 async function loadExaminerHistory(){
   const snap=await db().ref('rooms').orderByChild('examinerId').equalTo(curExaminer.id).once('value');
   const rms=snap.val()||{};
+  const now=Date.now();
+  Object.entries(rms).forEach(([rid,r])=>{
+    if(r.pdfPages&&(now-(r.createdAt||0)>BATCH_TTL_MS)){
+      db().ref('rooms/'+rid+'/pdfPages').remove();
+      delete r.pdfPages;
+    }
+  });
   renderExaminerRanking(rms);
   const flt=$('exHistFilter')?$('exHistFilter').value:'all';
   const list=Object.entries(rms).filter(([,r])=>{
@@ -2796,18 +2804,45 @@ async function loadExaminerHistory(){
   }).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
   $('exHistoryList').innerHTML=list.length?list.map(([rid,r])=>{
     const sc=r.students?Object.keys(r.students).length:0;
+    const canCopy=!r.onlyListen&&(now-(r.createdAt||0)<=BATCH_TTL_MS)&&(r.driveId||r.pdfPages);
     return `<div class="hist-item">
       <div class="hist-info">
         <div class="hist-title">${esc(r.examName||'Live Exam')} <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span></div>
         <div class="hist-meta">${esc(r.dateStr||'')} · Students: ${sc}</div>
       </div>
       <div class="hist-acts">
+        ${canCopy?`<button type="button" class="btn sec ex-copy-rm" data-id="${esc(rid)}" style="color:var(--ac);border-color:var(--ac)" title="24 ঘণ্টার মধ্যে একই Exam নতুন Batch-এর জন্য কপি করো">📋 Next Batch</button>`:''}
         <button type="button" class="btn sec ex-open-rm" data-id="${esc(rid)}">Control</button>
         <button type="button" class="btn sec ex-sum-rm" data-id="${esc(rid)}">Summary</button>
         <button type="button" class="btn sec ex-del-rm" data-id="${esc(rid)}" style="color:var(--bad)" title="Delete">✕</button>
       </div>
     </div>`;
   }).join(''):'<div class="mu">কোনো Exam পাওয়া যায়নি।</div>';
+  $('exHistoryList').querySelectorAll('.ex-copy-rm').forEach(b=>b.onclick=async()=>{
+    const srcId=b.dataset.id,src=rms[srcId];if(!src)return;
+    const gid=src.batchGroupId||srcId;
+    const siblings=Object.entries(rms).filter(([id,x])=>(x.batchGroupId||id)===gid);
+    const nextNum=Math.max(1,...siblings.map(([,x])=>x.batchNum||1))+1;
+    const base=src.baseExamName||(src.examName||'Live Exam').replace(/\s*\(Batch\s*\d+\)$/i,'').trim();
+    if(!confirm(`"${base} (Batch ${nextNum})" তৈরি করবে?\n(একই PDF/Drive, Listening, Answer Key ও Combined Grading চালু থাকবে)`))return;
+    const newRid='rm_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
+    const newRoom={
+      examName:`${base} (Batch ${nextNum})`,baseExamName:base,batchGroupId:gid,batchNum:nextNum,
+      examinerId:curExaminer.id,examinerName:curExaminer.name,
+      dateStr:new Date().toLocaleString(),createdAt:Date.now(),status:'live',
+      driveId:src.driveId||'',onePart:!!src.onePart,onlyListen:false,oneTotal:src.oneTotal||100,
+      p1q:src.p1q,p1m:src.p1m,p1pages:src.p1pages||'',p2q:src.p2q||0,p2m:src.p2m||0,p2pages:src.p2pages||'',
+      hasListen:!!src.hasListen,lm:src.lm||30,lMode:src.lMode||'instant',p3pages:src.p3pages||'',ytId:src.ytId||'',
+      passTotal:src.passTotal||58,listenStarted:false,published:false,linkLocked:false
+    };
+    if(src.keys)newRoom.keys=src.keys;
+    if(src.pdfPages)newRoom.pdfPages=src.pdfPages;
+    if(!src.batchGroupId)await db().ref(`rooms/${srcId}/batchGroupId`).set(gid);
+    await db().ref('rooms/'+newRid).set(newRoom);
+    toast(`Batch ${nextNum} তৈরি হয়েছে!`);
+    lcReturnView='examinerDash';
+    openLiveControl(newRid);
+  });
   $('exHistoryList').querySelectorAll('.ex-open-rm').forEach(b=>b.onclick=()=>{
     lcReturnView='examinerDash';
     openLiveControl(b.dataset.id);
@@ -2979,6 +3014,7 @@ $('ecGoBtn').onclick=async()=>{
     hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,p3pages,ytId:pendingExDraft.ytId,
     passTotal,listenStarted:onlyListen,published:false
   };
+  if(!onlyListen){roomObj.batchGroupId=rid;roomObj.batchNum=1;roomObj.baseExamName=pendingExDraft.examName}
   if(pdfPages)roomObj.pdfPages=pdfPages;
   await db().ref('rooms/'+rid).set(roomObj);
   lcReturnView='examinerDash';
@@ -2986,9 +3022,18 @@ $('ecGoBtn').onclick=async()=>{
 };
 
 /* Live Examiner Control Room */
-let lcYtTimer=null;
+let lcYtTimer=null,lcBatchRooms=[];
+async function refreshBatchRooms(r,rid){
+  if(!r||r.onlyListen||!r.examinerId){lcBatchRooms=[];return}
+  const gid=r.batchGroupId||rid;
+  try{
+    const snap=await db().ref('rooms').orderByChild('examinerId').equalTo(r.examinerId).once('value');
+    const all=snap.val()||{};
+    lcBatchRooms=Object.entries(all).filter(([id,x])=>(x.batchGroupId||id)===gid).sort((a,b)=>(a[1].batchNum||1)-(b[1].batchNum||1));
+  }catch(e){lcBatchRooms=[]}
+}
 function openLiveControl(rid){
-  lcRoomId=rid;
+  lcRoomId=rid;lcBatchRooms=[];
   if(curAdmin)savePortalSess({role:'admin',lcRoomId:rid});
   else if(curExaminer)savePortalSess({role:'examiner',examiner:curExaminer,lcRoomId:rid});
   hideAllViews();$('liveControl').classList.remove('hide');
@@ -2997,9 +3042,10 @@ function openLiveControl(rid){
   if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
   let ytMounted=false;
   lcRoomRef=db().ref('rooms/'+rid);
-  lcRoomRef.on('value',snap=>{
+  lcRoomRef.on('value',async snap=>{
     const r=snap.val();if(!r)return;
     lcRoomData=r;
+    await refreshBatchRooms(r,rid);
     $('lcTitle').textContent=r.examName||'Live Control';
     $('lcSub').innerHTML=`Teacher: <b>${esc(r.examinerName)}</b> · ${esc(r.dateStr||'')} · <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span>`+(r.linkLocked?' <span class="pill end">LINK LOCKED</span>':'');
     $('lcEndBtn').disabled=r.status==='ended';
@@ -3244,41 +3290,52 @@ $('lcPublishBtn').onclick=async()=>{
   const r=lcRoomData,k1=parseKeyTokens($('lcKey1').value),k2=parseKeyTokens($('lcKey2').value),k3=parseKeyTokens($('lcKey3').value);
   const hasL=!!(r.hasListen||r.onlyListen);
   if(hasL&&r.lMode==='later'&&!k3.length){toast('Answer Later mode-এ Listening-এর Answer Key দাও।');return}
-  await db().ref('rooms/'+lcRoomId+'/keys').set({k1:$('lcKey1').value.trim(),k2:$('lcKey2').value.trim(),k3:$('lcKey3').value.trim()});
-  const stus=r.students?Object.entries(r.students):[];
+  const keysObj={k1:$('lcKey1').value.trim(),k2:$('lcKey2').value.trim(),k3:$('lcKey3').value.trim()};
   const upd={};
   const chors=[],mList0=[],mList1=[],mListL=[];
   const lIdx=r.onlyListen?0:(r.onePart?1:2);
-  stus.forEach(([sid,s])=>{
-    const aArr=s.ans||[],mArr=s.marks||[];
-    const newMarks=[...mArr];
-    if(!r.onlyListen&&k1.length){
-      const A1=unpackAns(aArr[0]||'',r.p1q),M1=[];
-      for(let q=1;q<=Math.min(r.p1q,k1.length);q++)M1[q]=A1[q]===k1[q-1]?'ok':'bad';
-      newMarks[0]=packArr(M1,r.p1q,'.');
-    }
-    if(!r.onlyListen&&!r.onePart&&k2.length){
-      const A2=unpackAns(aArr[1]||'',r.p2q),M2=[];
-      for(let q=1;q<=Math.min(r.p2q,k2.length);q++)M2[q]=A2[q]===k2[q-1]?'ok':'bad';
-      newMarks[1]=packArr(M2,r.p2q,'.');
-    }
-    if(hasL&&k3.length){
-      const AL=unpackAns(aArr[lIdx]||'',LISTEN_TOTAL),ML=unpackMarks(mArr[lIdx]||'',LISTEN_TOTAL);
-      if(r.lMode==='instant'){
-        const caught=[];
-        for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++){
-          if(ML[q]==='ok'&&AL[q]!==k3[q-1])caught.push(q);
-        }
-        if(caught.length)chors.push({name:s.name,qs:caught});
-      }else{
-        for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++)ML[q]=AL[q]===k3[q-1]?'ok':'bad';
-        newMarks[lIdx]=packArr(ML,LISTEN_TOTAL,'.');
+  let targetRooms=[[lcRoomId,r]];
+  if(!r.onlyListen&&r.examinerId){
+    await refreshBatchRooms(r,lcRoomId);
+    if(lcBatchRooms.length)targetRooms=lcBatchRooms;
+  }
+  const gid=r.batchGroupId||lcRoomId;
+  targetRooms.forEach(([rmId,rm])=>{
+    const isCur=rmId===lcRoomId;
+    const stus=rm.students?Object.entries(rm.students):[];
+    stus.forEach(([sid,s])=>{
+      const aArr=s.ans||[],mArr=s.marks||[];
+      const newMarks=[...mArr];
+      if(!rm.onlyListen&&k1.length){
+        const A1=unpackAns(aArr[0]||'',rm.p1q),M1=[];
+        for(let q=1;q<=Math.min(rm.p1q,k1.length);q++)M1[q]=A1[q]===k1[q-1]?'ok':'bad';
+        newMarks[0]=packArr(M1,rm.p1q,'.');
       }
-    }
-    if(!r.onlyListen)mList0.push(newMarks[0]||'');
-    if(!r.onlyListen&&!r.onePart)mList1.push(newMarks[1]||'');
-    if(hasL)mListL.push(newMarks[lIdx]||'');
-    upd[`rooms/${lcRoomId}/students/${sid}/marks`]=newMarks;
+      if(!rm.onlyListen&&!rm.onePart&&k2.length){
+        const A2=unpackAns(aArr[1]||'',rm.p2q),M2=[];
+        for(let q=1;q<=Math.min(rm.p2q,k2.length);q++)M2[q]=A2[q]===k2[q-1]?'ok':'bad';
+        newMarks[1]=packArr(M2,rm.p2q,'.');
+      }
+      if(hasL&&k3.length){
+        const AL=unpackAns(aArr[lIdx]||'',LISTEN_TOTAL),ML=unpackMarks(mArr[lIdx]||'',LISTEN_TOTAL);
+        if(rm.lMode==='instant'){
+          if(isCur){
+            const caught=[];
+            for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++){
+              if(ML[q]==='ok'&&AL[q]!==k3[q-1])caught.push(q);
+            }
+            if(caught.length)chors.push({name:s.name,qs:caught});
+          }
+        }else{
+          for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++)ML[q]=AL[q]===k3[q-1]?'ok':'bad';
+          newMarks[lIdx]=packArr(ML,LISTEN_TOTAL,'.');
+        }
+      }
+      if(!rm.onlyListen)mList0.push(newMarks[0]||'');
+      if(!rm.onlyListen&&!rm.onePart)mList1.push(newMarks[1]||'');
+      if(hasL)mListL.push(newMarks[lIdx]||'');
+      upd[`rooms/${rmId}/students/${sid}/marks`]=newMarks;
+    });
   });
   let qPts=[],qStats=[];
   if(r.onlyListen){
@@ -3297,13 +3354,17 @@ $('lcPublishBtn').onclick=async()=>{
       qPts.push(wL.pts);qStats.push(wL.stats);
     }
   }
-  upd[`rooms/${lcRoomId}/qPts`]=qPts;
-  upd[`rooms/${lcRoomId}/qStats`]=qStats;
+  targetRooms.forEach(([rmId])=>{
+    upd[`rooms/${rmId}/keys`]=keysObj;
+    upd[`rooms/${rmId}/qPts`]=qPts;
+    upd[`rooms/${rmId}/qStats`]=qStats;
+    upd[`rooms/${rmId}/published`]=true;
+    if(!r.onlyListen)upd[`rooms/${rmId}/batchGroupId`]=gid;
+  });
   upd[`rooms/${lcRoomId}/chors`]=chors;
-  upd[`rooms/${lcRoomId}/published`]=true;
-  upd[`rooms/${lcRoomId}/pdfPages`]=null;
+  if(r.onlyListen)upd[`rooms/${lcRoomId}/pdfPages`]=null;
   await db().ref().update(upd);
-  toast('Weighted Results সবার কাছে publish হয়েছে!');
+  toast(targetRooms.length>1?`সব Batch (${targetRooms.length}টি) মিলিয়ে Combined Weighted Results আপডেট হয়েছে!`:'Weighted Results সবার কাছে publish হয়েছে!');
 };
 function scorePartFromMarks(markStr,qCount,ptsArr,partTotal){
   const targetTot=partTotal||60;
@@ -3389,40 +3450,75 @@ function renderLiveSummary(r,stus){
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
   const thCols=onlyL?`<th>Listening (Time)</th>`:(one?`<th>Part 1 (Time)</th>${hasL?'<th>Listening</th>':''}`:`<th>Part 1</th><th>Part 2</th>${hasL?'<th>Listening</th>':''}`);
+  const renderRowsHtml=rowList=>rowList.map(x=>{
+    const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
+    const tdCols=onlyL
+      ?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL} · ${fmt(x.t3)})</span></td>`
+      :(one
+        ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`
+        :`<td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td><td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`);
+    return `<tr>
+      <td><b>${esc(x.dName)}</b></td>
+      ${tdCols}
+      <td>${totStr}</td>
+      <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
+      <td>${x.rmId===lcRoomId?`<button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button>`:`<span class="mu">B${x.bNum||1}</span>`}</td>
+    </tr>`;
+  }).join('');
+  let combHtml='';
+  if(!onlyL&&lcBatchRooms.length>1){
+    const combStus=[];
+    lcBatchRooms.forEach(([rmId,rm])=>{
+      const bNum=rm.batchNum||1;
+      Object.entries(rm.students||{}).forEach(([sid,s])=>combStus.push({rmId,rm,bNum,sid,s}));
+    });
+    if(combStus.length){
+      const cDisp=buildStuDisp(combStus.map(x=>x.s));
+      const cRows=combStus.map(({rmId,rm,bNum,sid,s})=>({
+        rmId,bNum,sid,...calcStuSummary(rm,s),dName:`[B${bNum}] ${cDisp(s)}`
+      })).sort((a,b)=>b.finalTot-a.finalTot);
+      const cPass=cRows.filter(x=>x.pass).length,cFail=cRows.length-cPass;
+      combHtml=`<div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--bd)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+          <b>Combined All-Batches Summary (${lcBatchRooms.length} Batches)</b>
+          <button type="button" class="btn sec" id="lcCombPngBtn">Download Combined PNG</button>
+        </div>
+        <div class="mu" style="margin-bottom:6px">Total: <b>${cRows.length}</b> · <span style="color:var(--ok)">PASS: <b>${cPass}</b></span> · <span style="color:var(--bad)">FAIL: <b>${cFail}</b></span></div>
+        <table class="tbl">
+          <thead><tr><th>Name</th>${thCols}<th>Total (Pass ${cRows[0].passTot})</th><th>Status</th><th>Batch</th></tr></thead>
+          <tbody>${renderRowsHtml(cRows)}</tbody>
+        </table>
+      </div>`;
+    }
+  }
   $('lcSumBody').innerHTML=`<div class="mu" style="margin-bottom:6px">Total: <b>${rows.length}</b> · <span style="color:var(--ok)">PASS: <b>${passCnt}</b></span> · <span style="color:var(--bad)">FAIL: <b>${failCnt}</b></span></div>
   <table class="tbl">
     <thead><tr><th>Name</th>${thCols}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th><th>Action</th></tr></thead>
-    <tbody>${rows.map(x=>{
-      const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
-      const tdCols=onlyL
-        ?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL} · ${fmt(x.t3)})</span></td>`
-        :(one
-          ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`
-          :`<td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td><td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`);
-      return `<tr>
-        <td><b>${esc(x.dName)}</b></td>
-        ${tdCols}
-        <td>${totStr}</td>
-        <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
-        <td><button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button></td>
-      </tr>`;
-    }).join('')}</tbody>
-  </table>`;
+    <tbody>${renderRowsHtml(rows.map(x=>({...x,rmId:lcRoomId})))}</tbody>
+  </table>`+combHtml;
   $('lcSumBody').querySelectorAll('.lc-fail-him').forEach(b=>b.onclick=()=>{
     db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/senseiFailed`).set(b.dataset.f!=='1');
   });
+  if($('lcCombPngBtn')){
+    $('lcCombPngBtn').onclick=()=>{
+      const combStus=[];
+      lcBatchRooms.forEach(([,rm])=>{
+        const bNum=rm.batchNum||1;
+        Object.values(rm.students||{}).forEach(s=>combStus.push({rm,bNum,s}));
+      });
+      const cDisp=buildStuDisp(combStus.map(x=>x.s));
+      const cRows=combStus.map(({rm,bNum,s})=>({...calcStuSummary(rm,s),name:`[B${bNum}] ${cDisp(s)}`})).sort((a,b)=>b.finalTot-a.finalTot);
+      exportSummaryPng(r,cRows,' — Combined Result Summary','_combined');
+    };
+  }
 }
-$('lcSumPngBtn').onclick=()=>{
-  if(!lcRoomData)return;
-  const r=lcRoomData,stus=r.students?Object.entries(r.students):[];
-  const disp=buildStuDisp(stus.map(([,s])=>s));
-  const rows=stus.map(([,s])=>({...calcStuSummary(r,s),name:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
+function exportSummaryPng(r,rows,titleSuffix,fileSuffix){
   const W=1080,pad=28,rowH=34,headH=110,H=headH+Math.max(1,rows.length)*rowH+pad+16;
   const dpr=2,c=document.createElement('canvas');c.width=W*dpr;c.height=H*dpr;
   const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
   ctx.fillStyle='#f4f5f7';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#18181b';ctx.font='bold 22px system-ui,sans-serif';
-  ctx.fillText((r.examName||'Live Exam')+' — Result Summary',pad,38);
+  ctx.fillText((r.baseExamName||r.examName||'Live Exam')+(titleSuffix||' — Result Summary'),pad,38);
   ctx.fillStyle='#6b7280';ctx.font='14px system-ui,sans-serif';
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
   const passInfo=rows.length?`PASS: ${passCnt} · FAIL: ${failCnt} · Pass Mark: ${rows[0].passTot}/${rows[0].maxTot}`:'';
@@ -3490,9 +3586,16 @@ $('lcSumPngBtn').onclick=()=>{
   });
   c.toBlob(blob=>{
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-    a.download=`summary_${(r.examName||'exam').replace(/[^a-z0-9_-]/gi,'_')}.png`;
+    a.download=`summary_${(r.examName||'exam').replace(/[^a-z0-9_-]/gi,'_')}${fileSuffix||''}.png`;
     a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
   },'image/png');
+}
+$('lcSumPngBtn').onclick=()=>{
+  if(!lcRoomData)return;
+  const r=lcRoomData,stus=r.students?Object.entries(r.students):[];
+  const disp=buildStuDisp(stus.map(([,s])=>s));
+  const rows=stus.map(([,s])=>({...calcStuSummary(r,s),name:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
+  exportSummaryPng(r,rows,' — Result Summary','');
 };
 </script>
 </body>
