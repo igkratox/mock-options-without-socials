@@ -182,7 +182,33 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 </head>
 <body>
 
-<div id="setup" class="wrap">
+<div id="gateView" class="wrap hide" style="padding-top:30px">
+  <div class="card" style="padding:22px">
+    <h1 style="margin:0 0 4px">Mock Exam</h1>
+    <div class="mu">এগিয়ে যেতে Login করো অথবা Guest হিসেবে ব্যবহার করো।</div>
+    <div class="tabs" style="margin-top:14px">
+      <button type="button" id="gateTabLogin" class="sel">Student Login</button>
+      <button type="button" id="gateTabSignup">Create Account</button>
+    </div>
+    <div id="gateSignupFields" class="hide">
+      <label>তোমার নাম (Full Name)</label>
+      <input id="stuRegName" placeholder="e.g. Nur Mohammad">
+    </div>
+    <label>Username</label>
+    <input id="stuAuthUser" placeholder="username (e.g. nur123)">
+    <label>Password</label>
+    <input id="stuAuthPass" type="password" placeholder="Password">
+    <div id="stuAuthErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
+    <div id="stuAuthOk" class="mu" style="color:var(--ok);margin-top:8px"></div>
+    <button type="button" class="btn" id="stuAuthBtn" style="margin-top:14px">Login</button>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button type="button" class="btn sec" id="gateGuestBtn" style="flex:1">Continue as Guest</button>
+      <button type="button" class="btn sec" id="gatePortalBtn" style="flex:1">Examiner / Admin</button>
+    </div>
+  </div>
+</div>
+
+<div id="setup" class="wrap hide">
   <div class="home-hd">
     <div>
       <h1>Mock Exam</h1>
@@ -269,6 +295,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <input type="file" id="importBackupInput" accept="application/json,.json" class="hide">
         <div class="menu-acts">
           <button type="button" class="btn" id="openPortalBtn" style="grid-column:1/-1;margin:0;padding:10px">Examiner / Admin Mode</button>
+          <button type="button" class="btn sec" id="stuLogoutBtn" style="grid-column:1/-1;color:var(--bad)">Switch Account / Logout</button>
           <button type="button" class="btn sec" id="importPngBtn">Upload Report PNG</button>
           <button type="button" class="btn sec" id="pasteLinkBtn">Open Review Link</button>
           <button type="button" class="btn sec" id="themeBtn">Theme: Auto</button>
@@ -327,9 +354,9 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   </div>
   <div id="pauseOverlay" class="pause-ov hide">
     <div class="pause-box">
-      <div style="font-size:32px;line-height:1">⏸</div>
-      <h2 style="margin:8px 0 4px;font-size:20px">Exam Paused</h2>
-      <div class="mu">Question ও Answer লক করা আছে।</div>
+      <div id="pauseIcon" style="font-size:32px;line-height:1">⏸</div>
+      <h2 id="pauseTitle" style="margin:8px 0 4px;font-size:20px">Exam Paused</h2>
+      <div id="pauseSub" class="mu">Question ও Answer লক করা আছে।</div>
       <button type="button" class="btn" id="resumeOverlayBtn" style="margin-top:16px">▶ Resume to Continue</button>
     </div>
   </div>
@@ -457,6 +484,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div id="adminExList" class="mu">Loading…</div>
   </div>
   <div class="card">
+    <h3>Student Accounts (Approve / Control)</h3>
+    <div id="adminStuAccList" class="mu">Loading…</div>
+  </div>
+  <div class="card">
     <h3>All Teachers' Exams</h3>
     <div id="adminExamsList" class="mu">Loading…</div>
   </div>
@@ -512,6 +543,14 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <button type="button" class="btn" id="exCreateBtn">Start Live Exam & Get Link</button>
   </div>
   <div class="card">
+    <h3>Overall Student Ranking (সকল Exam-এর গড়)</h3>
+    <div id="exRankingList" class="mu">Loading…</div>
+  </div>
+  <div class="card">
+    <h3>Student Accounts (Approve / Control)</h3>
+    <div id="exStuAccList" class="mu">Loading…</div>
+  </div>
+  <div class="card">
     <h3>My Exams History</h3>
     <div id="exHistoryList" class="mu">Loading…</div>
   </div>
@@ -541,13 +580,22 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <button type="button" class="btn sec lc-gtime" data-d="300">+5m</button>
       </div>
     </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--bd)">
+      <strong>Global Marks Deduct (সবার নম্বর কাটা)</strong>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn sec lc-gded" data-d="1">−1 Mark</button>
+        <button type="button" class="btn sec lc-gded" data-d="2">−2 Marks</button>
+        <button type="button" class="btn sec lc-gded" data-d="5">−5 Marks</button>
+        <button type="button" class="btn sec lc-gded" data-d="0" style="color:var(--ok)">Reset 0</button>
+      </div>
+    </div>
   </div>
 
   <div class="card">
     <h3>Live Students (<span id="lcStuCount">0</span>)</h3>
     <div style="overflow:auto">
       <table class="tbl" id="lcStuTable">
-        <thead><tr><th>Name</th><th>Status / Part</th><th>Q#</th><th>Time Left</th><th>Adjust Time</th></tr></thead>
+        <thead><tr><th>Name</th><th>Status / Part</th><th>Q#</th><th>Time Left</th><th>Controls (Time · Lock · Deduct)</th></tr></thead>
         <tbody id="lcStuBody"></tbody>
       </table>
     </div>
@@ -1109,13 +1157,17 @@ function playBeep(times){
     }
   }catch(e){}
 }
-function setPaused(state){
-  if(state===paused)return;
+function setPaused(state,byExaminer){
+  if(state===paused&&!byExaminer)return;
   if(state){
+    if(!paused)pausedRem=Math.max(0,(endAt-Date.now())/1000);
     paused=true;
-    pausedRem=Math.max(0,(endAt-Date.now())/1000);
     $('pauseBtn').textContent='▶';$('timer').classList.add('paused');
     $('exam').classList.add('is-paused');$('pauseOverlay').classList.remove('hide');
+    $('pauseIcon').textContent=byExaminer?'🔒':'⏸';
+    $('pauseTitle').textContent=byExaminer?'Exam Locked by Examiner':'Exam Paused';
+    $('pauseSub').textContent=byExaminer?'Examiner তোমার exam সাময়িকভাবে বন্ধ করে দিয়েছেন। On করলে এখান থেকেই আবার শুরু হবে।':'Question ও Answer লক করা আছে।';
+    $('resumeOverlayBtn').classList.toggle('hide',!!byExaminer);
     try{if(ytPlayer&&typeof ytPlayer.pauseVideo==='function')ytPlayer.pauseVideo()}catch(e){}
   }else{
     paused=false;
@@ -1126,8 +1178,8 @@ function setPaused(state){
   }
   saveActiveExam();
 }
-$('pauseBtn').onclick=()=>setPaused(!paused);
-$('resumeOverlayBtn').onclick=()=>setPaused(false);
+$('pauseBtn').onclick=()=>{if(!examinerLocked)setPaused(!paused,false)};
+$('resumeOverlayBtn').onclick=()=>{if(!examinerLocked)setPaused(false,false)};
 $('ytSpdBar').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   const r=+b.dataset.r;
   $('ytSpdBar').querySelectorAll('button').forEach(x=>x.classList.toggle('sel',x===b));
@@ -1428,11 +1480,16 @@ function showReport(keepTime){
     }
     html+='</div>';
   });
-  const hasTot=(totOk+totBad)>0,totPct=hasTot?Math.round(totOk*100/totQ):0;
+  const ded=liveRoomId?(liveDeduct||0):0;
+  const finalOk=Math.max(0,totOk-ded);
+  const hasTot=(totOk+totBad)>0,totPct=hasTot&&totQ?Math.round(finalOk*100/totQ):0;
   html+=`</div><div class="card"><div class="stat"><span>Total answered</span><b>${totAns} / ${totQ}</b></div>`;
-  if(hasTot)html+=`<div class="stat"><span>Total score</span><b><span style="color:var(--ok)">✓ ${totOk}</span> / ${totQ} · <span style="color:var(--bad)">✕ ${totBad}</span> (${totPct}%)</b></div>`;
+  if(hasTot){
+    const scoreStr=ded>0?`<span style="color:var(--ok)">${totOk} − ${ded} = <b>${finalOk}</b></span> / ${totQ} (${totPct}%)`:`<span style="color:var(--ok)">✓ ${totOk}</span> / ${totQ} · <span style="color:var(--bad)">✕ ${totBad}</span> (${totPct}%)`;
+    html+=`<div class="stat"><span>Total score</span><b>${scoreStr}</b></div>`;
+  }
   html+=`<div class="stat"><span>Total time</span><b>${fmt(totTime)}</b></div></div>`;
-  txt+=`\nTotal answered: ${totAns}/${totQ}`+(hasTot?`\nTotal score: ${totOk}/${totQ} (${totPct}%), wrong ${totBad}`:'')+`\nTotal time: ${fmt(totTime)}`;
+  txt+=`\nTotal answered: ${totAns}/${totQ}`+(hasTot?`\nTotal score: ${ded>0?`${totOk}-${ded}=${finalOk}`:totOk}/${totQ} (${totPct}%), wrong ${totBad}`:'')+`\nTotal time: ${fmt(totTime)}`;
   reportText=txt;$('repBody').innerHTML=html;
   window.scrollTo(0,0);
 }
@@ -1557,11 +1614,14 @@ function saveReportImage(){
 
 /* Profile, History, Custom Link & PNG Metadata */
 const PROFILE_KEY='mock_exam_profile_v1';
+const STU_SESS_KEY='mock_exam_stu_v1';
+let curStudent=null;
+function profileKey(){return curStudent&&curStudent.username?(PROFILE_KEY+'_'+curStudent.username):(PROFILE_KEY+'_guest')}
 function loadProfile(){
-  try{return JSON.parse(localStorage.getItem(PROFILE_KEY)||'{}')}catch(e){return{}}
+  try{return JSON.parse(localStorage.getItem(profileKey())||'{}')}catch(e){return{}}
 }
 function saveProfile(p){
-  try{localStorage.setItem(PROFILE_KEY,JSON.stringify(p))}catch(e){}
+  try{localStorage.setItem(profileKey(),JSON.stringify(p))}catch(e){}
 }
 function saveProfileName(n){
   const p=loadProfile();p.name=n;if(!Array.isArray(p.exams))p.exams=[];saveProfile(p);
@@ -1884,18 +1944,6 @@ function checkHashReview(){
     openReview(-1);
   }catch(e){toast('Review link-টি সঠিক নয় বা ভেঙে গেছে।')}
 }
-(()=>{
-  applyTheme(localStorage.getItem(THEME_KEY)||'auto');
-  const p=loadProfile();
-  if(p.name&&!$('name').value)$('name').value=p.name;
-  renderHistory();
-  checkHashReview();
-  checkHashLive();
-  if($('setup').classList.contains('hide')===false&&!location.hash.startsWith('#live='))checkActiveExam();
-  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive()});
-})();
-
-/* ================= LIVE EXAMINER & ADMIN PORTAL (FIREBASE) ================= */
 const FB_CFG={
   apiKey:"AIzaSyAFXEFIvFLSKa0N-2DnrCjEp23WHGw05vo",
   authDomain:"mock-exam-live.firebaseapp.com",
@@ -1913,19 +1961,98 @@ function db(){
   }
   return fbDb;
 }
-let liveRoomId='',liveStuId='',liveRoom=null,liveRoomRef=null,lastGlobalDeltaTs=0,lastStuDeltaTs=0,ytMuted=false,lastYtSyncTs=0;
+let liveRoomId='',liveStuId='',liveRoom=null,liveRoomRef=null,lastGlobalDeltaTs=0,lastStuDeltaTs=0,ytMuted=false,lastYtSyncTs=0,examinerLocked=false,liveDeduct=0;
 let curAdmin=false,curExaminer=null,lcRoomId='',lcRoomRef=null,lcRoomData=null,lcYtPlayer=null,lcReturnView='examinerDash';
+let gateMode='login',pendingLiveRoomId='';
 
 function hideAllViews(){
-  ['setup','exam','report','listenReview','liveWaitView','portalAuth','adminDash','examinerDash','liveControl'].forEach(id=>$(id).classList.add('hide'));
+  ['gateView','setup','exam','report','listenReview','liveWaitView','portalAuth','adminDash','examinerDash','liveControl'].forEach(id=>$(id).classList.add('hide'));
 }
 const origGoHome=goHome;
 goHome=function(){
   if(liveRoomRef){liveRoomRef.off();liveRoomRef=null}
-  liveRoomId='';liveRoom=null;liveStuId='';
+  liveRoomId='';liveRoom=null;liveStuId='';examinerLocked=false;liveDeduct=0;
   hideAllViews();
   origGoHome();
 };
+
+function enterNormalMode(){
+  hideAllViews();
+  $('setup').classList.remove('hide');
+  const p=loadProfile();
+  $('name').value=(curStudent&&curStudent.name)||p.name||'';
+  renderHistory();
+  checkActiveExam();
+  if(pendingLiveRoomId){const rid=pendingLiveRoomId;pendingLiveRoomId='';location.hash='#live='+rid}
+}
+function showGate(){
+  hideAllViews();
+  $('gateView').classList.remove('hide');
+  $('stuAuthErr').textContent='';$('stuAuthOk').textContent='';
+}
+$('gateTabLogin').onclick=()=>{
+  gateMode='login';
+  $('gateTabLogin').classList.add('sel');$('gateTabSignup').classList.remove('sel');
+  $('gateSignupFields').classList.add('hide');$('stuAuthBtn').textContent='Login';
+  $('stuAuthErr').textContent='';$('stuAuthOk').textContent='';
+};
+$('gateTabSignup').onclick=()=>{
+  gateMode='signup';
+  $('gateTabSignup').classList.add('sel');$('gateTabLogin').classList.remove('sel');
+  $('gateSignupFields').classList.remove('hide');$('stuAuthBtn').textContent='Create Account';
+  $('stuAuthErr').textContent='';$('stuAuthOk').textContent='';
+};
+$('gateGuestBtn').onclick=()=>{
+  if(pendingLiveRoomId){$('stuAuthErr').textContent='Live Exam দিতে হলে Approved Student Account দিয়ে Login করতে হবে।';return}
+  curStudent=null;
+  enterNormalMode();
+};
+$('gatePortalBtn').onclick=()=>{hideAllViews();$('portalAuth').classList.remove('hide')};
+$('stuLogoutBtn').onclick=()=>{
+  try{localStorage.removeItem(STU_SESS_KEY)}catch(e){}
+  curStudent=null;closeMenu();showGate();
+};
+$('stuAuthBtn').onclick=async()=>{
+  $('stuAuthErr').textContent='';$('stuAuthOk').textContent='';
+  const u=$('stuAuthUser').value.trim().toLowerCase().replace(/[^a-z0-9_.-]/g,'');
+  const pass=$('stuAuthPass').value;
+  if(!u||!pass){$('stuAuthErr').textContent='Username ও Password দাও।';return}
+  try{
+    if(gateMode==='signup'){
+      const name=$('stuRegName').value.trim();
+      if(!name){$('stuAuthErr').textContent='তোমার পুরো নাম দাও।';return}
+      const ref=db().ref('students/'+u);
+      const snap=await ref.once('value');
+      if(snap.exists()){$('stuAuthErr').textContent='এই Username আগেই নেওয়া হয়েছে, অন্যটা দাও।';return}
+      await ref.set({name,pass,approved:false,createdAt:Date.now()});
+      $('stuAuthOk').textContent='✓ Account তৈরি হয়েছে! Admin বা Examiner approve করলে এই ID দিয়ে Login ও Live Exam দিতে পারবে।';
+      $('stuAuthPass').value='';
+    }else{
+      const snap=await db().ref('students/'+u).once('value');
+      const s=snap.val();
+      if(!s||s.pass!==pass){$('stuAuthErr').textContent='Username বা Password ভুল।';return}
+      if(!s.approved){$('stuAuthErr').textContent='তোমার Account এখনো Admin / Examiner approve করেনি।';return}
+      curStudent={username:u,name:s.name};
+      try{localStorage.setItem(STU_SESS_KEY,JSON.stringify(curStudent))}catch(e){}
+      enterNormalMode();
+    }
+  }catch(e){$('stuAuthErr').textContent='Connection error: '+e.message}
+};
+
+(()=>{
+  applyTheme(localStorage.getItem(THEME_KEY)||'auto');
+  try{const s=JSON.parse(localStorage.getItem(STU_SESS_KEY)||'null');if(s&&s.username)curStudent=s}catch(e){}
+  if(location.hash.startsWith('#r=')){
+    renderHistory();checkHashReview();
+  }else if(location.hash.startsWith('#live=')){
+    checkHashLive();
+  }else if(curStudent){
+    enterNormalMode();
+  }else{
+    showGate();
+  }
+  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive()});
+})();
 
 /* Student Live Sync */
 function syncStudentLive(){
@@ -1935,6 +2062,7 @@ function syncStudentLive(){
   const st=$('liveWaitView').classList.contains('hide')?'active':($('lwStatusPill').dataset.st||'active');
   db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update({
     name:cfg.name,
+    username:curStudent?curStudent.username:'',
     status:st,
     part,
     partLabel:P?P.label:'',
@@ -1980,16 +2108,17 @@ $('ytMuteBtn').onclick=()=>{
 function loadPublishedLiveReport(){
   if(!liveRoom||!liveRoom.students||!liveRoom.students[liveStuId])return;
   const st=liveRoom.students[liveStuId];
+  liveDeduct=+(st.deduct||0);
   if(Array.isArray(st.marks)){
     marks=cfg.parts.map((P,i)=>unpackMarks(st.marks[i]||'',P.q));
   }
   showReport();
 }
 function startLiveStudent(room){
-  const stuName=$('lwNameIn').value.trim();
+  const stuName=(curStudent&&curStudent.name)||$('lwNameIn').value.trim();
   if(!stuName){$('lwErr').textContent='নাম লেখো।';return}
   saveProfileName(stuName);
-  liveStuId='s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
+  liveStuId=curStudent?('u_'+curStudent.username):('s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5));
   const parts=[
     {label:'Part 1',listen:false,pages:[],q:room.p1q,m:room.p1m},
     {label:'Part 2',listen:false,pages:[],q:room.p2q,m:room.p2m}
@@ -1999,14 +2128,31 @@ function startLiveStudent(room){
   }
   $('listenMode').value=room.lMode||'instant';
   lastGlobalDeltaTs=room.globalDeltaTs||0;
-  lastStuDeltaTs=0;
+  lastStuDeltaTs=0;examinerLocked=false;liveDeduct=0;
   beginExam(stuName,room.driveId||'',parts,room.examName||'',room.ytId||'');
   syncStudentLive();
 }
-function checkHashLive(){
+async function checkHashLive(){
   if(!location.hash.startsWith('#live='))return;
   const rid=location.hash.slice(6).trim();
   if(!rid)return;
+  if(!curStudent){
+    pendingLiveRoomId=rid;
+    showGate();
+    $('stuAuthErr').textContent='Live Exam-এ join করতে তোমার Approved Student ID দিয়ে Login করো।';
+    return;
+  }
+  try{
+    const sSnap=await db().ref('students/'+curStudent.username).once('value');
+    const sVal=sSnap.val();
+    if(!sVal||!sVal.approved){
+      pendingLiveRoomId=rid;
+      curStudent=null;try{localStorage.removeItem(STU_SESS_KEY)}catch(e){}
+      showGate();
+      $('stuAuthErr').textContent='তোমার Account এখনো Admin / Examiner approve করেনি।';
+      return;
+    }
+  }catch(e){}
   liveRoomId=rid;
   hideAllViews();
   $('liveWaitView').classList.remove('hide');
@@ -2034,8 +2180,8 @@ function checkHashLive(){
       }
       $('lwTitle').textContent=r.examName||'Live Exam';
       $('lwSub').textContent=`Examiner: ${r.examinerName||'Sensei'} · Part 1 (${r.p1q}q, ${r.p1m}m) · Part 2 (${r.p2q}q, ${r.p2m}m)`+(r.hasListen?` · Listening (${r.lm}m)`:'');
-      const p=loadProfile();
-      if(p.name&&!$('lwNameIn').value)$('lwNameIn').value=p.name;
+      $('lwNameIn').value=curStudent.name||'';
+      $('lwNameIn').readOnly=true;
       $('lwJoinBox').classList.remove('hide');
       $('lwJoinBtn').onclick=()=>startLiveStudent(r);
       return;
@@ -2055,6 +2201,11 @@ function checkHashLive(){
         toast(`Sensei তোমার সময় ${me.deltaSec>0?'+':''}${Math.round(me.deltaSec/60)} min পরিবর্তন করেছেন!`);
       }
     }
+    if(me&&!$('exam').classList.contains('hide')){
+      if(me.locked&&!examinerLocked){examinerLocked=true;setPaused(true,true)}
+      else if(!me.locked&&examinerLocked){examinerLocked=false;setPaused(false,true);toast('Examiner তোমার exam আবার চালু করেছেন!')}
+    }
+    if(me)liveDeduct=+(me.deduct||0);
     if(!$('liveWaitView').classList.contains('hide')){
       if(me&&me.status==='waiting_listen'&&r.listenStarted){
         $('liveWaitView').classList.add('hide');
@@ -2063,6 +2214,8 @@ function checkHashLive(){
       }else if(me&&me.status==='finished'&&r.published){
         loadPublishedLiveReport();
       }
+    }else if(!$('report').classList.contains('hide')&&r.published){
+      loadPublishedLiveReport();
     }
     if(!$('exam').classList.contains('hide')&&cfg?.parts?.[part]?.listen){
       applyYtSync();
@@ -2160,22 +2313,37 @@ async function loadAdminData(){
     await db().ref('examiners/'+b.dataset.id).remove();
     loadAdminData();
   });
-  const rmList=Object.entries(rms).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
-  $('adminExamsList').innerHTML=rmList.length?rmList.map(([rid,r])=>{
-    const sc=r.students?Object.keys(r.students).length:0;
-    return `<div class="hist-item">
-      <div class="hist-info">
-        <div class="hist-title">${esc(r.examName||'Live Exam')} <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span></div>
-        <div class="hist-meta">Teacher: ${esc(r.examinerName)} · ${esc(r.dateStr||'')} · Students: ${sc}</div>
-      </div>
-      <div class="hist-acts">
-        <button type="button" class="btn sec adm-open-rm" data-id="${esc(rid)}">Open / Summary</button>
-      </div>
-    </div>`;
-  }).join(''):'<div class="mu">কোনো Exam নেওয়া হয়নি।</div>';
   $('adminExamsList').querySelectorAll('.adm-open-rm').forEach(b=>b.onclick=()=>{
     lcReturnView='adminDash';
     openLiveControl(b.dataset.id);
+  });
+  loadStuApprovals($('adminStuAccList'));
+}
+async function loadStuApprovals(targetEl){
+  const snap=await db().ref('students').once('value');
+  const stus=snap.val()||{};
+  const keys=Object.keys(stus).sort((a,b)=>(stus[a].approved?1:0)-(stus[b].approved?1:0)||(stus[b].createdAt||0)-(stus[a].createdAt||0));
+  targetEl.innerHTML=keys.length?keys.map(k=>{
+    const s=stus[k],ok=!!s.approved;
+    return `<div class="hist-item">
+      <div class="hist-info">
+        <div class="hist-title">${esc(s.name)} <span class="mu">(@${esc(k)})</span></div>
+        <div class="hist-meta"><span class="pill ${ok?'live':'end'}">${ok?'Approved':'Pending / Off'}</span></div>
+      </div>
+      <div class="hist-acts">
+        <button type="button" class="btn sec stu-app-tog" data-u="${esc(k)}" data-ok="${ok?1:0}">${ok?'Turn Off':'Approve'}</button>
+        <button type="button" class="btn sec stu-app-del" data-u="${esc(k)}" style="color:var(--bad)">✕</button>
+      </div>
+    </div>`;
+  }).join(''):'<div class="mu">কোনো Student Account নেই।</div>';
+  targetEl.querySelectorAll('.stu-app-tog').forEach(b=>b.onclick=async()=>{
+    await db().ref('students/'+b.dataset.u+'/approved').set(b.dataset.ok!=='1');
+    loadStuApprovals(targetEl);
+  });
+  targetEl.querySelectorAll('.stu-app-del').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Student account delete করবে?'))return;
+    await db().ref('students/'+b.dataset.u).remove();
+    loadStuApprovals(targetEl);
   });
 }
 
@@ -2188,10 +2356,36 @@ function openExaminerDash(){
   hideAllViews();$('examinerDash').classList.remove('hide');
   $('exDashTitle').textContent=curExaminer.name+' — Dashboard';
   loadExaminerHistory();
+  loadStuApprovals($('exStuAccList'));
+}
+function renderExaminerRanking(rms){
+  const map={};
+  Object.values(rms).forEach(r=>{
+    if(!r.published||!r.students)return;
+    Object.values(r.students).forEach(s=>{
+      const key=(s.username||s.name||'student').toLowerCase();
+      const sm=calcStuSummary(r,s);
+      if(!map[key])map[key]={name:s.name,exams:0,pctSum:0,best:0,totFinal:0,totQ:0};
+      map[key].exams++;
+      map[key].pctSum+=sm.pct;
+      if(sm.pct>map[key].best)map[key].best=sm.pct;
+      map[key].totFinal+=sm.finalOk;
+      map[key].totQ+=sm.totQ;
+    });
+  });
+  const list=Object.values(map).map(x=>({...x,avg:Math.round(x.pctSum/x.exams)})).sort((a,b)=>b.avg-a.avg||b.exams-a.exams);
+  $('exRankingList').innerHTML=list.length?`<table class="tbl">
+    <thead><tr><th>Rank</th><th>Student</th><th>Exams</th><th>Avg %</th><th>Best %</th></tr></thead>
+    <tbody>${list.map((x,i)=>{
+      const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1);
+      return `<tr><td><b>${medal}</b></td><td><b>${esc(x.name)}</b></td><td>${x.exams}</td><td><b style="color:var(--ok)">${x.avg}%</b></td><td>${x.best}%</td></tr>`;
+    }).join('')}</tbody>
+  </table>`:'<div class="mu">Result publish হলে এখানে Student Ranking দেখাবে।</div>';
 }
 async function loadExaminerHistory(){
   const snap=await db().ref('rooms').orderByChild('examinerId').equalTo(curExaminer.id).once('value');
   const rms=snap.val()||{};
+  renderExaminerRanking(rms);
   const list=Object.entries(rms).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
   $('exHistoryList').innerHTML=list.length?list.map(([rid,r])=>{
     const sc=r.students?Object.keys(r.students).length:0;
@@ -2273,22 +2467,35 @@ function openLiveControl(rid){
     let waitCnt=0;
     $('lcStuBody').innerHTML=stus.length?stus.map(([sid,s])=>{
       if(s.status==='waiting_listen')waitCnt++;
-      const stTxt=s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
+      const stTxt=s.locked?'🔒 Locked':s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=s.status==='finished'?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
+      const ded=+(s.deduct||0);
       return `<tr>
-        <td><b>${esc(s.name)}</b></td>
+        <td><b>${esc(s.name)}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Deduct: −${ded}</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${s.status==='finished'?'—':fmt(s.rem||0)}</td>
-        <td>
-          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="-60" style="padding:4px 7px;font-size:11px">−1m</button>
-          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="60" style="padding:4px 7px;font-size:11px">+1m</button>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="-60" style="padding:4px 6px;font-size:11px">−1m</button>
+          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="60" style="padding:4px 6px;font-size:11px">+1m</button>
+          <button type="button" class="btn sec lc-slock" data-s="${esc(sid)}" data-lk="${s.locked?1:0}" style="padding:4px 6px;font-size:11px;color:${s.locked?'var(--ok)':'var(--bad)'}">${s.locked?'On':'Off'}</button>
+          <button type="button" class="btn sec lc-sded" data-s="${esc(sid)}" data-ded="${ded}" style="padding:4px 6px;font-size:11px">−Mark</button>
         </td>
       </tr>`;
     }).join(''):'<tr><td colspan="5" class="mu">এখনো কোনো student join করেনি।</td></tr>';
     $('lcWaitCount').textContent='Waiting for Listening: '+waitCnt;
     $('lcStuBody').querySelectorAll('.lc-stime').forEach(b=>b.onclick=()=>{
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}`).update({deltaSec:+b.dataset.d,deltaTs:Date.now()});
+    });
+    $('lcStuBody').querySelectorAll('.lc-slock').forEach(b=>b.onclick=()=>{
+      db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/locked`).set(b.dataset.lk!=='1');
+    });
+    $('lcStuBody').querySelectorAll('.lc-sded').forEach(b=>b.onclick=()=>{
+      const cur=+b.dataset.ded||0;
+      const v=prompt('কত নম্বর deduct করবে? (0 দিলে reset হবে)',String(cur+1));
+      if(v===null)return;
+      const num=Math.max(0,parseInt(v,10)||0);
+      db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/deduct`).set(num);
     });
     renderLiveSummary(r,stus);
   });
@@ -2308,6 +2515,15 @@ $('lcEndBtn').onclick=()=>{
 };
 document.querySelectorAll('.lc-gtime').forEach(b=>b.onclick=()=>{
   db().ref('rooms/'+lcRoomId).update({globalDeltaSec:+b.dataset.d,globalDeltaTs:Date.now()});
+});
+document.querySelectorAll('.lc-gded').forEach(b=>b.onclick=async()=>{
+  if(!lcRoomData||!lcRoomData.students)return;
+  const d=+b.dataset.d,upd={};
+  Object.entries(lcRoomData.students).forEach(([sid,s])=>{
+    upd[`rooms/${lcRoomId}/students/${sid}/deduct`]=d===0?0:((+(s.deduct||0))+d);
+  });
+  await db().ref().update(upd);
+  toast(d===0?'সবার Deduct reset হয়েছে!':`সবার থেকে ${d} নম্বর deduct হয়েছে!`);
 });
 $('lcStartListenBtn').onclick=()=>db().ref('rooms/'+lcRoomId+'/listenStarted').set(true);
 function pushYtSync(playing,rateOverride){
@@ -2370,30 +2586,33 @@ function calcStuSummary(r,s){
   const countOk=str=>{let ok=0;for(const c of (str||''))if(c==='o')ok++;return ok};
   const p1=countOk(mArr[0]),p2=countOk(mArr[1]),p3=r.hasListen?countOk(mArr[2]):0;
   const totQ=r.p1q+r.p2q+(r.hasListen?LISTEN_TOTAL:0);
-  const totOk=p1+p2+p3;
-  return{name:s.name,p1,p2,p3,t1:uArr[0]||0,t2:uArr[1]||0,totOk,totQ,pct:totQ?Math.round(totOk*100/totQ):0};
+  const totOk=p1+p2+p3,ded=+(s.deduct||0),finalOk=Math.max(0,totOk-ded);
+  return{name:s.name,p1,p2,p3,t1:uArr[0]||0,t2:uArr[1]||0,totOk,ded,finalOk,totQ,pct:totQ?Math.round(finalOk*100/totQ):0};
 }
 function renderLiveSummary(r,stus){
   const chors=r.chors||[];
   $('lcChorCard').classList.toggle('hide',!chors.length);
   $('lcChorBody').innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('');
   if(!stus.length){$('lcSumBody').innerHTML='<div class="mu">কোনো data নেই।</div>';return}
-  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.totOk-a.totOk);
+  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.finalOk-a.finalOk);
   $('lcSumBody').innerHTML=`<table class="tbl">
     <thead><tr><th>Name</th><th>Part 1</th><th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}<th>Total</th></tr></thead>
-    <tbody>${rows.map(x=>`<tr>
-      <td><b>${esc(x.name)}</b></td>
-      <td>${x.p1}/${r.p1q} <span class="mu">(${fmt(x.t1)})</span></td>
-      <td>${x.p2}/${r.p2q} <span class="mu">(${fmt(x.t2)})</span></td>
-      ${r.hasListen?`<td>${x.p3}/${LISTEN_TOTAL}</td>`:''}
-      <td><b>${x.totOk}/${x.totQ} (${x.pct}%)</b></td>
-    </tr>`).join('')}</tbody>
+    <tbody>${rows.map(x=>{
+      const totStr=x.ded>0?`<span style="color:var(--bad)">${x.totOk}−${x.ded}=</span><b>${x.finalOk}</b>/${x.totQ} (${x.pct}%)`:`<b>${x.finalOk}/${x.totQ} (${x.pct}%)</b>`;
+      return `<tr>
+        <td><b>${esc(x.name)}</b></td>
+        <td>${x.p1}/${r.p1q} <span class="mu">(${fmt(x.t1)})</span></td>
+        <td>${x.p2}/${r.p2q} <span class="mu">(${fmt(x.t2)})</span></td>
+        ${r.hasListen?`<td>${x.p3}/${LISTEN_TOTAL}</td>`:''}
+        <td>${totStr}</td>
+      </tr>`;
+    }).join('')}</tbody>
   </table>`;
 }
 $('lcSumPngBtn').onclick=()=>{
   if(!lcRoomData)return;
   const r=lcRoomData,stus=r.students?Object.entries(r.students):[];
-  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.totOk-a.totOk);
+  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.finalOk-a.finalOk);
   const W=920,pad=28,rowH=34,headH=110,H=headH+Math.max(1,rows.length)*rowH+pad+16;
   const dpr=2,c=document.createElement('canvas');c.width=W*dpr;c.height=H*dpr;
   const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
@@ -2402,7 +2621,7 @@ $('lcSumPngBtn').onclick=()=>{
   ctx.fillText((r.examName||'Live Exam')+' — Result Summary',pad,38);
   ctx.fillStyle='#6b7280';ctx.font='14px system-ui,sans-serif';
   ctx.fillText(`Examiner: ${r.examinerName||'Sensei'}  ·  ${r.dateStr||''}  ·  Students: ${rows.length}`,pad,62);
-  const cols=r.hasListen?[pad,260,420,580,730]:[pad,290,490,700];
+  const cols=r.hasListen?[pad,245,400,555,700]:[pad,280,475,675];
   ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
   ctx.fillText('Student Name',cols[0]+8,96);
   ctx.fillText('Part 1 (Time)',cols[1],96);
@@ -2418,13 +2637,14 @@ $('lcSumPngBtn').onclick=()=>{
     ctx.font='13px system-ui,sans-serif';
     ctx.fillText(`${x.p1}/${r.p1q} (${fmt(x.t1)})`,cols[1],y+22);
     ctx.fillText(`${x.p2}/${r.p2q} (${fmt(x.t2)})`,cols[2],y+22);
+    const totTxt=x.ded>0?`${x.totOk}-${x.ded}=${x.finalOk}/${x.totQ} (${x.pct}%)`:`${x.finalOk}/${x.totQ} (${x.pct}%)`;
     if(r.hasListen){
       ctx.fillText(`${x.p3}/${LISTEN_TOTAL}`,cols[3],y+22);
-      ctx.fillStyle='#16a34a';ctx.font='bold 13px system-ui,sans-serif';
-      ctx.fillText(`${x.totOk}/${x.totQ} (${x.pct}%)`,cols[4],y+22);
+      ctx.fillStyle=x.ded>0?'#dc2626':'#16a34a';ctx.font='bold 13px system-ui,sans-serif';
+      ctx.fillText(totTxt,cols[4],y+22);
     }else{
-      ctx.fillStyle='#16a34a';ctx.font='bold 13px system-ui,sans-serif';
-      ctx.fillText(`${x.totOk}/${x.totQ} (${x.pct}%)`,cols[3],y+22);
+      ctx.fillStyle=x.ded>0?'#dc2626':'#16a34a';ctx.font='bold 13px system-ui,sans-serif';
+      ctx.fillText(totTxt,cols[3],y+22);
     }
   });
   c.toBlob(blob=>{
