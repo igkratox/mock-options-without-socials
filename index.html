@@ -209,17 +209,19 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <button type="button" id="gateTabLogin" class="sel">Student Login</button>
       <button type="button" id="gateTabSignup">Create Account</button>
     </div>
-    <div id="gateSignupFields" class="hide">
-      <label>তোমার নাম (Full Name)</label>
-      <input id="stuRegName" placeholder="e.g. Nur Mohammad">
-    </div>
-    <label>Username</label>
-    <input id="stuAuthUser" placeholder="username (e.g. nur123)" autocapitalize="none" autocorrect="off">
-    <label>Password</label>
-    <div class="pw-wrap"><input id="stuAuthPass" type="password" placeholder="Password"><button type="button" class="pw-eye" data-pw="stuAuthPass" aria-label="Show password">👁</button></div>
-    <div id="stuAuthErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
-    <div id="stuAuthOk" class="mu" style="color:var(--ok);margin-top:8px"></div>
-    <button type="button" class="btn" id="stuAuthBtn" style="margin-top:14px">Login</button>
+    <form id="stuAuthForm" autocomplete="on">
+      <div id="gateSignupFields" class="hide">
+        <label>তোমার নাম (Full Name)</label>
+        <input id="stuRegName" name="name" autocomplete="name" placeholder="e.g. Nur Mohammad">
+      </div>
+      <label>Username</label>
+      <input id="stuAuthUser" name="username" autocomplete="username" placeholder="username (e.g. nur123)" autocapitalize="none" autocorrect="off">
+      <label>Password</label>
+      <div class="pw-wrap"><input id="stuAuthPass" name="password" type="password" autocomplete="current-password" placeholder="Password"><button type="button" class="pw-eye" data-pw="stuAuthPass" aria-label="Show password">👁</button></div>
+      <div id="stuAuthErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
+      <div id="stuAuthOk" class="mu" style="color:var(--ok);margin-top:8px"></div>
+      <button type="submit" class="btn" id="stuAuthBtn" style="margin-top:14px">Login</button>
+    </form>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button type="button" class="btn sec" id="gateGuestBtn" style="flex:1">Continue as Guest</button>
       <button type="button" class="btn sec" id="gatePortalBtn" style="flex:1">Examiner / Admin</button>
@@ -482,12 +484,14 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <button type="button" id="tabExaminer" class="sel">Examiner Login</button>
       <button type="button" id="tabAdmin">Admin Login</button>
     </div>
-    <label id="authIdLbl">Examiner ID</label>
-    <input id="authId" placeholder="ID" autocapitalize="none" autocorrect="off">
-    <label>Password</label>
-    <div class="pw-wrap"><input id="authPass" type="password" placeholder="Password"><button type="button" class="pw-eye" data-pw="authPass" aria-label="Show password">👁</button></div>
-    <div id="authErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
-    <button type="button" class="btn" id="authLoginBtn">Login</button>
+    <form id="portalAuthForm" autocomplete="on">
+      <label id="authIdLbl">Examiner ID</label>
+      <input id="authId" name="username" autocomplete="username" placeholder="ID" autocapitalize="none" autocorrect="off">
+      <label>Password</label>
+      <div class="pw-wrap"><input id="authPass" name="password" type="password" autocomplete="current-password" placeholder="Password"><button type="button" class="pw-eye" data-pw="authPass" aria-label="Show password">👁</button></div>
+      <div id="authErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
+      <button type="submit" class="btn" id="authLoginBtn">Login</button>
+    </form>
     <div id="authHint" class="mu hide" style="margin-top:8px">Admin credentials দিয়ে login করো।</div>
   </div>
 </div>
@@ -2332,16 +2336,25 @@ function showGate(){
   $('gateView').classList.remove('hide');
   $('stuAuthErr').textContent='';$('stuAuthOk').textContent='';
 }
+function saveBrowserCred(id,password,name){
+  try{
+    if(window.PasswordCredential&&navigator.credentials?.store){
+      navigator.credentials.store(new PasswordCredential({id,password,name:name||id}));
+    }
+  }catch(e){}
+}
 $('gateTabLogin').onclick=()=>{
   gateMode='login';
   $('gateTabLogin').classList.add('sel');$('gateTabSignup').classList.remove('sel');
   $('gateSignupFields').classList.add('hide');$('stuAuthBtn').textContent='Login';
+  $('stuAuthPass').autocomplete='current-password';
   $('stuAuthErr').textContent='';$('stuAuthOk').textContent='';
 };
 $('gateTabSignup').onclick=()=>{
   gateMode='signup';
   $('gateTabSignup').classList.add('sel');$('gateTabLogin').classList.remove('sel');
   $('gateSignupFields').classList.remove('hide');$('stuAuthBtn').textContent='Create Account';
+  $('stuAuthPass').autocomplete='new-password';
   $('stuAuthErr').textContent='';$('stuAuthOk').textContent='';
 };
 $('gateGuestBtn').onclick=()=>{
@@ -2354,7 +2367,8 @@ $('stuLogoutBtn').onclick=()=>{
   try{localStorage.removeItem(STU_SESS_KEY)}catch(e){}
   curStudent=null;closeMenu();showGate();
 };
-$('stuAuthBtn').onclick=async()=>{
+$('stuAuthForm').onsubmit=async e=>{
+  e.preventDefault();
   $('stuAuthErr').textContent='';$('stuAuthOk').textContent='';
   const u=$('stuAuthUser').value.trim().toLowerCase().replace(/[^a-z0-9_.-]/g,'');
   const pass=$('stuAuthPass').value;
@@ -2367,6 +2381,7 @@ $('stuAuthBtn').onclick=async()=>{
       const snap=await ref.once('value');
       if(snap.exists()){$('stuAuthErr').textContent='এই Username আগেই নেওয়া হয়েছে, অন্যটা দাও।';return}
       await ref.set({name,pass,approved:false,createdAt:Date.now()});
+      saveBrowserCred(u,pass,name);
       $('stuAuthOk').textContent='✓ Account তৈরি হয়েছে! Admin বা Examiner approve করলে এই ID দিয়ে Login ও Live Exam দিতে পারবে।';
       $('stuAuthPass').value='';
     }else{
@@ -2375,6 +2390,7 @@ $('stuAuthBtn').onclick=async()=>{
       if(!s||s.pass!==pass){$('stuAuthErr').textContent='Username বা Password ভুল।';return}
       if(!s.approved){$('stuAuthErr').textContent='তোমার Account এখনো Admin / Examiner approve করেনি।';return}
       curStudent={username:u,name:s.name};
+      saveBrowserCred(u,pass,s.name);
       try{localStorage.setItem(STU_SESS_KEY,JSON.stringify(curStudent))}catch(e){}
       enterNormalMode();
     }
@@ -2820,14 +2836,15 @@ async function ensureAdminInit(){
   if(!snap.exists()){await ref.set({id:'kratox',pass:'iamnur1229'});return{id:'kratox',pass:'iamnur1229'}}
   return snap.val();
 }
-$('authLoginBtn').onclick=async()=>{
+$('portalAuthForm').onsubmit=async e=>{
+  e.preventDefault();
   $('authErr').textContent='';
   const id=$('authId').value.trim(),pass=$('authPass').value;
   if(!id||!pass){$('authErr').textContent='ID ও Password দাও।';return}
   try{
     if(authMode==='admin'){
       const adm=await ensureAdminInit();
-      if(id.toLowerCase()===String(adm.id||'').trim().toLowerCase()&&pass===adm.pass){curAdmin=true;openAdminDash()}
+      if(id.toLowerCase()===String(adm.id||'').trim().toLowerCase()&&pass===adm.pass){saveBrowserCred(adm.id||id,pass,'Admin');curAdmin=true;openAdminDash()}
       else $('authErr').textContent='Admin ID বা Password ভুল।';
     }else{
       let snap=await db().ref('examiners/'+id).once('value');
@@ -2840,6 +2857,7 @@ $('authLoginBtn').onclick=async()=>{
       }
       if(!ex||ex.pass!==pass){$('authErr').textContent='Examiner ID বা Password ভুল।';return}
       if(ex.active===false){$('authErr').textContent='তোমার Examiner account-টি Admin বন্ধ করে দিয়েছে।';return}
+      saveBrowserCred(exId,pass,ex.name);
       curExaminer={id:exId,...ex};
       openExaminerDash();
     }
