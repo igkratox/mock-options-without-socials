@@ -1406,9 +1406,9 @@ function updLrProg(){
 function parseKeyTokens(raw){
   const s=(raw||'').trim();
   if(!s)return[];
-  const lines=s.split(/[\n;]+/).map(l=>l.replace(/^\s*\d+\s*[.):\-]\s*/,'')).join(' ');
+  const cleaned=s.replace(/(?:^|[\s,;])q?\d+\s*[.):\-]\s*/gi,' ');
   const out=[];
-  for(const ch of lines.toUpperCase()){
+  for(const ch of cleaned.toUpperCase()){
     if(ch>='1'&&ch<='4')out.push(+ch);
     else if(ch>='A'&&ch<='D')out.push(ch.charCodeAt(0)-64);
   }
