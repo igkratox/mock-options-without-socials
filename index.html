@@ -340,6 +340,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
   </div>
   <div class="yt-top hide" id="ytTopWrap"></div>
+  <div id="stuNoticeBanner" class="hide" style="padding:7px 12px;background:#fef3c7;color:#92400e;font-size:13px;font-weight:700;border-bottom:1px solid #f59e0b;text-align:center"></div>
   <div class="main">
     <div class="qpane" id="qpane"><div id="pages"></div><div id="driveWrap" class="hide" style="width:100%;height:100%"></div></div>
     <div class="zoom"><button id="zIn">+</button><button id="zOut">−</button><button id="zFit" style="font-size:14px">Fit</button></div>
@@ -549,6 +550,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <div style="margin-top:8px"><div class="mu">Listening Pages (optional)</div><input id="exP3pages" placeholder="খালি রাখলে Listening Pad দেখাবে"></div>
         <div style="margin-top:8px"><div class="mu">YouTube Link (Listening)</div><input id="exYt" type="url" placeholder="https://youtu.be/..."></div>
       </div>
+      <div style="margin-top:10px">
+        <div class="mu">Total Passing Mark <span id="exPassHint">(180-এর মধ্যে 90, প্রতি Part-এ কমপক্ষে 19)</span></div>
+        <input id="exPassTotal" type="number" min="1" value="90">
+      </div>
     </div>
     <div id="exCreateErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
     <button type="button" class="btn" id="exCreateBtn">Start Live Exam & Get Link</button>
@@ -572,6 +577,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div><div class="mu">Listen Min</div><input id="ecLm" type="number" min="1"></div>
       <div><div class="mu">Listen Pages</div><input id="ecP3p" placeholder="Pad"></div>
     </div>
+    <div style="margin-top:8px"><div class="mu">Total Passing Mark (Each part min 19)</div><input id="ecPassTotal" type="number" min="1"></div>
     <div id="ecErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
     <div class="row" style="margin-top:14px">
       <button type="button" class="btn sec" id="ecCancelBtn">Cancel</button>
@@ -625,6 +631,13 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <button type="button" class="btn sec lc-gded" data-d="2">−2 Marks</button>
         <button type="button" class="btn sec lc-gded" data-d="5">−5 Marks</button>
         <button type="button" class="btn sec lc-gded" data-d="0" style="color:var(--ok)">Reset 0</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--bd)">
+      <strong>Broadcast Notice (সব student-কে মেসেজ)</strong>
+      <div style="display:flex;gap:6px;flex:1;min-width:220px">
+        <input id="lcNoticeIn" placeholder="যেমন: আর ২ মিনিট বাকি আছে!" style="padding:6px 10px;font-size:13px">
+        <button type="button" class="btn sec" id="lcNoticeBtn" style="white-space:nowrap">Send Notice</button>
       </div>
     </div>
   </div>
@@ -688,6 +701,11 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <button type="button" class="btn sec" id="lcSumPngBtn">Download Summary PNG</button>
     </div>
     <div id="lcSumBody" style="overflow:auto;margin-top:8px"></div>
+  </div>
+
+  <div class="card hide" id="lcQStatsCard">
+    <h3>Question-by-Question Marks & Error % (কঠিন প্রশ্নে বেশি নম্বর)</h3>
+    <div id="lcQStatsBody" style="overflow:auto;margin-top:6px"></div>
   </div>
 </div>
 
@@ -1490,7 +1508,35 @@ function showReport(keepTime){
   if(!keepTime||!repTime)repTime=new Date().toLocaleString();
   saveCurrentExamToHistory();
   $('repName').textContent=(cfg.examName?'Exam Name: '+cfg.examName+' · ':'')+cfg.name+' · '+repTime;
-  let html='<div class="rep-grid">',txt=`Report Card\n${cfg.examName?'Exam Name: '+cfg.examName+'\n':''}Name: ${cfg.name}\nDate: ${repTime}\n`;
+  let html='',txt=`Report Card\n${cfg.examName?'Exam Name: '+cfg.examName+'\n':''}Name: ${cfg.name}\nDate: ${repTime}\n`;
+  if(liveRoomId&&liveRoom&&liveRoom.published&&liveRoom.students&&liveRoom.students[liveStuId]){
+    const meSm=calcStuSummary(liveRoom,liveRoom.students[liveStuId]);
+    const stRows=Object.values(liveRoom.students).map(s=>calcStuSummary(liveRoom,s)).sort((a,b)=>b.finalTot-a.finalTot);
+    html+=`<div class="card" style="border-color:${meSm.pass?'var(--ok)':'var(--bad)'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <h3 style="margin:0">Live Exam Result (Scaled 60/Part)</h3>
+        <span class="pill ${meSm.pass?'live':'end'}" style="font-size:13px;padding:4px 10px">${meSm.pass?'PASS ✓':'FAIL ✕'}</span>
+      </div>
+      <div class="stat" style="margin-top:8px"><span>Part 1 (Min 19)</span><b>${meSm.s1} / 60 <span style="color:${meSm.s1>=19?'var(--ok)':'var(--bad)'}">${meSm.s1>=19?'✓':'✕'}</span></b></div>
+      <div class="stat"><span>Part 2 (Min 19)</span><b>${meSm.s2} / 60 <span style="color:${meSm.s2>=19?'var(--ok)':'var(--bad)'}">${meSm.s2>=19?'✓':'✕'}</span></b></div>
+      ${liveRoom.hasListen?`<div class="stat"><span>Listening (Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}
+      <div class="stat" style="margin-top:4px;border-top:1px solid var(--bd);padding-top:6px"><span>Total (Pass: ${meSm.passTot})</span><b>${meSm.ded>0?`${meSm.rawTot} − ${meSm.ded} = `:''}${meSm.finalTot} / ${meSm.maxTot}</b></div>
+    </div>
+    <div class="card">
+      <h3>Class Leaderboard (এই Exam-এ কে কত পেয়েছে)</h3>
+      <div style="overflow:auto"><table class="tbl">
+        <thead><tr><th>#</th><th>Name</th><th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}<th>Total</th><th>Status</th></tr></thead>
+        <tbody>${stRows.map((x,idx)=>`<tr>
+          <td><b>${idx+1}</b></td>
+          <td><b>${esc(x.name)}</b></td>
+          <td>${x.s1}/60</td><td>${x.s2}/60</td>${liveRoom.hasListen?`<td>${x.s3}/60</td>`:''}
+          <td><b>${x.ded>0?`${x.rawTot}−${x.ded}=`:''}${x.finalTot}/${x.maxTot}</b></td>
+          <td><span class="pill ${x.pass?'live':'end'}">${x.pass?'PASS':'FAIL'}</span></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }
+  html+='<div class="rep-grid">';
   let totAns=0,totQ=0,totTime=0,totOk=0,totBad=0;
   cfg.parts.forEach((P,i)=>{
     const A=ans[i],{M,ok,bad,has}=markStats(i);
@@ -2251,7 +2297,15 @@ function startLiveStudent(room){
   beginExam(stuName,room.driveId||'',parts,room.examName||'',room.ytId||'');
   syncStudentLive();
 }
-let lastStuResumeTs=0;
+let lastStuResumeTs=0,lastNoticeTs=0,lastTabSwitchAt=0;
+function recordTabSwitch(){
+  if(!liveRoomId||!liveStuId||$('exam').classList.contains('hide'))return;
+  if(Date.now()-lastTabSwitchAt<1500)return;
+  lastTabSwitchAt=Date.now();
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}/tabSwitches`).transaction(v=>(v||0)+1);
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)recordTabSwitch()});
+window.addEventListener('blur',()=>recordTabSwitch());
 function resumeLiveStudentFromRecord(r,me,stuId){
   liveStuId=stuId;
   const p1p=r.pdfPages&&r.p1pages?parsePages(r.p1pages,999):[];
@@ -2372,6 +2426,24 @@ async function checkHashLive(){
       return;
     }
     const me=r.students&&r.students[liveStuId];
+    if(r.status==='ended'&&me&&me.status!=='finished'){
+      if(!$('exam').classList.contains('hide')){
+        const remNow=paused?pausedRem:Math.max(0,(endAt-Date.now())/1000);
+        used[part]=Math.min(limit,limit-remNow);
+      }
+      clearActiveExam();
+      setLiveWait('finished','Exam শেষ হয়েছে!','Examiner Exam বন্ধ করেছেন—তোমার উত্তর auto-submit হয়েছে। Result publish হলে এখানেই দেখাবে।','Auto-Submitted');
+      return;
+    }
+    if(r.notice&&r.notice.ts&&r.notice.ts!==lastNoticeTs){
+      lastNoticeTs=r.notice.ts;
+      if(!$('exam').classList.contains('hide')){
+        $('stuNoticeBanner').textContent='📢 Sensei: '+r.notice.msg;
+        $('stuNoticeBanner').classList.remove('hide');
+        playBeep(1);
+        toast('📢 Sensei: '+r.notice.msg);
+      }
+    }
     if(me&&me.kicked){
       stopYt();clearInterval(tick);
       hideAllViews();
@@ -2532,6 +2604,7 @@ async function loadStuApprovals(targetEl){
       </div>
       <div class="hist-acts">
         <button type="button" class="btn sec stu-app-tog" data-u="${esc(k)}" data-ok="${ok?1:0}">${ok?'Turn Off':'Approve'}</button>
+        <button type="button" class="btn sec stu-app-pass" data-u="${esc(k)}" title="Reset Password">Pass</button>
         <button type="button" class="btn sec stu-app-del" data-u="${esc(k)}" style="color:var(--bad)">✕</button>
       </div>
     </div>`;
@@ -2539,6 +2612,12 @@ async function loadStuApprovals(targetEl){
   targetEl.querySelectorAll('.stu-app-tog').forEach(b=>b.onclick=async()=>{
     await db().ref('students/'+b.dataset.u+'/approved').set(b.dataset.ok!=='1');
     loadStuApprovals(targetEl);
+  });
+  targetEl.querySelectorAll('.stu-app-pass').forEach(b=>b.onclick=async()=>{
+    const np=prompt(`@${b.dataset.u}-এর নতুন Password লেখো:`);
+    if(!np||!np.trim())return;
+    await db().ref('students/'+b.dataset.u+'/pass').set(np.trim());
+    toast('Password update হয়েছে!');
   });
   targetEl.querySelectorAll('.stu-app-del').forEach(b=>b.onclick=async()=>{
     if(!confirm('Student account delete করবে?'))return;
@@ -2550,7 +2629,12 @@ async function loadStuApprovals(targetEl){
 /* Examiner Dashboard */
 $('exPreset43').onclick=()=>{$('exP1q').value=21;$('exP1m').value=20;$('exP2q').value=22;$('exP2m').value=40};
 $('exPreset67').onclick=()=>{$('exP1q').value=35;$('exP1m').value=25;$('exP2q').value=32;$('exP2m').value=50};
-$('exHasListen').onchange=()=>$('exListenFields').classList.toggle('hide',$('exHasListen').value!=='1');
+$('exHasListen').onchange=()=>{
+  const has=$('exHasListen').value==='1';
+  $('exListenFields').classList.toggle('hide',!has);
+  $('exPassTotal').value=has?90:58;
+  $('exPassHint').textContent=has?'(180-এর মধ্যে 90, প্রতি Part-এ কমপক্ষে 19)':'(120-এর 48% = 58, প্রতি Part-এ কমপক্ষে 19)';
+};
 $('exLogoutBtn').onclick=()=>{curExaminer=null;goHome()};
 function openExaminerDash(){
   hideAllViews();$('examinerDash').classList.remove('hide');
@@ -2669,6 +2753,7 @@ $('exCreateBtn').onclick=()=>{
   $('ecP2q').value=p2q;$('ecP2m').value=p2m;$('ecP2p').value=p2pages;
   $('ecListenWrap').classList.toggle('hide',!hasListen);
   $('ecLm').value=lm;$('ecP3p').value=p3pages;
+  $('ecPassTotal').value=+$('exPassTotal').value||(hasListen?90:58);
   $('ecErr').textContent='';
   $('exConfirmModal').classList.remove('hide');
 };
@@ -2679,6 +2764,7 @@ $('ecGoBtn').onclick=async()=>{
   const p1q=+$('ecP1q').value,p1m=+$('ecP1m').value,p1pages=$('ecP1p').value.trim();
   const p2q=+$('ecP2q').value,p2m=+$('ecP2m').value,p2pages=$('ecP2p').value.trim();
   const lm=+$('ecLm').value||30,p3pages=$('ecP3p').value.trim();
+  const passTotal=Math.max(1,+$('ecPassTotal').value||(pendingExDraft.hasListen?90:58));
   if(!p1q||!p2q||!p1m||!p2m||!p1pages||!p2pages){$('ecErr').textContent='সবগুলো field সঠিকভাবে পূরণ করো।';return}
   let pdfPages=null;
   if(pendingExDraft.hasPdf){
@@ -2708,7 +2794,7 @@ $('ecGoBtn').onclick=async()=>{
     dateStr:new Date().toLocaleString(),createdAt:Date.now(),
     status:'live',driveId:pendingExDraft.driveId,p1q,p1m,p1pages,p2q,p2m,p2pages,
     hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,p3pages,ytId:pendingExDraft.ytId,
-    listenStarted:false,published:false
+    passTotal,listenStarted:false,published:false
   };
   if(pdfPages)roomObj.pdfPages=pdfPages;
   await db().ref('rooms/'+rid).set(roomObj);
@@ -2760,9 +2846,9 @@ function openLiveControl(rid){
       if(s.status==='waiting_listen'&&!s.kicked)waitCnt++;
       const stTxt=s.kicked?'🚫 Kicked':s.locked?'🔒 Locked':s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
-      const ded=+(s.deduct||0);
+      const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0);
       return `<tr>
-        <td><b>${esc(s.name)}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Deduct: −${ded}</div>`:''}</td>
+        <td><b>${esc(s.name)}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Deduct: −${ded}</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(s.rem||0)}</td>
@@ -2884,6 +2970,27 @@ $('lcYtSpd').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   $('lcYtSpd').querySelectorAll('button').forEach(x=>x.classList.toggle('sel',x===b));
   try{lcYtPlayer.setPlaybackRate(r);pushYtSync(lcYtPlayer.getPlayerState()===1,r)}catch(e){}
 });
+$('lcNoticeBtn').onclick=async()=>{
+  const msg=$('lcNoticeIn').value.trim();if(!msg)return;
+  await db().ref('rooms/'+lcRoomId+'/notice').set({msg,ts:Date.now()});
+  $('lcNoticeIn').value='';
+  toast('Notice সবার কাছে পাঠানো হয়েছে!');
+};
+function computePartWeights(stuMarkStrs,qCount){
+  const S=stuMarkStrs.length,w=[],stats=[];
+  let sumW=0;
+  for(let q=1;q<=qCount;q++){
+    let ok=0;
+    for(const ms of stuMarkStrs)if(ms[q-1]==='o')ok++;
+    const errRate=S?(S-ok)/S:0;
+    const wq=1+errRate*2;
+    w.push(wq);sumW+=wq;
+    stats.push({q,errPct:Math.round(errRate*100)});
+  }
+  const pts=w.map(wq=>sumW?Math.round((wq*60/sumW)*10)/10:0);
+  stats.forEach((st,i)=>st.pts=pts[i]);
+  return{pts,stats};
+}
 $('lcPublishBtn').onclick=async()=>{
   if(!lcRoomData)return;
   const r=lcRoomData,k1=parseKeyTokens($('lcKey1').value),k2=parseKeyTokens($('lcKey2').value),k3=parseKeyTokens($('lcKey3').value);
@@ -2891,7 +2998,7 @@ $('lcPublishBtn').onclick=async()=>{
   await db().ref('rooms/'+lcRoomId+'/keys').set({k1:$('lcKey1').value.trim(),k2:$('lcKey2').value.trim(),k3:$('lcKey3').value.trim()});
   const stus=r.students?Object.entries(r.students):[];
   const upd={};
-  const chors=[];
+  const chors=[],mList0=[],mList1=[],mList2=[];
   stus.forEach(([sid,s])=>{
     const aArr=s.ans||[],mArr=s.marks||[];
     const newMarks=[...mArr];
@@ -2918,37 +3025,73 @@ $('lcPublishBtn').onclick=async()=>{
         newMarks[2]=packArr(M3,LISTEN_TOTAL,'.');
       }
     }
+    mList0.push(newMarks[0]||'');mList1.push(newMarks[1]||'');if(r.hasListen)mList2.push(newMarks[2]||'');
     upd[`rooms/${lcRoomId}/students/${sid}/marks`]=newMarks;
   });
+  const w0=computePartWeights(mList0,r.p1q);
+  const w1=computePartWeights(mList1,r.p2q);
+  const qPts=[w0.pts,w1.pts],qStats=[w0.stats,w1.stats];
+  if(r.hasListen){const w2=computePartWeights(mList2,LISTEN_TOTAL);qPts.push(w2.pts);qStats.push(w2.stats)}
+  upd[`rooms/${lcRoomId}/qPts`]=qPts;
+  upd[`rooms/${lcRoomId}/qStats`]=qStats;
   upd[`rooms/${lcRoomId}/chors`]=chors;
   upd[`rooms/${lcRoomId}/published`]=true;
   await db().ref().update(upd);
-  toast('Results সবার কাছে publish হয়েছে!');
+  toast('Weighted Results সবার কাছে publish হয়েছে!');
 };
+function scorePartFromMarks(markStr,qCount,ptsArr){
+  let raw=0,ok=0;
+  for(let q=0;q<qCount;q++){
+    if((markStr||'')[q]==='o'){
+      ok++;
+      raw+=(ptsArr&&ptsArr[q]!==undefined)?ptsArr[q]:(60/Math.max(1,qCount));
+    }
+  }
+  const scaled=ok===qCount?60:Math.min(60,Math.round(raw));
+  return{ok,scaled};
+}
 function calcStuSummary(r,s){
-  const mArr=s.marks||[],uArr=s.used||[];
-  const countOk=str=>{let ok=0;for(const c of (str||''))if(c==='o')ok++;return ok};
-  const p1=countOk(mArr[0]),p2=countOk(mArr[1]),p3=r.hasListen?countOk(mArr[2]):0;
+  const mArr=s.marks||[],uArr=s.used||[],qPts=r.qPts||[];
+  const p1Res=scorePartFromMarks(mArr[0],r.p1q,qPts[0]);
+  const p2Res=scorePartFromMarks(mArr[1],r.p2q,qPts[1]);
+  const p3Res=r.hasListen?scorePartFromMarks(mArr[2],LISTEN_TOTAL,qPts[2]):{ok:0,scaled:0};
+  const s1=p1Res.scaled,s2=p2Res.scaled,s3=p3Res.scaled;
+  const maxTot=r.hasListen?180:120;
+  const passTot=r.passTotal||(r.hasListen?90:58);
+  const rawTot=s1+s2+s3,ded=+(s.deduct||0),finalTot=Math.max(0,rawTot-ded);
+  const pass=s1>=19&&s2>=19&&(!r.hasListen||s3>=19)&&finalTot>=passTot;
   const totQ=r.p1q+r.p2q+(r.hasListen?LISTEN_TOTAL:0);
-  const totOk=p1+p2+p3,ded=+(s.deduct||0),finalOk=Math.max(0,totOk-ded);
-  return{name:s.name,p1,p2,p3,t1:uArr[0]||0,t2:uArr[1]||0,totOk,ded,finalOk,totQ,pct:totQ?Math.round(finalOk*100/totQ):0};
+  const totOk=p1Res.ok+p2Res.ok+p3Res.ok;
+  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,s1,s2,s3,t1:uArr[0]||0,t2:uArr[1]||0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,pass,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
 }
 function renderLiveSummary(r,stus){
   const chors=r.chors||[];
-  $('lcChorCard').classList.toggle('hide',!chors.length);
-  $('lcChorBody').innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('');
+  const tabChors=stus.filter(([,s])=>(s.tabSwitches||0)>0).map(([,s])=>`<div style="padding:3px 0;color:#d97706">⚠ <b>${esc(s.name)}</b>: ${s.tabSwitches}x Tab/App switch করেছে</div>`);
+  $('lcChorCard').classList.toggle('hide',!chors.length&&!tabChors.length);
+  $('lcChorBody').innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('')+tabChors.join('');
+  if(Array.isArray(r.qStats)&&r.qStats.length){
+    $('lcQStatsCard').classList.remove('hide');
+    const labels=['Part 1','Part 2','Listening'];
+    $('lcQStatsBody').innerHTML=r.qStats.map((arr,pi)=>{
+      const sorted=[...arr].sort((a,b)=>b.errPct-a.errPct);
+      return `<div style="margin-top:8px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(বেশি ভুল % = বেশি নম্বর)</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">${sorted.map(q=>`<span class="badge ${q.errPct>=60?'pend':'ok'}" style="${q.errPct>=60?'background:rgba(220,38,38,.12);color:var(--bad)':''}">Q${q.q}: ${q.pts}m (${q.errPct}% ভুল)</span>`).join('')}</div>
+      </div>`;
+    }).join('');
+  }else $('lcQStatsCard').classList.add('hide');
   if(!stus.length){$('lcSumBody').innerHTML='<div class="mu">কোনো data নেই।</div>';return}
-  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.finalOk-a.finalOk);
+  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.finalTot-a.finalTot);
   $('lcSumBody').innerHTML=`<table class="tbl">
-    <thead><tr><th>Name</th><th>Part 1</th><th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}<th>Total</th></tr></thead>
+    <thead><tr><th>Name</th><th>Part 1</th><th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th></tr></thead>
     <tbody>${rows.map(x=>{
-      const totStr=x.ded>0?`<span style="color:var(--bad)">${x.totOk}−${x.ded}=</span><b>${x.finalOk}</b>/${x.totQ} (${x.pct}%)`:`<b>${x.finalOk}/${x.totQ} (${x.pct}%)</b>`;
+      const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
       return `<tr>
         <td><b>${esc(x.name)}</b></td>
-        <td>${x.p1}/${r.p1q} <span class="mu">(${fmt(x.t1)})</span></td>
-        <td>${x.p2}/${r.p2q} <span class="mu">(${fmt(x.t2)})</span></td>
-        ${r.hasListen?`<td>${x.p3}/${LISTEN_TOTAL}</td>`:''}
+        <td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>
+        <td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>
+        ${r.hasListen?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}
         <td>${totStr}</td>
+        <td><span class="pill ${x.pass?'live':'end'}">${x.pass?'PASS':'FAIL'}</span></td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
@@ -2956,22 +3099,23 @@ function renderLiveSummary(r,stus){
 $('lcSumPngBtn').onclick=()=>{
   if(!lcRoomData)return;
   const r=lcRoomData,stus=r.students?Object.entries(r.students):[];
-  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.finalOk-a.finalOk);
-  const W=920,pad=28,rowH=34,headH=110,H=headH+Math.max(1,rows.length)*rowH+pad+16;
+  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.finalTot-a.finalTot);
+  const W=980,pad=28,rowH=34,headH=110,H=headH+Math.max(1,rows.length)*rowH+pad+16;
   const dpr=2,c=document.createElement('canvas');c.width=W*dpr;c.height=H*dpr;
   const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
   ctx.fillStyle='#f4f5f7';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#18181b';ctx.font='bold 22px system-ui,sans-serif';
   ctx.fillText((r.examName||'Live Exam')+' — Result Summary',pad,38);
   ctx.fillStyle='#6b7280';ctx.font='14px system-ui,sans-serif';
-  ctx.fillText(`Examiner: ${r.examinerName||'Sensei'}  ·  ${r.dateStr||''}  ·  Students: ${rows.length}`,pad,62);
-  const cols=r.hasListen?[pad,245,400,555,700]:[pad,280,475,675];
+  const passInfo=rows.length?`Pass: ${rows[0].passTot}/${rows[0].maxTot} (Min 19/part)`:'';
+  ctx.fillText(`Examiner: ${r.examinerName||'Sensei'}  ·  ${r.dateStr||''}  ·  ${passInfo}`,pad,62);
+  const cols=r.hasListen?[pad,245,405,565,710,875]:[pad,280,480,680,860];
   ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
   ctx.fillText('Student Name',cols[0]+8,96);
   ctx.fillText('Part 1 (Time)',cols[1],96);
   ctx.fillText('Part 2 (Time)',cols[2],96);
-  if(r.hasListen){ctx.fillText('Listening',cols[3],96);ctx.fillText('Total',cols[4],96)}
-  else ctx.fillText('Total',cols[3],96);
+  if(r.hasListen){ctx.fillText('Listening',cols[3],96);ctx.fillText('Total',cols[4],96);ctx.fillText('Status',cols[5],96)}
+  else{ctx.fillText('Total',cols[3],96);ctx.fillText('Status',cols[4],96)}
   ctx.strokeStyle='#cbd5e1';ctx.beginPath();ctx.moveTo(pad,104);ctx.lineTo(W-pad,104);ctx.stroke();
   rows.forEach((x,idx)=>{
     const y=headH+idx*rowH;
@@ -2979,16 +3123,20 @@ $('lcSumPngBtn').onclick=()=>{
     ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
     ctx.fillText((idx+1)+'. '+x.name,cols[0]+8,y+22);
     ctx.font='13px system-ui,sans-serif';
-    ctx.fillText(`${x.p1}/${r.p1q} (${fmt(x.t1)})`,cols[1],y+22);
-    ctx.fillText(`${x.p2}/${r.p2q} (${fmt(x.t2)})`,cols[2],y+22);
-    const totTxt=x.ded>0?`${x.totOk}-${x.ded}=${x.finalOk}/${x.totQ} (${x.pct}%)`:`${x.finalOk}/${x.totQ} (${x.pct}%)`;
+    ctx.fillText(`${x.s1}/60 (${fmt(x.t1)})`,cols[1],y+22);
+    ctx.fillText(`${x.s2}/60 (${fmt(x.t2)})`,cols[2],y+22);
+    const totTxt=x.ded>0?`${x.rawTot}-${x.ded}=${x.finalTot}/${x.maxTot}`:`${x.finalTot}/${x.maxTot}`;
     if(r.hasListen){
-      ctx.fillText(`${x.p3}/${LISTEN_TOTAL}`,cols[3],y+22);
-      ctx.fillStyle=x.ded>0?'#dc2626':'#16a34a';ctx.font='bold 13px system-ui,sans-serif';
+      ctx.fillText(`${x.s3}/60 (${x.p3}/${LISTEN_TOTAL})`,cols[3],y+22);
+      ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
       ctx.fillText(totTxt,cols[4],y+22);
+      ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
+      ctx.fillText(x.pass?'PASS':'FAIL',cols[5],y+22);
     }else{
-      ctx.fillStyle=x.ded>0?'#dc2626':'#16a34a';ctx.font='bold 13px system-ui,sans-serif';
+      ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
       ctx.fillText(totTxt,cols[3],y+22);
+      ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
+      ctx.fillText(x.pass?'PASS':'FAIL',cols[4],y+22);
     }
   });
   c.toBlob(blob=>{
