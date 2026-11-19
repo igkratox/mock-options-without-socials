@@ -519,8 +519,11 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <h3>Create New Live Exam</h3>
     <label>Exam Name</label>
     <input id="exExamName" placeholder="e.g. N5 Mock Test #5">
-    <label>Question Google Drive Link</label>
+    <label>Question PDF <span class="mu">(অথবা নিচে Google Drive Link দাও)</span></label>
+    <input id="exFile" type="file" accept="application/pdf">
+    <label>Question Google Drive Link <span class="mu">(Drive দিলে নিচে Pages বাধ্যতামূলক দিতে হবে)</span></label>
     <input id="exDrive" type="url" placeholder="https://drive.google.com/file/d/.../view">
+    <div id="exDetect" class="mu" style="margin-top:6px"></div>
     <div class="presets">
       <button type="button" class="preset-btn" id="exPreset43">43 Questions<br><span style="font-weight:500;font-size:11px">21q (20m) + 22q (40m)</span></button>
       <button type="button" class="preset-btn" id="exPreset67">67 Questions<br><span style="font-weight:500;font-size:11px">35q (25m) + 32q (50m)</span></button>
@@ -529,10 +532,12 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div><div class="mu">Part 1 Questions</div><input id="exP1q" type="number" min="1" value="21"></div>
       <div><div class="mu">Part 1 Time (min)</div><input id="exP1m" type="number" min="1" value="20"></div>
     </div>
+    <div style="margin-top:8px"><div class="mu">Part 1 Pages <span style="color:var(--bad)">*</span></div><input id="exP1pages" placeholder="e.g. 2-6 (mandatory)"></div>
     <div class="row" style="margin-top:8px">
       <div><div class="mu">Part 2 Questions</div><input id="exP2q" type="number" min="1" value="22"></div>
       <div><div class="mu">Part 2 Time (min)</div><input id="exP2m" type="number" min="1" value="40"></div>
     </div>
+    <div style="margin-top:8px"><div class="mu">Part 2 Pages <span style="color:var(--bad)">*</span></div><input id="exP2pages" placeholder="e.g. 8-13 (mandatory)"></div>
     <div style="margin-top:12px;border-top:1px solid var(--bd);padding-top:10px">
       <label style="margin-top:0">Listening আছে?</label>
       <select id="exHasListen"><option value="1">হ্যাঁ, Listening আছে</option><option value="0">না, শুধু Part 1 ও Part 2</option></select>
@@ -541,12 +546,39 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
           <div><div class="mu">Listening Time (min)</div><input id="exLm" type="number" min="1" value="30"></div>
           <div><div class="mu">Listening Mode</div><select id="exLMode"><option value="instant">Answer Instant</option><option value="later">Answer Later</option></select></div>
         </div>
+        <div style="margin-top:8px"><div class="mu">Listening Pages (optional)</div><input id="exP3pages" placeholder="খালি রাখলে Listening Pad দেখাবে"></div>
         <div style="margin-top:8px"><div class="mu">YouTube Link (Listening)</div><input id="exYt" type="url" placeholder="https://youtu.be/..."></div>
       </div>
     </div>
     <div id="exCreateErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
     <button type="button" class="btn" id="exCreateBtn">Start Live Exam & Get Link</button>
   </div>
+
+<div id="exConfirmModal" class="modal-bg hide">
+  <div class="modal" style="max-width:440px;max-height:90vh;overflow:auto">
+    <h3>Exam Re-Check (Start করার আগে যাচাই করো)</h3>
+    <div class="mu" id="exConfSub" style="margin-bottom:10px"></div>
+    <div class="row">
+      <div><div class="mu">Part 1 Q</div><input id="ecP1q" type="number" min="1"></div>
+      <div><div class="mu">Part 1 Min</div><input id="ecP1m" type="number" min="1"></div>
+      <div><div class="mu">Part 1 Pages</div><input id="ecP1p"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div><div class="mu">Part 2 Q</div><input id="ecP2q" type="number" min="1"></div>
+      <div><div class="mu">Part 2 Min</div><input id="ecP2m" type="number" min="1"></div>
+      <div><div class="mu">Part 2 Pages</div><input id="ecP2p"></div>
+    </div>
+    <div id="ecListenWrap" class="row" style="margin-top:8px">
+      <div><div class="mu">Listen Min</div><input id="ecLm" type="number" min="1"></div>
+      <div><div class="mu">Listen Pages</div><input id="ecP3p" placeholder="Pad"></div>
+    </div>
+    <div id="ecErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
+    <div class="row" style="margin-top:14px">
+      <button type="button" class="btn sec" id="ecCancelBtn">Cancel</button>
+      <button type="button" class="btn" id="ecGoBtn" style="margin:0">Confirm & Start</button>
+    </div>
+  </div>
+</div>
   <div class="card">
     <h3>Overall Student Ranking (সকল Exam-এর গড়)</h3>
     <div id="exRankingList" class="mu">Loading…</div>
@@ -959,7 +991,13 @@ async function startPart(i,auto,resumeSec){
     document.querySelector('.zoom')?.classList.add('hide');
     $('pages').classList.add('hide');
     $('driveWrap').classList.remove('hide');
-    if(!$('driveWrap').querySelector('iframe'))$('driveWrap').innerHTML=`<iframe src="https://drive.google.com/file/d/${cfg.driveId}/preview" style="width:100%;height:100%;border:0;background:#fff" allow="autoplay"></iframe>`;
+    let hint=$('driveWrap').querySelector('.drv-hint');
+    if(!hint){
+      $('driveWrap').innerHTML=`<div class="drv-hint hide" style="padding:6px 10px;background:var(--ac-soft);color:var(--ac);font-size:12px;font-weight:700;border-bottom:1px solid var(--bd)"></div><iframe src="https://drive.google.com/file/d/${cfg.driveId}/preview" style="width:100%;height:100%;border:0;background:#fff" allow="autoplay"></iframe>`;
+      hint=$('driveWrap').querySelector('.drv-hint');
+    }
+    if(P.pageRange){hint.textContent=`${P.label}: শুধুমাত্র Pages ${P.pageRange} দেখো`;hint.classList.remove('hide')}
+    else hint.classList.add('hide');
     return;
   }
   $('driveWrap').classList.add('hide');
@@ -982,6 +1020,18 @@ async function getBox(n){
 }
 async function renderPages(list){
   const tok=++renderToken;
+  if(!pdf&&liveRoom&&liveRoom.pdfPages){
+    const els=[];
+    for(const n of list){
+      const src=liveRoom.pdfPages[n];
+      if(!src)continue;
+      const img=document.createElement('img');
+      img.src=src;img.style.width='100%';img.style.display='block';img.style.marginBottom='4px';
+      els.push(img);
+    }
+    $('pages').replaceChildren(...els);
+    return;
+  }
   const boxes=[];for(const n of list)boxes.push(await getBox(n));
   const ok=boxes.filter(Boolean);
   let X0=0,X1=1;
@@ -2185,12 +2235,15 @@ function startLiveStudent(room){
   saveProfileName(stuName);
   liveStuId=curStudent?('u_'+curStudent.username):('s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5));
   if(curStudent&&liveRoomId)db().ref('studentRooms/'+curStudent.username+'/'+liveRoomId).set(true);
+  const p1p=room.pdfPages&&room.p1pages?parsePages(room.p1pages,999):[];
+  const p2p=room.pdfPages&&room.p2pages?parsePages(room.p2pages,999):[];
+  const p3p=room.pdfPages&&room.p3pages?parsePages(room.p3pages,999):[];
   const parts=[
-    {label:'Part 1',listen:false,pages:[],q:room.p1q,m:room.p1m},
-    {label:'Part 2',listen:false,pages:[],q:room.p2q,m:room.p2m}
+    {label:'Part 1',listen:false,pages:p1p,pageRange:room.p1pages||'',q:room.p1q,m:room.p1m},
+    {label:'Part 2',listen:false,pages:p2p,pageRange:room.p2pages||'',q:room.p2q,m:room.p2m}
   ];
   if(room.hasListen){
-    parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:room.lm||30});
+    parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:room.p3pages||'',q:LISTEN_TOTAL,m:room.lm||30});
   }
   $('listenMode').value=room.lMode||'instant';
   lastGlobalDeltaTs=room.globalDeltaTs||0;
@@ -2201,12 +2254,15 @@ function startLiveStudent(room){
 let lastStuResumeTs=0;
 function resumeLiveStudentFromRecord(r,me,stuId){
   liveStuId=stuId;
+  const p1p=r.pdfPages&&r.p1pages?parsePages(r.p1pages,999):[];
+  const p2p=r.pdfPages&&r.p2pages?parsePages(r.p2pages,999):[];
+  const p3p=r.pdfPages&&r.p3pages?parsePages(r.p3pages,999):[];
   const parts=[
-    {label:'Part 1',listen:false,pages:[],q:r.p1q,m:r.p1m},
-    {label:'Part 2',listen:false,pages:[],q:r.p2q,m:r.p2m}
+    {label:'Part 1',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m},
+    {label:'Part 2',listen:false,pages:p2p,pageRange:r.p2pages||'',q:r.p2q,m:r.p2m}
   ];
   if(r.hasListen){
-    parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:r.lm||30});
+    parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:r.p3pages||'',q:LISTEN_TOTAL,m:r.lm||30});
   }
   $('listenMode').value=r.lMode||'instant';
   lastGlobalDeltaTs=r.globalDeltaTs||0;
@@ -2548,25 +2604,114 @@ async function loadExaminerHistory(){
     openLiveControl(b.dataset.id);
   });
 }
-$('exCreateBtn').onclick=async()=>{
+let exPdf=null,pendingExDraft=null;
+async function detectExPdf(){
+  const st=$('exDetect');st.textContent='PDF scan হচ্ছে…';
+  try{
+    await setWorker();
+    exPdf=await pdfjsLib.getDocument({data:await $('exFile').files[0].arrayBuffer()}).promise;
+    const pages=[];
+    for(let n=1;n<=exPdf.numPages;n++){
+      const pg=await exPdf.getPage(n),tc=await pg.getTextContent();
+      pages.push(tc.items.map(i=>norm(i.str)));
+    }
+    const covers=[];
+    pages.forEach((it,i)=>{if(/Examinee Registration/i.test(it.join(' ')))covers.push(i)});
+    let ranges;
+    if(covers.length>=2){
+      ranges=covers.map((c,i)=>[c+2,(covers[i+1]??exPdf.numPages)]).slice(0,2);
+    }else{
+      const p1Start=covers.length===1?covers[0]+2:1;
+      const p2Re=/\b(?:part\s*2|section\s*2|gramm[ae]r(?:\s*part)?|reading(?:\s*part)?)\b|言語知識\s*[（(]?\s*文法|文法[・･\s]*読解|第?\s*2\s*部|パート\s*2|ぶんぽう/i;
+      const m1Re=/(?:m\s*o\s*n\s*d\s*a\s*i|問\s*題|も\s*ん\s*だ\s*い)\s*1\b/i;
+      let p2Start=0,seenM1=false;
+      for(let p=p1Start;p<=exPdf.numPages;p++){
+        const txt=pages[p-1].join(' ');
+        if(p>p1Start&&p2Re.test(txt)){p2Start=p;break}
+        if(m1Re.test(txt)){if(seenM1&&p>=p1Start+2){p2Start=p;break}seenM1=true}
+      }
+      if(!p2Start){
+        const mid=Math.max(p1Start+1,Math.ceil(exPdf.numPages/2)+1);
+        ranges=[[p1Start,Math.min(mid-1,exPdf.numPages)],[Math.min(mid,exPdf.numPages),exPdf.numPages]];
+        st.textContent='Part 2 header পাওয়া যায়নি — আনুমানিক page দেওয়া হয়েছে, নিচে ঠিক করে নাও।';
+      }else{
+        ranges=[[p1Start,p2Start-1],[p2Start,exPdf.numPages]];
+      }
+    }
+    ranges.forEach((r,i)=>$('exP'+(i+1)+'pages').value=r[0]+'-'+r[1]);
+    if(!st.textContent.includes('আনুমানিক'))st.textContent='✓ PDF pages detect হয়েছে! Start চাপলে Re-check popup আসবে।';
+  }catch(e){st.textContent='Scan error: '+e.message}
+}
+$('exFile').onchange=()=>{if($('exFile').files[0]){$('exDrive').value='';detectExPdf()}};
+$('exDrive').oninput=()=>{
+  const id=driveIdOf($('exDrive').value);
+  if(id){$('exFile').value='';exPdf=null;$('exDetect').textContent='✓ Google Drive link ready। নিচে Part 1 ও Part 2 Pages বাধ্যতামূলক দাও।'}
+  else if($('exDrive').value.trim())$('exDetect').textContent='সঠিক Google Drive file link দাও।';
+  else $('exDetect').textContent='';
+};
+$('exCreateBtn').onclick=()=>{
   $('exCreateErr').textContent='';
   const examName=$('exExamName').value.trim();
-  const driveId=driveIdOf($('exDrive').value);
+  const f=$('exFile').files[0],driveId=driveIdOf($('exDrive').value);
   const p1q=+$('exP1q').value,p1m=+$('exP1m').value,p2q=+$('exP2q').value,p2m=+$('exP2m').value;
+  const p1pages=$('exP1pages').value.trim(),p2pages=$('exP2pages').value.trim(),p3pages=$('exP3pages').value.trim();
   const hasListen=$('exHasListen').value==='1';
   const lm=+$('exLm').value||30,lMode=$('exLMode').value;
   const ytRaw=$('exYt').value.trim(),ytId=ytIdOf(ytRaw);
   if(!examName){$('exCreateErr').textContent='Exam Name দাও।';return}
-  if(!driveId){$('exCreateErr').textContent='সঠিক Google Drive link দাও।';return}
+  if(!f&&!driveId){$('exCreateErr').textContent='Question PDF select করো অথবা Google Drive link দাও।';return}
   if(!p1q||!p2q){$('exCreateErr').textContent='Part 1 ও Part 2 Questions সংখ্যা দাও।';return}
+  if(!p1pages||!p2pages){$('exCreateErr').textContent='Part 1 ও Part 2 Pages দেওয়া বাধ্যতামূলক!';return}
   if(hasListen&&ytRaw&&!ytId){$('exCreateErr').textContent='সঠিক YouTube link দাও।';return}
+  pendingExDraft={examName,driveId:f?'':driveId,hasPdf:!!f,hasListen,lMode,ytId};
+  $('exConfSub').textContent=`Exam: ${examName} · Source: ${f?'PDF ('+f.name+')':'Google Drive Link'}`;
+  $('ecP1q').value=p1q;$('ecP1m').value=p1m;$('ecP1p').value=p1pages;
+  $('ecP2q').value=p2q;$('ecP2m').value=p2m;$('ecP2p').value=p2pages;
+  $('ecListenWrap').classList.toggle('hide',!hasListen);
+  $('ecLm').value=lm;$('ecP3p').value=p3pages;
+  $('ecErr').textContent='';
+  $('exConfirmModal').classList.remove('hide');
+};
+$('ecCancelBtn').onclick=()=>$('exConfirmModal').classList.add('hide');
+$('ecGoBtn').onclick=async()=>{
+  if(!pendingExDraft)return;
+  $('ecErr').textContent='';
+  const p1q=+$('ecP1q').value,p1m=+$('ecP1m').value,p1pages=$('ecP1p').value.trim();
+  const p2q=+$('ecP2q').value,p2m=+$('ecP2m').value,p2pages=$('ecP2p').value.trim();
+  const lm=+$('ecLm').value||30,p3pages=$('ecP3p').value.trim();
+  if(!p1q||!p2q||!p1m||!p2m||!p1pages||!p2pages){$('ecErr').textContent='সবগুলো field সঠিকভাবে পূরণ করো।';return}
+  let pdfPages=null;
+  if(pendingExDraft.hasPdf){
+    $('ecGoBtn').textContent='Uploading Pages…';$('ecGoBtn').disabled=true;
+    try{
+      if(!exPdf){await setWorker();exPdf=await pdfjsLib.getDocument({data:await $('exFile').files[0].arrayBuffer()}).promise}
+      const need=new Set([...parsePages(p1pages,exPdf.numPages),...parsePages(p2pages,exPdf.numPages),...(pendingExDraft.hasListen&&p3pages?parsePages(p3pages,exPdf.numPages):[])]);
+      if(!need.size)throw new Error('কোনো valid page পাওয়া যায়নি।');
+      pdfPages={};
+      for(const n of need){
+        const pg=await exPdf.getPage(n),v0=pg.getViewport({scale:1}),v=pg.getViewport({scale:Math.min(2,1050/v0.width)});
+        const c=document.createElement('canvas');c.width=Math.ceil(v.width);c.height=Math.ceil(v.height);
+        await pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;
+        pdfPages[n]=c.toDataURL('image/jpeg',0.72);
+      }
+    }catch(e){
+      $('ecErr').textContent='PDF process হয়নি: '+e.message;
+      $('ecGoBtn').textContent='Confirm & Start';$('ecGoBtn').disabled=false;
+      return;
+    }
+    $('ecGoBtn').textContent='Confirm & Start';$('ecGoBtn').disabled=false;
+  }
+  $('exConfirmModal').classList.add('hide');
   const rid='rm_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
-  await db().ref('rooms/'+rid).set({
-    examName,examinerId:curExaminer.id,examinerName:curExaminer.name,
+  const roomObj={
+    examName:pendingExDraft.examName,examinerId:curExaminer.id,examinerName:curExaminer.name,
     dateStr:new Date().toLocaleString(),createdAt:Date.now(),
-    status:'live',driveId,p1q,p1m,p2q,p2m,hasListen,lm,lMode,ytId,
+    status:'live',driveId:pendingExDraft.driveId,p1q,p1m,p1pages,p2q,p2m,p2pages,
+    hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,p3pages,ytId:pendingExDraft.ytId,
     listenStarted:false,published:false
-  });
+  };
+  if(pdfPages)roomObj.pdfPages=pdfPages;
+  await db().ref('rooms/'+rid).set(roomObj);
   lcReturnView='examinerDash';
   openLiveControl(rid);
 };
