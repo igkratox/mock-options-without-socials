@@ -1515,7 +1515,7 @@ function showReport(keepTime){
     html+=`<div class="card" style="border-color:${meSm.pass?'var(--ok)':'var(--bad)'}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <h3 style="margin:0">Live Exam Result (Scaled 60/Part)</h3>
-        <span class="pill ${meSm.pass?'live':'end'}" style="font-size:13px;padding:4px 10px">${meSm.pass?'PASS ✓':'FAIL ✕'}</span>
+        <span class="pill ${meSm.pass?'live':'end'}" style="font-size:13px;padding:4px 10px">${esc(meSm.statusLabel)}</span>
       </div>
       <div class="stat" style="margin-top:8px"><span>Part 1 (Min 19)</span><b>${meSm.s1} / 60 <span style="color:${meSm.s1>=19?'var(--ok)':'var(--bad)'}">${meSm.s1>=19?'✓':'✕'}</span></b></div>
       <div class="stat"><span>Part 2 (Min 19)</span><b>${meSm.s2} / 60 <span style="color:${meSm.s2>=19?'var(--ok)':'var(--bad)'}">${meSm.s2>=19?'✓':'✕'}</span></b></div>
@@ -1531,7 +1531,7 @@ function showReport(keepTime){
           <td><b>${esc(x.name)}</b></td>
           <td>${x.s1}/60</td><td>${x.s2}/60</td>${liveRoom.hasListen?`<td>${x.s3}/60</td>`:''}
           <td><b>${x.ded>0?`${x.rawTot}−${x.ded}=`:''}${x.finalTot}/${x.maxTot}</b></td>
-          <td><span class="pill ${x.pass?'live':'end'}">${x.pass?'PASS':'FAIL'}</span></td>
+          <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
         </tr>`).join('')}</tbody>
       </table></div>
     </div>`;
@@ -3059,10 +3059,15 @@ function calcStuSummary(r,s){
   const maxTot=r.hasListen?180:120;
   const passTot=r.passTotal||(r.hasListen?90:58);
   const rawTot=s1+s2+s3,ded=+(s.deduct||0),finalTot=Math.max(0,rawTot-ded);
-  const pass=s1>=19&&s2>=19&&(!r.hasListen||s3>=19)&&finalTot>=passTot;
+  const numPass=s1>=19&&s2>=19&&(!r.hasListen||s3>=19)&&finalTot>=passTot;
+  const senseiFailed=!!s.senseiFailed;
+  const pass=numPass&&!senseiFailed;
+  const sn=r.examinerName||'Sensei';
+  const statusLabel=senseiFailed?(numPass?`Pass by Number · Failed by ${sn}`:`Failed by ${sn}`):(pass?'PASS ✓':'FAIL ✕');
+  const shortStatus=senseiFailed?(numPass?`Pass by # · Failed by ${sn}`:`Failed by ${sn}`):(pass?'PASS':'FAIL');
   const totQ=r.p1q+r.p2q+(r.hasListen?LISTEN_TOTAL:0);
   const totOk=p1Res.ok+p2Res.ok+p3Res.ok;
-  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,s1,s2,s3,t1:uArr[0]||0,t2:uArr[1]||0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,pass,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
+  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,s1,s2,s3,t1:uArr[0]||0,t2:uArr[1]||0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
 }
 function renderLiveSummary(r,stus){
   const chors=r.chors||[];
@@ -3080,9 +3085,9 @@ function renderLiveSummary(r,stus){
     }).join('');
   }else $('lcQStatsCard').classList.add('hide');
   if(!stus.length){$('lcSumBody').innerHTML='<div class="mu">কোনো data নেই।</div>';return}
-  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.finalTot-a.finalTot);
+  const rows=stus.map(([sid,s])=>({sid,...calcStuSummary(r,s)})).sort((a,b)=>b.finalTot-a.finalTot);
   $('lcSumBody').innerHTML=`<table class="tbl">
-    <thead><tr><th>Name</th><th>Part 1</th><th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th></tr></thead>
+    <thead><tr><th>Name</th><th>Part 1</th><th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th><th>Action</th></tr></thead>
     <tbody>${rows.map(x=>{
       const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
       return `<tr>
@@ -3091,10 +3096,14 @@ function renderLiveSummary(r,stus){
         <td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>
         ${r.hasListen?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}
         <td>${totStr}</td>
-        <td><span class="pill ${x.pass?'live':'end'}">${x.pass?'PASS':'FAIL'}</span></td>
+        <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
+        <td><button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button></td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
+  $('lcSumBody').querySelectorAll('.lc-fail-him').forEach(b=>b.onclick=()=>{
+    db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/senseiFailed`).set(b.dataset.f!=='1');
+  });
 }
 $('lcSumPngBtn').onclick=()=>{
   if(!lcRoomData)return;
@@ -3131,12 +3140,12 @@ $('lcSumPngBtn').onclick=()=>{
       ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
       ctx.fillText(totTxt,cols[4],y+22);
       ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
-      ctx.fillText(x.pass?'PASS':'FAIL',cols[5],y+22);
+      ctx.fillText(x.shortStatus,cols[5],y+22);
     }else{
       ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
       ctx.fillText(totTxt,cols[3],y+22);
       ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
-      ctx.fillText(x.pass?'PASS':'FAIL',cols[4],y+22);
+      ctx.fillText(x.shortStatus,cols[4],y+22);
     }
   });
   c.toBlob(blob=>{
