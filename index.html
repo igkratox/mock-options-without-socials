@@ -304,7 +304,11 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
           <button type="button" class="btn sec" id="clearHistBtn" style="color:var(--bad)">Clear History</button>
         </div>
       </div>
-      <div style="margin-top:14px;font-weight:700;font-size:14px">Recent Exams</div>
+      <div id="stuLiveHistWrap" class="hide" style="margin-top:14px">
+        <div style="font-weight:700;font-size:14px">Live Exam Results (Saved)</div>
+        <div id="stuLiveHistList" class="mu" style="margin-top:6px">Loading…</div>
+      </div>
+      <div style="margin-top:14px;font-weight:700;font-size:14px">Recent Exams (Browser)</div>
       <input id="histSearch" placeholder="Exam বা নাম দিয়ে search করো…" style="margin-top:8px;padding:8px 10px;font-size:13px">
       <div id="historyList" style="margin-top:6px"></div>
     </div>
@@ -368,6 +372,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div id="repBody"></div>
   <div class="row noprint" style="margin-top:16px;flex-wrap:wrap">
     <button class="btn" id="checkAnsBtn" style="margin-top:0;flex:1 1 180px">Check / Grade Answers</button>
+    <a class="btn sec hide" id="repDriveLink" target="_blank" rel="noopener" style="text-decoration:none;text-align:center">Open Question (Drive)</a>
     <button class="btn sec" id="copyLinkBtn" style="flex:1 1 150px">Copy Review Link</button>
     <button class="btn sec" id="imgBtn" style="flex:1 1 150px">Save Image (PNG)</button>
     <button class="btn sec" id="copyBtn">Copy text</button>
@@ -1429,6 +1434,9 @@ function showReport(keepTime){
   $('setup').classList.add('hide');$('exam').classList.add('hide');$('listenReview').classList.add('hide');$('liveWaitView').classList.add('hide');$('report').classList.remove('hide');
   $('checkAnsBtn').classList.toggle('hide',!!liveRoomId);
   $('copyLinkBtn').classList.toggle('hide',!!liveRoomId);
+  const drv=$('repDriveLink');
+  if(cfg.driveId){drv.href=`https://drive.google.com/file/d/${cfg.driveId}/view`;drv.classList.remove('hide')}
+  else drv.classList.add('hide');
   if(!keepTime||!repTime)repTime=new Date().toLocaleString();
   saveCurrentExamToHistory();
   $('repName').textContent=(cfg.examName?'Exam Name: '+cfg.examName+' · ':'')+cfg.name+' · '+repTime;
@@ -1815,7 +1823,12 @@ function renderHistory(){
   });
 }
 $('histSearch').oninput=renderHistory;
-function openMenu(){renderHistory();$('menuDrawer').classList.remove('hide')}
+function openMenu(){
+  renderHistory();
+  $('stuLiveHistWrap').classList.toggle('hide',!curStudent);
+  if(curStudent)loadStuLiveHistory();
+  $('menuDrawer').classList.remove('hide');
+}
 function closeMenu(){$('menuDrawer').classList.add('hide')}
 $('menuBtn').onclick=openMenu;
 $('menuCloseBtn').onclick=closeMenu;
@@ -2115,11 +2128,63 @@ function loadPublishedLiveReport(){
   }
   showReport();
 }
+async function loadStuLiveHistory(){
+  const el=$('stuLiveHistList');
+  if(!curStudent||!el)return;
+  el.innerHTML='Loading…';
+  try{
+    const idxSnap=await db().ref('studentRooms/'+curStudent.username).once('value');
+    const rids=Object.keys(idxSnap.val()||{});
+    if(!rids.length){el.innerHTML='<div class="mu">এখনো কোনো Live Exam দাওনি।</div>';return}
+    const rooms=await Promise.all(rids.map(async rid=>{
+      const s=await db().ref('rooms/'+rid).once('value');
+      return [rid,s.val()];
+    }));
+    const valid=rooms.filter(([,r])=>r&&r.students&&r.students['u_'+curStudent.username]).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+    if(!valid.length){el.innerHTML='<div class="mu">কোনো Live Exam পাওয়া যায়নি।</div>';return}
+    el.innerHTML=valid.map(([rid,r])=>{
+      const s=r.students['u_'+curStudent.username];
+      const sm=calcStuSummary(r,s);
+      const badge=r.published
+        ?(sm.ded>0?`<span class="badge ok">${sm.totOk}−${sm.ded}=${sm.finalOk}/${sm.totQ} (${sm.pct}%)</span>`:`<span class="badge ok">✓ ${sm.finalOk}/${sm.totQ} (${sm.pct}%)</span>`)
+        :`<span class="badge pend">Pending Result</span>`;
+      const drvBtn=r.driveId?`<a href="https://drive.google.com/file/d/${esc(r.driveId)}/view" target="_blank" rel="noopener" class="btn sec" style="padding:7px 9px;font-size:12px;text-decoration:none">Drive</a>`:'';
+      return `<div class="hist-item">
+        <div class="hist-info">
+          <div class="hist-title">${esc(r.examName||'Live Exam')}</div>
+          <div class="hist-meta">Sensei: ${esc(r.examinerName||'')} · ${esc(r.dateStr||'')} · ${badge}</div>
+        </div>
+        <div class="hist-acts">
+          ${drvBtn}
+          <button type="button" class="btn sec stu-live-open" data-rid="${esc(rid)}" style="padding:7px 10px;font-size:12px">Report</button>
+        </div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('.stu-live-open').forEach(b=>b.onclick=()=>{
+      const found=valid.find(([rid])=>rid===b.dataset.rid);if(!found)return;
+      const [rid,r]=found,s=r.students['u_'+curStudent.username];
+      closeMenu();
+      liveRoomId=rid;liveStuId='u_'+curStudent.username;liveRoom=r;liveDeduct=+(s.deduct||0);
+      repTime=r.dateStr||'';
+      const parts=[
+        {label:'Part 1',listen:false,pages:[],q:r.p1q,m:r.p1m},
+        {label:'Part 2',listen:false,pages:[],q:r.p2q,m:r.p2m}
+      ];
+      if(r.hasListen)parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:r.lm||30});
+      cfg={name:s.name||curStudent.name,driveId:r.driveId||'',examName:r.examName||'',ytId:'',style:$('style').value,parts};
+      ans=parts.map((pt,i)=>unpackAns((s.ans&&s.ans[i])||'',pt.q));
+      marks=parts.map((pt,i)=>unpackMarks((s.marks&&s.marks[i])||'',pt.q));
+      used=Array.isArray(s.used)?s.used.slice():parts.map(()=>0);
+      showReport(true);
+    });
+  }catch(e){el.innerHTML='<div class="mu">Load করা যায়নি।</div>'}
+}
 function startLiveStudent(room){
   const stuName=(curStudent&&curStudent.name)||$('lwNameIn').value.trim();
   if(!stuName){$('lwErr').textContent='নাম লেখো।';return}
   saveProfileName(stuName);
   liveStuId=curStudent?('u_'+curStudent.username):('s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5));
+  if(curStudent&&liveRoomId)db().ref('studentRooms/'+curStudent.username+'/'+liveRoomId).set(true);
   const parts=[
     {label:'Part 1',listen:false,pages:[],q:room.p1q,m:room.p1m},
     {label:'Part 2',listen:false,pages:[],q:room.p2q,m:room.p2m}
