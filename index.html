@@ -241,7 +241,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <input id="gdrive" type="url" placeholder="https://drive.google.com/file/d/.../view">
   <div id="detect" class="mu" style="margin-top:6px"></div>
 
-  <div class="presets">
+  <label>Exam Type</label>
+  <select id="partsMode"><option value="2">2 Parts (Part 1 + Part 2)</option><option value="1">1 Part Only</option></select>
+
+  <div class="presets" id="presetsWrap">
     <button type="button" class="preset-btn" id="preset43">43 Questions<br><span style="font-weight:500;font-size:11px">21q (20m) + 22q (40m)</span></button>
     <button type="button" class="preset-btn" id="preset67">67 Questions<br><span style="font-weight:500;font-size:11px">35q (25m) + 32q (50m)</span></button>
   </div>
@@ -255,7 +258,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div style="margin-top:8px"><div class="mu">PDF pages</div><input id="p1pages" placeholder="auto (e.g. 2-6)"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="p2Card">
     <h3>Part 2 <span class="mu">(Questions সংখ্যা নিজে দাও)</span></h3>
     <div class="row">
       <div><div class="mu">Questions</div><div class="step"><button data-t="p2q" data-d="-1">−</button><input id="p2q" type="number" min="1" placeholder="e.g. 22"><button data-t="p2q" data-d="1">+</button></div></div>
@@ -532,30 +535,40 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <label>Question Google Drive Link <span class="mu">(Drive দিলে নিচে Pages বাধ্যতামূলক দিতে হবে)</span></label>
     <input id="exDrive" type="url" placeholder="https://drive.google.com/file/d/.../view">
     <div id="exDetect" class="mu" style="margin-top:6px"></div>
-    <div class="presets">
+    <label>Exam Type</label>
+    <select id="exPartsMode"><option value="2">2 Parts (+ Optional Listening)</option><option value="1">1 Part Only</option></select>
+    <div class="presets" id="exPresetsWrap">
       <button type="button" class="preset-btn" id="exPreset43">43 Questions<br><span style="font-weight:500;font-size:11px">21q (20m) + 22q (40m)</span></button>
       <button type="button" class="preset-btn" id="exPreset67">67 Questions<br><span style="font-weight:500;font-size:11px">35q (25m) + 32q (50m)</span></button>
     </div>
     <div class="row" style="margin-top:10px">
-      <div><div class="mu">Part 1 Questions</div><input id="exP1q" type="number" min="1" value="21"></div>
-      <div><div class="mu">Part 1 Time (min)</div><input id="exP1m" type="number" min="1" value="20"></div>
+      <div><div class="mu">Questions</div><input id="exP1q" type="number" min="1" value="21"></div>
+      <div><div class="mu">Time (min)</div><input id="exP1m" type="number" min="1" value="20"></div>
     </div>
     <div style="margin-top:8px"><div class="mu">Part 1 Pages <span style="color:var(--bad)">*</span></div><input id="exP1pages" placeholder="e.g. 2-6 (mandatory)"></div>
-    <div class="row" style="margin-top:8px">
-      <div><div class="mu">Part 2 Questions</div><input id="exP2q" type="number" min="1" value="22"></div>
-      <div><div class="mu">Part 2 Time (min)</div><input id="exP2m" type="number" min="1" value="40"></div>
+    <div id="exOneTotalWrap" class="hide" style="margin-top:8px">
+      <div class="mu">Total Marks (এই exam কত নম্বরের?)</div>
+      <input id="exOneTotal" type="number" min="1" value="100">
     </div>
-    <div style="margin-top:8px"><div class="mu">Part 2 Pages <span style="color:var(--bad)">*</span></div><input id="exP2pages" placeholder="e.g. 8-13 (mandatory)"></div>
+    <div id="exP2Wrap">
+      <div class="row" style="margin-top:8px">
+        <div><div class="mu">Part 2 Questions</div><input id="exP2q" type="number" min="1" value="22"></div>
+        <div><div class="mu">Part 2 Time (min)</div><input id="exP2m" type="number" min="1" value="40"></div>
+      </div>
+      <div style="margin-top:8px"><div class="mu">Part 2 Pages <span style="color:var(--bad)">*</span></div><input id="exP2pages" placeholder="e.g. 8-13 (mandatory)"></div>
+    </div>
     <div style="margin-top:12px;border-top:1px solid var(--bd);padding-top:10px">
-      <label style="margin-top:0">Listening আছে?</label>
-      <select id="exHasListen"><option value="1">হ্যাঁ, Listening আছে</option><option value="0">না, শুধু Part 1 ও Part 2</option></select>
-      <div id="exListenFields">
-        <div class="row" style="margin-top:8px">
-          <div><div class="mu">Listening Time (min)</div><input id="exLm" type="number" min="1" value="30"></div>
-          <div><div class="mu">Listening Mode</div><select id="exLMode"><option value="instant">Answer Instant</option><option value="later">Answer Later</option></select></div>
+      <div id="exListenSection">
+        <label style="margin-top:0">Listening আছে?</label>
+        <select id="exHasListen"><option value="1">হ্যাঁ, Listening আছে</option><option value="0">না, শুধু Part 1 ও Part 2</option></select>
+        <div id="exListenFields">
+          <div class="row" style="margin-top:8px">
+            <div><div class="mu">Listening Time (min)</div><input id="exLm" type="number" min="1" value="30"></div>
+            <div><div class="mu">Listening Mode</div><select id="exLMode"><option value="instant">Answer Instant</option><option value="later">Answer Later</option></select></div>
+          </div>
+          <div style="margin-top:8px"><div class="mu">Listening Pages (optional)</div><input id="exP3pages" placeholder="খালি রাখলে Listening Pad দেখাবে"></div>
+          <div style="margin-top:8px"><div class="mu">YouTube Link (Listening)</div><input id="exYt" type="url" placeholder="https://youtu.be/..."></div>
         </div>
-        <div style="margin-top:8px"><div class="mu">Listening Pages (optional)</div><input id="exP3pages" placeholder="খালি রাখলে Listening Pad দেখাবে"></div>
-        <div style="margin-top:8px"><div class="mu">YouTube Link (Listening)</div><input id="exYt" type="url" placeholder="https://youtu.be/..."></div>
       </div>
       <div style="margin-top:10px">
         <div class="mu">Total Passing Mark <span id="exPassHint">(180-এর মধ্যে 90, প্রতি Part-এ কমপক্ষে 19)</span></div>
@@ -575,11 +588,12 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div><div class="mu">Part 1 Min</div><input id="ecP1m" type="number" min="1"></div>
       <div><div class="mu">Part 1 Pages</div><input id="ecP1p"></div>
     </div>
-    <div class="row" style="margin-top:8px">
+    <div id="ecP2Wrap" class="row" style="margin-top:8px">
       <div><div class="mu">Part 2 Q</div><input id="ecP2q" type="number" min="1"></div>
       <div><div class="mu">Part 2 Min</div><input id="ecP2m" type="number" min="1"></div>
       <div><div class="mu">Part 2 Pages</div><input id="ecP2p"></div>
     </div>
+    <div id="ecOneTotWrap" class="hide" style="margin-top:8px"><div class="mu">Total Marks</div><input id="ecOneTot" type="number" min="1"></div>
     <div id="ecListenWrap" class="row" style="margin-top:8px">
       <div><div class="mu">Listen Min</div><input id="ecLm" type="number" min="1"></div>
       <div><div class="mu">Listen Pages</div><input id="ecP3p" placeholder="Pad"></div>
@@ -920,31 +934,37 @@ function beginExam(name,driveId,parts,examName,ytId){
   startPart(0);
 }
 
+$('partsMode').onchange=()=>{
+  const one=$('partsMode').value==='1';
+  $('p2Card').classList.toggle('hide',one);
+  $('presetsWrap').classList.toggle('hide',one);
+};
 $('startBtn').onclick=async()=>{
   $('err').textContent='';
   const name=$('name').value.trim(),f=$('file').files[0],driveId=driveIdOf($('gdrive').value);
-  const customEx=$('examNameIn').value.trim();
+  const customEx=$('examNameIn').value.trim(),one=$('partsMode').value==='1';
+  const idxs=one?[1]:[1,2];
   if(!name){$('err').textContent='নাম লেখো।';return}
   if(!f&&!driveId){$('err').textContent='PDF select করো অথবা Google Drive link দাও।';return}
   if(driveId&&!f){
-    for(const i of [1,2])if(!$('p'+i+'q').value){$('err').textContent='Part '+i+' এর Questions সংখ্যা দাও।';return}
-    const parts=[0,1].map(i=>({
-      label:'Part '+(i+1),listen:false,pages:[],
-      q:Math.max(1,+$('p'+(i+1)+'q').value||1),
-      m:Math.max(1,+$('p'+(i+1)+'m').value||(i?40:20))}));
+    for(const i of idxs)if(!$('p'+i+'q').value){$('err').textContent='Part '+i+' এর Questions সংখ্যা দাও।';return}
+    const parts=idxs.map(i=>({
+      label:one?'Exam':'Part '+i,listen:false,pages:[],
+      q:Math.max(1,+$('p'+i+'q').value||1),
+      m:Math.max(1,+$('p'+i+'m').value||(i===2?40:20))}));
     beginExam(name,driveId,parts,customEx);
     return;
   }
-  for(const i of [1,2])if(!$('p'+i+'pages').value||!$('p'+i+'q').value){$('err').textContent='Part '+i+' এর Questions বা PDF pages ফাঁকা।';return}
+  for(const i of idxs)if(!$('p'+i+'pages').value||!$('p'+i+'q').value){$('err').textContent='Part '+i+' এর Questions বা PDF pages ফাঁকা।';return}
   $('startBtn').textContent='Loading…';
   try{
     if(!pdf){await setWorker();pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise}
   }catch(e){$('err').textContent='PDF load হয়নি: '+e.message;$('startBtn').textContent='Start Exam';return}
-  const parts=[0,1].map(i=>({
-    label:'Part '+(i+1),listen:false,
-    pages:parsePages($('p'+(i+1)+'pages').value,pdf.numPages),
-    q:Math.max(1,+$('p'+(i+1)+'q').value||1),
-    m:Math.max(1,+$('p'+(i+1)+'m').value||(i?40:20))}));
+  const parts=idxs.map(i=>({
+    label:one?'Exam':'Part '+i,listen:false,
+    pages:parsePages($('p'+i+'pages').value,pdf.numPages),
+    q:Math.max(1,+$('p'+i+'q').value||1),
+    m:Math.max(1,+$('p'+i+'m').value||(i===2?40:20))}));
   beginExam(name,'',parts,customEx||f.name.replace(/\.pdf$/i,''));
 };
 
@@ -1549,22 +1569,25 @@ function showReport(keepTime){
     const stRows=stuObjs.map(s=>({...calcStuSummary(liveRoom,s),dName:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
     html+=`<div class="card" style="border-color:${meSm.pass?'var(--ok)':'var(--bad)'}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <h3 style="margin:0">Live Exam Result (Scaled 60/Part)</h3>
+        <h3 style="margin:0">Live Exam Result (${liveRoom.onePart?meSm.maxTot+' Marks':'Scaled 60/Part'})</h3>
         <span class="pill ${meSm.pass?'live':'end'}" style="font-size:13px;padding:4px 10px">${esc(meSm.statusLabel)}</span>
       </div>
-      <div class="stat" style="margin-top:8px"><span>Part 1 (Min 19)</span><b>${meSm.s1} / 60 <span style="color:${meSm.s1>=19?'var(--ok)':'var(--bad)'}">${meSm.s1>=19?'✓':'✕'}</span></b></div>
-      <div class="stat"><span>Part 2 (Min 19)</span><b>${meSm.s2} / 60 <span style="color:${meSm.s2>=19?'var(--ok)':'var(--bad)'}">${meSm.s2>=19?'✓':'✕'}</span></b></div>
-      ${liveRoom.hasListen?`<div class="stat"><span>Listening (Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}
+      ${liveRoom.onePart
+        ?`<div class="stat" style="margin-top:8px"><span>Score</span><b>${meSm.s1} / ${meSm.maxTot}</b></div>`
+        :`<div class="stat" style="margin-top:8px"><span>Part 1 (Min 19)</span><b>${meSm.s1} / 60 <span style="color:${meSm.s1>=19?'var(--ok)':'var(--bad)'}">${meSm.s1>=19?'✓':'✕'}</span></b></div>
+          <div class="stat"><span>Part 2 (Min 19)</span><b>${meSm.s2} / 60 <span style="color:${meSm.s2>=19?'var(--ok)':'var(--bad)'}">${meSm.s2>=19?'✓':'✕'}</span></b></div>
+          ${liveRoom.hasListen?`<div class="stat"><span>Listening (Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}`
+      }
       <div class="stat" style="margin-top:4px;border-top:1px solid var(--bd);padding-top:6px"><span>Total (Pass: ${meSm.passTot})</span><b>${meSm.ded>0?`${meSm.rawTot} − ${meSm.ded} = `:''}${meSm.finalTot} / ${meSm.maxTot}</b></div>
     </div>
     <div class="card">
       <h3>Class Leaderboard (এই Exam-এ কে কত পেয়েছে)</h3>
       <div style="overflow:auto"><table class="tbl">
-        <thead><tr><th>#</th><th>Name</th><th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}<th>Total</th><th>Status</th></tr></thead>
+        <thead><tr><th>#</th><th>Name</th>${liveRoom.onePart?'':`<th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}`}<th>Total</th><th>Status</th></tr></thead>
         <tbody>${stRows.map((x,idx)=>`<tr>
           <td><b>${idx+1}</b></td>
           <td><b>${esc(x.dName)}</b></td>
-          <td>${x.s1}/60</td><td>${x.s2}/60</td>${liveRoom.hasListen?`<td>${x.s3}/60</td>`:''}
+          ${liveRoom.onePart?'':`<td>${x.s1}/60</td><td>${x.s2}/60</td>${liveRoom.hasListen?`<td>${x.s3}/60</td>`:''}`}
           <td><b>${x.ded>0?`${x.rawTot}−${x.ded}=`:''}${x.finalTot}/${x.maxTot}</b></td>
           <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
         </tr>`).join('')}</tbody>
@@ -2334,11 +2357,13 @@ function startLiveStudent(room){
   const p1p=room.pdfPages&&room.p1pages?parsePages(room.p1pages,999):[];
   const p2p=room.pdfPages&&room.p2pages?parsePages(room.p2pages,999):[];
   const p3p=room.pdfPages&&room.p3pages?parsePages(room.p3pages,999):[];
-  const parts=[
-    {label:'Part 1',listen:false,pages:p1p,pageRange:room.p1pages||'',q:room.p1q,m:room.p1m},
-    {label:'Part 2',listen:false,pages:p2p,pageRange:room.p2pages||'',q:room.p2q,m:room.p2m}
-  ];
-  if(room.hasListen){
+  const parts=room.onePart
+    ?[{label:'Exam',listen:false,pages:p1p,pageRange:room.p1pages||'',q:room.p1q,m:room.p1m}]
+    :[
+      {label:'Part 1',listen:false,pages:p1p,pageRange:room.p1pages||'',q:room.p1q,m:room.p1m},
+      {label:'Part 2',listen:false,pages:p2p,pageRange:room.p2pages||'',q:room.p2q,m:room.p2m}
+    ];
+  if(!room.onePart&&room.hasListen){
     parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:room.p3pages||'',q:LISTEN_TOTAL,m:room.lm||30});
   }
   $('listenMode').value=room.lMode||'instant';
@@ -2379,11 +2404,13 @@ function resumeLiveStudentFromRecord(r,me,stuId){
   const p1p=r.pdfPages&&r.p1pages?parsePages(r.p1pages,999):[];
   const p2p=r.pdfPages&&r.p2pages?parsePages(r.p2pages,999):[];
   const p3p=r.pdfPages&&r.p3pages?parsePages(r.p3pages,999):[];
-  const parts=[
-    {label:'Part 1',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m},
-    {label:'Part 2',listen:false,pages:p2p,pageRange:r.p2pages||'',q:r.p2q,m:r.p2m}
-  ];
-  if(r.hasListen){
+  const parts=r.onePart
+    ?[{label:'Exam',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m}]
+    :[
+      {label:'Part 1',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m},
+      {label:'Part 2',listen:false,pages:p2p,pageRange:r.p2pages||'',q:r.p2q,m:r.p2m}
+    ];
+  if(!r.onePart&&r.hasListen){
     parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:r.p3pages||'',q:LISTEN_TOTAL,m:r.lm||30});
   }
   $('listenMode').value=r.lMode||'instant';
@@ -2486,7 +2513,9 @@ async function checkHashLive(){
         return;
       }
       $('lwTitle').textContent=r.examName||'Live Exam';
-      $('lwSub').textContent=`Examiner: ${r.examinerName||'Sensei'} · Part 1 (${r.p1q}q, ${r.p1m}m) · Part 2 (${r.p2q}q, ${r.p2m}m)`+(r.hasListen?` · Listening (${r.lm}m)`:'');
+      $('lwSub').textContent=r.onePart
+        ?`Examiner: ${r.examinerName||'Sensei'} · ${r.p1q}q, ${r.p1m}m · Total: ${r.oneTotal||100} marks`
+        :`Examiner: ${r.examinerName||'Sensei'} · Part 1 (${r.p1q}q, ${r.p1m}m) · Part 2 (${r.p2q}q, ${r.p2m}m)`+(r.hasListen?` · Listening (${r.lm}m)`:'');
       $('lwNameIn').value=curStudent.name||'';
       $('lwNameIn').readOnly=true;
       $('lwJoinBox').classList.remove('hide');
@@ -2833,27 +2862,51 @@ $('exDrive').oninput=()=>{
   else if($('exDrive').value.trim())$('exDetect').textContent='সঠিক Google Drive file link দাও।';
   else $('exDetect').textContent='';
 };
+function syncExModeUi(){
+  const one=$('exPartsMode').value==='1';
+  $('exP2Wrap').classList.toggle('hide',one);
+  $('exPresetsWrap').classList.toggle('hide',one);
+  $('exListenSection').classList.toggle('hide',one);
+  $('exOneTotalWrap').classList.toggle('hide',!one);
+  if(one){
+    const tot=Math.max(1,+$('exOneTotal').value||100);
+    const pass=Math.round(tot*0.48);
+    $('exPassTotal').value=pass;
+    $('exPassHint').textContent=`(${tot}-এর 48% = ${pass})`;
+  }else{
+    const has=$('exHasListen').value==='1';
+    $('exPassTotal').value=has?90:58;
+    $('exPassHint').textContent=has?'(180-এর মধ্যে 90, প্রতি Part-এ কমপক্ষে 19)':'(120-এর 48% = 58, প্রতি Part-এ কমপক্ষে 19)';
+  }
+}
+$('exPartsMode').onchange=syncExModeUi;
+$('exOneTotal').oninput=()=>{if($('exPartsMode').value==='1')syncExModeUi()};
 $('exCreateBtn').onclick=()=>{
   $('exCreateErr').textContent='';
   const examName=$('exExamName').value.trim();
   const f=$('exFile').files[0],driveId=driveIdOf($('exDrive').value);
+  const onePart=$('exPartsMode').value==='1';
+  const oneTotal=Math.max(1,+$('exOneTotal').value||100);
   const p1q=+$('exP1q').value,p1m=+$('exP1m').value,p2q=+$('exP2q').value,p2m=+$('exP2m').value;
   const p1pages=$('exP1pages').value.trim(),p2pages=$('exP2pages').value.trim(),p3pages=$('exP3pages').value.trim();
-  const hasListen=$('exHasListen').value==='1';
+  const hasListen=!onePart&&$('exHasListen').value==='1';
   const lm=+$('exLm').value||30,lMode=$('exLMode').value;
   const ytRaw=$('exYt').value.trim(),ytId=ytIdOf(ytRaw);
   if(!examName){$('exCreateErr').textContent='Exam Name দাও।';return}
   if(!f&&!driveId){$('exCreateErr').textContent='Question PDF select করো অথবা Google Drive link দাও।';return}
-  if(!p1q||!p2q){$('exCreateErr').textContent='Part 1 ও Part 2 Questions সংখ্যা দাও।';return}
-  if(!p1pages||!p2pages){$('exCreateErr').textContent='Part 1 ও Part 2 Pages দেওয়া বাধ্যতামূলক!';return}
+  if(!p1q||(!onePart&&!p2q)){$('exCreateErr').textContent='Questions সংখ্যা দাও।';return}
+  if(!p1pages||(!onePart&&!p2pages)){$('exCreateErr').textContent='Pages দেওয়া বাধ্যতামূলক!';return}
   if(hasListen&&ytRaw&&!ytId){$('exCreateErr').textContent='সঠিক YouTube link দাও।';return}
-  pendingExDraft={examName,driveId:f?'':driveId,hasPdf:!!f,hasListen,lMode,ytId};
-  $('exConfSub').textContent=`Exam: ${examName} · Source: ${f?'PDF ('+f.name+')':'Google Drive Link'}`;
+  pendingExDraft={examName,driveId:f?'':driveId,hasPdf:!!f,onePart,oneTotal,hasListen,lMode,ytId};
+  $('exConfSub').textContent=`Exam: ${examName} · ${onePart?'1 Part ('+oneTotal+' marks)':'2 Parts'} · Source: ${f?'PDF ('+f.name+')':'Google Drive Link'}`;
   $('ecP1q').value=p1q;$('ecP1m').value=p1m;$('ecP1p').value=p1pages;
+  $('ecP2Wrap').classList.toggle('hide',onePart);
+  $('ecOneTotWrap').classList.toggle('hide',!onePart);
+  $('ecOneTot').value=oneTotal;
   $('ecP2q').value=p2q;$('ecP2m').value=p2m;$('ecP2p').value=p2pages;
   $('ecListenWrap').classList.toggle('hide',!hasListen);
   $('ecLm').value=lm;$('ecP3p').value=p3pages;
-  $('ecPassTotal').value=+$('exPassTotal').value||(hasListen?90:58);
+  $('ecPassTotal').value=+$('exPassTotal').value||(onePart?Math.round(oneTotal*0.48):(hasListen?90:58));
   $('ecErr').textContent='';
   $('exConfirmModal').classList.remove('hide');
 };
@@ -2861,17 +2914,19 @@ $('ecCancelBtn').onclick=()=>$('exConfirmModal').classList.add('hide');
 $('ecGoBtn').onclick=async()=>{
   if(!pendingExDraft)return;
   $('ecErr').textContent='';
+  const onePart=!!pendingExDraft.onePart;
+  const oneTotal=Math.max(1,+$('ecOneTot').value||pendingExDraft.oneTotal||100);
   const p1q=+$('ecP1q').value,p1m=+$('ecP1m').value,p1pages=$('ecP1p').value.trim();
-  const p2q=+$('ecP2q').value,p2m=+$('ecP2m').value,p2pages=$('ecP2p').value.trim();
+  const p2q=onePart?0:(+$('ecP2q').value),p2m=onePart?0:(+$('ecP2m').value),p2pages=onePart?'':$('ecP2p').value.trim();
   const lm=+$('ecLm').value||30,p3pages=$('ecP3p').value.trim();
-  const passTotal=Math.max(1,+$('ecPassTotal').value||(pendingExDraft.hasListen?90:58));
-  if(!p1q||!p2q||!p1m||!p2m||!p1pages||!p2pages){$('ecErr').textContent='সবগুলো field সঠিকভাবে পূরণ করো।';return}
+  const passTotal=Math.max(1,+$('ecPassTotal').value||(onePart?Math.round(oneTotal*0.48):(pendingExDraft.hasListen?90:58)));
+  if(!p1q||!p1m||!p1pages||(!onePart&&(!p2q||!p2m||!p2pages))){$('ecErr').textContent='সবগুলো field সঠিকভাবে পূরণ করো।';return}
   let pdfPages=null;
   if(pendingExDraft.hasPdf){
     $('ecGoBtn').textContent='Uploading Pages…';$('ecGoBtn').disabled=true;
     try{
       if(!exPdf){await setWorker();exPdf=await pdfjsLib.getDocument({data:await $('exFile').files[0].arrayBuffer()}).promise}
-      const need=new Set([...parsePages(p1pages,exPdf.numPages),...parsePages(p2pages,exPdf.numPages),...(pendingExDraft.hasListen&&p3pages?parsePages(p3pages,exPdf.numPages):[])]);
+      const need=new Set([...parsePages(p1pages,exPdf.numPages),...(onePart?[]:parsePages(p2pages,exPdf.numPages)),...(pendingExDraft.hasListen&&p3pages?parsePages(p3pages,exPdf.numPages):[])]);
       if(!need.size)throw new Error('কোনো valid page পাওয়া যায়নি।');
       pdfPages={};
       for(const n of need){
@@ -2892,7 +2947,7 @@ $('ecGoBtn').onclick=async()=>{
   const roomObj={
     examName:pendingExDraft.examName,examinerId:curExaminer.id,examinerName:curExaminer.name,
     dateStr:new Date().toLocaleString(),createdAt:Date.now(),
-    status:'live',driveId:pendingExDraft.driveId,p1q,p1m,p1pages,p2q,p2m,p2pages,
+    status:'live',driveId:pendingExDraft.driveId,onePart,oneTotal,p1q,p1m,p1pages,p2q,p2m,p2pages,
     hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,p3pages,ytId:pendingExDraft.ytId,
     passTotal,listenStarted:false,published:false
   };
@@ -2924,6 +2979,8 @@ function openLiveControl(rid){
     $('lcLinkLockBtn').style.color=r.linkLocked?'var(--ok)':'var(--bad)';
     $('lcListenCard').classList.toggle('hide',!r.hasListen);
     $('lcKey3Wrap').classList.toggle('hide',!r.hasListen);
+    $('lcKey2').classList.toggle('hide',!!r.onePart);
+    if($('lcKey2').previousElementSibling)$('lcKey2').previousElementSibling.classList.toggle('hide',!!r.onePart);
     if(r.keys){
       if(!$('lcKey1').value&&r.keys.k1)$('lcKey1').value=r.keys.k1;
       if(!$('lcKey2').value&&r.keys.k2)$('lcKey2').value=r.keys.k2;
@@ -3117,7 +3174,8 @@ $('lcNoticeBtn').onclick=async()=>{
   $('lcNoticeIn').value='';
   toast('Notice সবার কাছে পাঠানো হয়েছে!');
 };
-function computePartWeights(stuMarkStrs,qCount){
+function computePartWeights(stuMarkStrs,qCount,partTotal){
+  const targetTot=partTotal||60;
   const S=stuMarkStrs.length,w=[],stats=[];
   let sumW=0;
   for(let q=1;q<=qCount;q++){
@@ -3128,7 +3186,7 @@ function computePartWeights(stuMarkStrs,qCount){
     w.push(wq);sumW+=wq;
     stats.push({q,errPct:Math.round(errRate*100)});
   }
-  const pts=w.map(wq=>sumW?Math.round((wq*60/sumW)*10)/10:0);
+  const pts=w.map(wq=>sumW?Math.round((wq*targetTot/sumW)*10)/10:0);
   stats.forEach((st,i)=>st.pts=pts[i]);
   return{pts,stats};
 }
@@ -3169,10 +3227,14 @@ $('lcPublishBtn').onclick=async()=>{
     mList0.push(newMarks[0]||'');mList1.push(newMarks[1]||'');if(r.hasListen)mList2.push(newMarks[2]||'');
     upd[`rooms/${lcRoomId}/students/${sid}/marks`]=newMarks;
   });
-  const w0=computePartWeights(mList0,r.p1q);
-  const w1=computePartWeights(mList1,r.p2q);
-  const qPts=[w0.pts,w1.pts],qStats=[w0.stats,w1.stats];
-  if(r.hasListen){const w2=computePartWeights(mList2,LISTEN_TOTAL);qPts.push(w2.pts);qStats.push(w2.stats)}
+  const p1Tot=r.onePart?(r.oneTotal||100):60;
+  const w0=computePartWeights(mList0,r.p1q,p1Tot);
+  const qPts=[w0.pts],qStats=[w0.stats];
+  if(!r.onePart){
+    const w1=computePartWeights(mList1,r.p2q,60);
+    qPts.push(w1.pts);qStats.push(w1.stats);
+  }
+  if(!r.onePart&&r.hasListen){const w2=computePartWeights(mList2,LISTEN_TOTAL,60);qPts.push(w2.pts);qStats.push(w2.stats)}
   upd[`rooms/${lcRoomId}/qPts`]=qPts;
   upd[`rooms/${lcRoomId}/qStats`]=qStats;
   upd[`rooms/${lcRoomId}/chors`]=chors;
@@ -3181,33 +3243,35 @@ $('lcPublishBtn').onclick=async()=>{
   await db().ref().update(upd);
   toast('Weighted Results সবার কাছে publish হয়েছে!');
 };
-function scorePartFromMarks(markStr,qCount,ptsArr){
+function scorePartFromMarks(markStr,qCount,ptsArr,partTotal){
+  const targetTot=partTotal||60;
   let raw=0,ok=0;
   for(let q=0;q<qCount;q++){
     if((markStr||'')[q]==='o'){
       ok++;
-      raw+=(ptsArr&&ptsArr[q]!==undefined)?ptsArr[q]:(60/Math.max(1,qCount));
+      raw+=(ptsArr&&ptsArr[q]!==undefined)?ptsArr[q]:(targetTot/Math.max(1,qCount));
     }
   }
-  const scaled=ok===qCount?60:Math.min(60,Math.round(raw*10)/10);
+  const scaled=ok===qCount?targetTot:Math.min(targetTot,Math.round(raw*10)/10);
   return{ok,scaled};
 }
 function calcStuSummary(r,s){
   const mArr=s.marks||[],uArr=s.used||[],qPts=r.qPts||[];
-  const p1Res=scorePartFromMarks(mArr[0],r.p1q,qPts[0]);
-  const p2Res=scorePartFromMarks(mArr[1],r.p2q,qPts[1]);
-  const p3Res=r.hasListen?scorePartFromMarks(mArr[2],LISTEN_TOTAL,qPts[2]):{ok:0,scaled:0};
+  const p1Tot=r.onePart?(r.oneTotal||100):60;
+  const p1Res=scorePartFromMarks(mArr[0],r.p1q,qPts[0],p1Tot);
+  const p2Res=r.onePart?{ok:0,scaled:0}:scorePartFromMarks(mArr[1],r.p2q,qPts[1],60);
+  const p3Res=(!r.onePart&&r.hasListen)?scorePartFromMarks(mArr[2],LISTEN_TOTAL,qPts[2],60):{ok:0,scaled:0};
   const s1=p1Res.scaled,s2=p2Res.scaled,s3=p3Res.scaled;
-  const maxTot=r.hasListen?180:120;
-  const passTot=r.passTotal||(r.hasListen?90:58);
+  const maxTot=r.onePart?p1Tot:(r.hasListen?180:120);
+  const passTot=r.passTotal||(r.onePart?Math.round(p1Tot*0.48):(r.hasListen?90:58));
   const rawTot=Math.round((s1+s2+s3)*10)/10;
   const allPts=qPts.flat().filter(v=>typeof v==='number'&&v>0);
-  const minQPt=allPts.length?Math.round(Math.min(...allPts)*10)/10:Math.round((60/Math.max(1,r.p1q,r.p2q))*10)/10;
+  const minQPt=allPts.length?Math.round(Math.min(...allPts)*10)/10:Math.round((p1Tot/Math.max(1,r.p1q,r.p2q||1))*10)/10;
   const markDed=+(s.deduct||0),ansDed=+(s.ansDeduct||0);
   const ansDedMarks=Math.round(ansDed*minQPt*10)/10;
   const ded=Math.round((markDed+ansDedMarks)*10)/10;
   const finalTot=Math.max(0,Math.round((rawTot-ded)*10)/10);
-  const numPass=s1>=19&&s2>=19&&(!r.hasListen||s3>=19)&&finalTot>=passTot;
+  const numPass=r.onePart?(finalTot>=passTot):(s1>=19&&s2>=19&&(!r.hasListen||s3>=19)&&finalTot>=passTot);
   const senseiFailed=!!s.senseiFailed;
   const pass=numPass&&!senseiFailed;
   const sn=r.examinerName||'Sensei';
@@ -3260,14 +3324,13 @@ function renderLiveSummary(r,stus){
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
   $('lcSumBody').innerHTML=`<div class="mu" style="margin-bottom:6px">Total: <b>${rows.length}</b> · <span style="color:var(--ok)">PASS: <b>${passCnt}</b></span> · <span style="color:var(--bad)">FAIL: <b>${failCnt}</b></span></div>
   <table class="tbl">
-    <thead><tr><th>Name</th><th>Part 1</th><th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th><th>Action</th></tr></thead>
+    <thead><tr><th>Name</th><th>${r.onePart?'Score (Time)':'Part 1'}</th>${r.onePart?'':`<th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}`}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th><th>Action</th></tr></thead>
     <tbody>${rows.map(x=>{
       const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
       return `<tr>
         <td><b>${esc(x.dName)}</b></td>
-        <td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>
-        <td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>
-        ${r.hasListen?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}
+        <td><b>${x.s1}/${r.onePart?x.maxTot:60}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>
+        ${r.onePart?'':`<td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${r.hasListen?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`}
         <td>${totStr}</td>
         <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
         <td><button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button></td>
@@ -3293,13 +3356,18 @@ $('lcSumPngBtn').onclick=()=>{
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
   const passInfo=rows.length?`PASS: ${passCnt} · FAIL: ${failCnt} · Pass Mark: ${rows[0].passTot}/${rows[0].maxTot}`:'';
   ctx.fillText(`Examiner: ${r.examinerName||'Sensei'}  ·  ${r.dateStr||''}  ·  ${passInfo}`,pad,62);
-  const cols=r.hasListen?[pad,240,395,550,695,840]:[pad,275,470,665,830];
+  const one=!!r.onePart;
+  const cols=one?[pad,290,540,780]:(r.hasListen?[pad,240,395,550,695,840]:[pad,275,470,665,830]);
   ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
   ctx.fillText('Student Name',cols[0]+8,96);
-  ctx.fillText('Part 1 (Time)',cols[1],96);
-  ctx.fillText('Part 2 (Time)',cols[2],96);
-  if(r.hasListen){ctx.fillText('Listening',cols[3],96);ctx.fillText('Total',cols[4],96);ctx.fillText('Status',cols[5],96)}
-  else{ctx.fillText('Total',cols[3],96);ctx.fillText('Status',cols[4],96)}
+  if(one){
+    ctx.fillText('Score (Time)',cols[1],96);ctx.fillText('Total',cols[2],96);ctx.fillText('Status',cols[3],96);
+  }else{
+    ctx.fillText('Part 1 (Time)',cols[1],96);
+    ctx.fillText('Part 2 (Time)',cols[2],96);
+    if(r.hasListen){ctx.fillText('Listening',cols[3],96);ctx.fillText('Total',cols[4],96);ctx.fillText('Status',cols[5],96)}
+    else{ctx.fillText('Total',cols[3],96);ctx.fillText('Status',cols[4],96)}
+  }
   ctx.strokeStyle='#cbd5e1';ctx.beginPath();ctx.moveTo(pad,104);ctx.lineTo(W-pad,104);ctx.stroke();
   rows.forEach((x,idx)=>{
     const y=headH+idx*rowH;
@@ -3307,20 +3375,28 @@ $('lcSumPngBtn').onclick=()=>{
     ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
     ctx.fillText((idx+1)+'. '+x.name,cols[0]+8,y+22);
     ctx.font='13px system-ui,sans-serif';
-    ctx.fillText(`${x.s1}/60 (${fmt(x.t1)})`,cols[1],y+22);
-    ctx.fillText(`${x.s2}/60 (${fmt(x.t2)})`,cols[2],y+22);
     const totTxt=x.ded>0?`${x.rawTot}-${x.ded}=${x.finalTot}/${x.maxTot}`:`${x.finalTot}/${x.maxTot}`;
-    if(r.hasListen){
-      ctx.fillText(`${x.s3}/60 (${x.p3}/${LISTEN_TOTAL})`,cols[3],y+22);
+    if(one){
+      ctx.fillText(`${x.s1}/${x.p1Tot} (${fmt(x.t1)})`,cols[1],y+22);
       ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
-      ctx.fillText(totTxt,cols[4],y+22);
+      ctx.fillText(totTxt,cols[2],y+22);
       ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
-      ctx.fillText(x.shortStatus,cols[5],y+22);
+      ctx.fillText(x.shortStatus,cols[3],y+22);
     }else{
-      ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
-      ctx.fillText(totTxt,cols[3],y+22);
-      ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
-      ctx.fillText(x.shortStatus,cols[4],y+22);
+      ctx.fillText(`${x.s1}/60 (${fmt(x.t1)})`,cols[1],y+22);
+      ctx.fillText(`${x.s2}/60 (${fmt(x.t2)})`,cols[2],y+22);
+      if(r.hasListen){
+        ctx.fillText(`${x.s3}/60 (${x.p3}/${LISTEN_TOTAL})`,cols[3],y+22);
+        ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
+        ctx.fillText(totTxt,cols[4],y+22);
+        ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
+        ctx.fillText(x.shortStatus,cols[5],y+22);
+      }else{
+        ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
+        ctx.fillText(totTxt,cols[3],y+22);
+        ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
+        ctx.fillText(x.shortStatus,cols[4],y+22);
+      }
     }
   });
   c.toBlob(blob=>{
