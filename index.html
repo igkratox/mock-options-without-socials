@@ -166,6 +166,18 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 #exam.is-paused #nextBtn{pointer-events:none;opacity:.5}
 .pause-ov{position:absolute;inset:52px 0 0 0;z-index:30;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.35);backdrop-filter:blur(4px)}
 .pause-box{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.35)}
+.yt-wrap{position:relative;width:100%;height:100%}
+.yt-lock{position:absolute;inset:0;z-index:5;background:transparent}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.tbl th,.tbl td{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:middle}
+.tbl th{font-size:12px;color:var(--mu);font-weight:700}
+.chor-card{border-color:var(--bad);background:rgba(220,38,38,.06)}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.pill.live{background:rgba(22,163,74,.15);color:var(--ok)}
+.pill.end{background:rgba(220,38,38,.14);color:var(--bad)}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs button{flex:1;padding:9px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--mu);font-weight:700}
+.tabs button.sel{background:var(--ac);border-color:var(--ac);color:var(--acx)}
 </style>
 </head>
 <body>
@@ -256,6 +268,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <input type="file" id="importPngInput" accept="image/png" class="hide">
         <input type="file" id="importBackupInput" accept="application/json,.json" class="hide">
         <div class="menu-acts">
+          <button type="button" class="btn" id="openPortalBtn" style="grid-column:1/-1;margin:0;padding:10px">Examiner / Admin Mode</button>
           <button type="button" class="btn sec" id="importPngBtn">Upload Report PNG</button>
           <button type="button" class="btn sec" id="pasteLinkBtn">Open Review Link</button>
           <button type="button" class="btn sec" id="themeBtn">Theme: Auto</button>
@@ -288,6 +301,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <option value="instant">Answer Instant</option>
       <option value="later">Answer Later</option>
     </select>
+    <button type="button" class="btn sec hide" id="ytMuteBtn" style="padding:5px 10px;font-size:12px">🔊 Sound On</button>
     <div class="yt-spd hide" id="ytSpdBar">
       <button type="button" data-r="0.75">0.75x</button>
       <button type="button" data-r="1" class="sel">1x</button>
@@ -381,7 +395,219 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   </div>
 </div>
 
+<!-- Live Student Join / Wait View -->
+<div id="liveWaitView" class="wrap hide" style="padding-top:40px">
+  <div class="card" style="text-align:center;padding:24px">
+    <h2 id="lwTitle" style="margin:0 0 6px">Live Exam</h2>
+    <div class="mu" id="lwSub" style="font-size:14px">Loading…</div>
+    <div id="lwJoinBox" class="hide" style="margin-top:16px;text-align:left">
+      <label>তোমার নাম লেখো</label>
+      <input id="lwNameIn" placeholder="Student Name">
+      <div id="lwErr" class="mu" style="color:var(--bad);margin-top:6px"></div>
+      <button type="button" class="btn" id="lwJoinBtn" style="margin-top:12px">Join Live Exam</button>
+    </div>
+    <div id="lwSpinBox" class="hide" style="margin-top:18px">
+      <div class="badge pend" style="font-size:13px;padding:6px 14px" id="lwStatusPill">অপেক্ষা করো…</div>
+    </div>
+    <button type="button" class="btn sec" id="lwHomeBtn" style="margin-top:18px">Back to Home</button>
+  </div>
+</div>
+
+<!-- Portal Login (Examiner / Admin) -->
+<div id="portalAuth" class="wrap hide">
+  <div class="home-hd">
+    <h1>Examiner / Admin</h1>
+    <button type="button" class="btn sec" id="portalBackHome">⌂ Home</button>
+  </div>
+  <div class="card">
+    <div class="tabs">
+      <button type="button" id="tabExaminer" class="sel">Examiner Login</button>
+      <button type="button" id="tabAdmin">Admin Login</button>
+    </div>
+    <label id="authIdLbl">Examiner ID</label>
+    <input id="authId" placeholder="ID">
+    <label>Password</label>
+    <input id="authPass" type="password" placeholder="Password">
+    <div id="authErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
+    <button type="button" class="btn" id="authLoginBtn">Login</button>
+    <div id="authHint" class="mu hide" style="margin-top:8px">Default Admin: <b>admin</b> / <b>admin123</b> (Login করে change করতে পারবে)</div>
+  </div>
+</div>
+
+<!-- Admin Dashboard -->
+<div id="adminDash" class="wrap hide" style="max-width:820px">
+  <div class="home-hd">
+    <div>
+      <h1>Admin Dashboard</h1>
+      <div class="mu">All Examiners & Live Exams Control</div>
+    </div>
+    <button type="button" class="btn sec" id="adminLogoutBtn">Logout</button>
+  </div>
+  <div class="card">
+    <h3>Add New Examiner</h3>
+    <div class="row" style="flex-wrap:wrap">
+      <input id="newExName" placeholder="Teacher Name (e.g. Sensei)" style="min-width:140px">
+      <input id="newExId" placeholder="Examiner ID (e.g. sensei1)" style="min-width:120px">
+      <input id="newExPass" placeholder="Password" style="min-width:120px">
+    </div>
+    <button type="button" class="btn" id="addExBtn" style="margin-top:10px">Create Examiner</button>
+  </div>
+  <div class="card">
+    <h3>Examiners List</h3>
+    <div id="adminExList" class="mu">Loading…</div>
+  </div>
+  <div class="card">
+    <h3>All Teachers' Exams</h3>
+    <div id="adminExamsList" class="mu">Loading…</div>
+  </div>
+  <div class="card">
+    <h3>Change Admin Credentials</h3>
+    <div class="row">
+      <input id="chgAdmId" placeholder="New Admin ID">
+      <input id="chgAdmPass" type="password" placeholder="New Password">
+    </div>
+    <button type="button" class="btn sec" id="saveAdmCredBtn" style="margin-top:10px;width:100%">Update Admin Login</button>
+  </div>
+</div>
+
+<!-- Examiner Dashboard -->
+<div id="examinerDash" class="wrap hide" style="max-width:760px">
+  <div class="home-hd">
+    <div>
+      <h1 id="exDashTitle">Examiner Dashboard</h1>
+      <div class="mu" id="exDashSub">Live Exam Create & History</div>
+    </div>
+    <button type="button" class="btn sec" id="exLogoutBtn">Logout</button>
+  </div>
+  <div class="card">
+    <h3>Create New Live Exam</h3>
+    <label>Exam Name</label>
+    <input id="exExamName" placeholder="e.g. N5 Mock Test #5">
+    <label>Question Google Drive Link</label>
+    <input id="exDrive" type="url" placeholder="https://drive.google.com/file/d/.../view">
+    <div class="presets">
+      <button type="button" class="preset-btn" id="exPreset43">43 Questions<br><span style="font-weight:500;font-size:11px">21q (20m) + 22q (40m)</span></button>
+      <button type="button" class="preset-btn" id="exPreset67">67 Questions<br><span style="font-weight:500;font-size:11px">35q (25m) + 32q (50m)</span></button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><div class="mu">Part 1 Questions</div><input id="exP1q" type="number" min="1" value="21"></div>
+      <div><div class="mu">Part 1 Time (min)</div><input id="exP1m" type="number" min="1" value="20"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div><div class="mu">Part 2 Questions</div><input id="exP2q" type="number" min="1" value="22"></div>
+      <div><div class="mu">Part 2 Time (min)</div><input id="exP2m" type="number" min="1" value="40"></div>
+    </div>
+    <div style="margin-top:12px;border-top:1px solid var(--bd);padding-top:10px">
+      <label style="margin-top:0">Listening আছে?</label>
+      <select id="exHasListen"><option value="1">হ্যাঁ, Listening আছে</option><option value="0">না, শুধু Part 1 ও Part 2</option></select>
+      <div id="exListenFields">
+        <div class="row" style="margin-top:8px">
+          <div><div class="mu">Listening Time (min)</div><input id="exLm" type="number" min="1" value="30"></div>
+          <div><div class="mu">Listening Mode</div><select id="exLMode"><option value="instant">Answer Instant</option><option value="later">Answer Later</option></select></div>
+        </div>
+        <div style="margin-top:8px"><div class="mu">YouTube Link (Listening)</div><input id="exYt" type="url" placeholder="https://youtu.be/..."></div>
+      </div>
+    </div>
+    <div id="exCreateErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
+    <button type="button" class="btn" id="exCreateBtn">Start Live Exam & Get Link</button>
+  </div>
+  <div class="card">
+    <h3>My Exams History</h3>
+    <div id="exHistoryList" class="mu">Loading…</div>
+  </div>
+</div>
+
+<!-- Live Examiner Control Room -->
+<div id="liveControl" class="wrap hide" style="max-width:900px">
+  <div class="home-hd" style="flex-wrap:wrap">
+    <div>
+      <h1 id="lcTitle">Live Control Room</h1>
+      <div class="mu" id="lcSub"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn sec" id="lcCopyLinkBtn">Copy Student Link</button>
+      <button type="button" class="btn sec" id="lcEndBtn" style="color:var(--bad)">End Exam</button>
+      <button type="button" class="btn sec" id="lcBackBtn">Back</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <strong>Global Time Control (সবার সময় একসাথে)</strong>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn sec lc-gtime" data-d="-300">−5m</button>
+        <button type="button" class="btn sec lc-gtime" data-d="-60">−1m</button>
+        <button type="button" class="btn sec lc-gtime" data-d="60">+1m</button>
+        <button type="button" class="btn sec lc-gtime" data-d="300">+5m</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Live Students (<span id="lcStuCount">0</span>)</h3>
+    <div style="overflow:auto">
+      <table class="tbl" id="lcStuTable">
+        <thead><tr><th>Name</th><th>Status / Part</th><th>Q#</th><th>Time Left</th><th>Adjust Time</th></tr></thead>
+        <tbody id="lcStuBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card hide" id="lcListenCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div>
+        <h3 style="margin:0">Listening Sync & YouTube Control</h3>
+        <div class="mu" id="lcWaitCount">Waiting for Listening: 0</div>
+      </div>
+      <button type="button" class="btn" id="lcStartListenBtn" style="width:auto;margin:0;padding:9px 14px">Start Listening for All</button>
+    </div>
+    <div id="lcYtWrap" class="hide" style="margin-top:12px">
+      <div class="yt-box" id="lcYtBox" style="max-width:480px"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">
+        <button type="button" class="btn sec" id="lcYtPlayBtn">▶ Play</button>
+        <button type="button" class="btn sec" id="lcYtPauseBtn">⏸ Pause</button>
+        <button type="button" class="btn sec" id="lcYtBack10">« 10s</button>
+        <button type="button" class="btn sec" id="lcYtFwd10">10s »</button>
+        <div class="yt-spd" id="lcYtSpd" style="margin-left:0">
+          <button type="button" data-r="0.75">0.75x</button>
+          <button type="button" data-r="1" class="sel">1x</button>
+          <button type="button" data-r="1.25">1.25x</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Official Answer Key & Publish Results</h3>
+    <div class="mu">Exam চলাকালীন অথবা শেষে Answer Key দিয়ে <b>Publish Results</b> চাপো।</div>
+    <label>Part 1 Answer Key</label>
+    <input id="lcKey1" placeholder="e.g. 1 3 2 4 ... বা ABCD...">
+    <label>Part 2 Answer Key</label>
+    <input id="lcKey2" placeholder="e.g. 2 1 4 3 ...">
+    <div id="lcKey3Wrap">
+      <label id="lcKey3Lbl">Listening Answer Key (24টি)</label>
+      <input id="lcKey3" placeholder="Answer Later হলে mandatory; Instant হলে দিলে Chor ধরবে">
+    </div>
+    <button type="button" class="btn" id="lcPublishBtn" style="margin-top:12px">Grade & Publish Results to All</button>
+  </div>
+
+  <div class="card chor-card hide" id="lcChorCard">
+    <h3 style="color:var(--bad)">Chor Panel (ভুল উত্তর দিয়েও ✓ দিয়েছে)</h3>
+    <div id="lcChorBody"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <h3 style="margin:0">Exam Result Summary</h3>
+      <button type="button" class="btn sec" id="lcSumPngBtn">Download Summary PNG</button>
+    </div>
+    <div id="lcSumBody" style="overflow:auto;margin-top:8px"></div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const LISTEN_MONDAI=[{m:1,q:7,opts:4},{m:2,q:6,opts:4},{m:3,q:5,opts:3},{m:4,q:6,opts:3}];
@@ -515,18 +741,20 @@ function stopYt(){
   if(ytPlayer){try{ytPlayer.destroy()}catch(e){}ytPlayer=null}
   const top=$('ytTopWrap');if(top){top.innerHTML='';top.classList.add('hide')}
 }
-async function mountYt(el,videoId){
+async function mountYt(el,videoId,opts){
   stopYt();
-  el.innerHTML='<div id="ytFrameTarget"></div>';
+  const locked=!!(opts&&opts.locked);
+  el.innerHTML=locked?'<div class="yt-wrap"><div id="ytFrameTarget"></div><div class="yt-lock"></div></div>':'<div id="ytFrameTarget"></div>';
   try{
     await loadYtApi();
     if(!document.body.contains(el))return;
-    const pv={playsinline:1,rel:0,modestbranding:1,fs:1};
+    const pv={playsinline:1,rel:0,modestbranding:1,fs:locked?0:1};
+    if(locked){pv.controls=0;pv.disablekb=1}
     if(location.protocol.startsWith('http'))pv.origin=location.origin;
-    ytPlayer=new YT.Player('ytFrameTarget',{width:'100%',height:'100%',videoId,playerVars:pv});
+    ytPlayer=new YT.Player('ytFrameTarget',{width:'100%',height:'100%',videoId,playerVars:pv,events:{onReady:()=>{if(opts&&opts.onReady)opts.onReady(ytPlayer)}}});
   }catch(e){
     if(!document.body.contains(el))return;
-    el.innerHTML=`<iframe src="https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+    el.innerHTML=`<div class="yt-wrap"><iframe src="https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0${locked?'&controls=0&disablekb=1':''}" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>${locked?'<div class="yt-lock"></div>':''}</div>`;
   }
 }
 function seekYt(sec){
@@ -623,7 +851,12 @@ async function startPart(i,auto,resumeSec){
   $('listenModeBar').classList.toggle('hide',!P.listen);
   const usePad=P.listen&&!cfg.driveId&&!P.pages.length;
   const hasYt=!!(P.listen&&cfg.ytId);
-  $('ytSpdBar').classList.toggle('hide',!hasYt);
+  const isLive=!!liveRoomId;
+  $('pauseBtn').classList.toggle('hide',isLive);
+  $('flagBtn').classList.toggle('hide',isLive);
+  $('listenMode').disabled=isLive;
+  $('ytMuteBtn').classList.toggle('hide',!(isLive&&hasYt));
+  $('ytSpdBar').classList.toggle('hide',!hasYt||isLive);
   $('ytSpdBar').querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.r==='1'));
   document.querySelector('.dock').classList.toggle('pad-only',usePad);
   if(usePad){
@@ -631,15 +864,17 @@ async function startPart(i,auto,resumeSec){
     $('pages').style.width='100%';$('pages').style.height='100%';
     $('pages').innerHTML=`<div class="listen-pad${hasYt?' has-yt':''}">
       ${hasYt?'<div class="yt-box" id="ytBox"></div>':''}
-      <div class="l-head">${hasYt?'<button type="button" class="yt-seek" id="ytBack10">« 10s</button><span id="lHead">Mondai 1 · Q1</span><button type="button" class="yt-seek" id="ytFwd10">10s »</button>':'<span id="lHead">Mondai 1 · Q1</span>'}</div>
+      <div class="l-head">${hasYt&&!isLive?'<button type="button" class="yt-seek" id="ytBack10">« 10s</button><span id="lHead">Mondai 1 · Q1</span><button type="button" class="yt-seek" id="ytFwd10">10s »</button>':'<span id="lHead">Mondai 1 · Q1</span>'}</div>
       <div class="l-opts" id="lOpts"></div>
       <div class="l-rw"><button class="ok" id="lOk">✓ Right</button><button class="bad" id="lBad">✕ Wrong</button></div>
       <div class="l-nav"><button id="lPrev">◀ আগের প্রশ্ন</button><button id="lNext">পরের প্রশ্ন ▶</button></div>
     </div>`;
     if(hasYt){
-      mountYt($('ytBox'),cfg.ytId);
-      $('ytBack10').onclick=()=>seekYt(-10);
-      $('ytFwd10').onclick=()=>seekYt(10);
+      mountYt($('ytBox'),cfg.ytId,{locked:isLive,onReady:()=>{if(isLive)applyYtSync()}});
+      if(!isLive){
+        $('ytBack10').onclick=()=>seekYt(-10);
+        $('ytFwd10').onclick=()=>seekYt(10);
+      }
       if(location.protocol==='content:'||location.protocol==='file:')toast('content:// বা file:// থেকে সরাসরি খুললে YouTube Error 153 দেয়। http://localhost দিয়ে খুললে ভিডিও চলবে।');
     }
     $('lOk').onclick=()=>toggleMark('ok');
@@ -652,7 +887,7 @@ async function startPart(i,auto,resumeSec){
       const top=$('ytTopWrap');
       top.innerHTML='<div class="yt-box" id="ytBoxTop"></div>';
       top.classList.remove('hide');
-      mountYt($('ytBoxTop'),cfg.ytId);
+      mountYt($('ytBoxTop'),cfg.ytId,{locked:isLive,onReady:()=>{if(isLive)applyYtSync()}});
     }
   }
   buildSheet();
@@ -774,20 +1009,24 @@ function buildSheet(keepCur){
         b.onclick=()=>{cur=idx;refresh()};
         ch.appendChild(b);
       }
-      const addB=document.createElement('button');
-      addB.className='chip add-q';addB.textContent='+';addB.title=`Mondai ${md.m}-এ প্রশ্ন যোগ করো`;
-      addB.onclick=()=>addQuestionToMondai(mIdx);
-      ch.appendChild(addB);
+      if(!liveRoomId){
+        const addB=document.createElement('button');
+        addB.className='chip add-q';addB.textContent='+';addB.title=`Mondai ${md.m}-এ প্রশ্ন যোগ করো`;
+        addB.onclick=()=>addQuestionToMondai(mIdx);
+        ch.appendChild(addB);
+      }
     });
   }else{
     for(let i=1;i<=P.q;i++){
       const b=document.createElement('button');b.className='chip';b.textContent=i;b.dataset.q=i;
       b.onclick=()=>{cur=i;refresh()};ch.appendChild(b);
     }
-    const addB=document.createElement('button');
-    addB.className='chip add-q';addB.textContent='+';addB.title='নতুন প্রশ্ন যোগ করো';
-    addB.onclick=()=>{P.q++;buildSheet(P.q)};
-    ch.appendChild(addB);
+    if(!liveRoomId){
+      const addB=document.createElement('button');
+      addB.className='chip add-q';addB.textContent='+';addB.title='নতুন প্রশ্ন যোগ করো';
+      addB.onclick=()=>{P.q++;buildSheet(P.q)};
+      ch.appendChild(addB);
+    }
   }
   $('rwBtns').classList.toggle('hide',!P.listen);
   const nOpts=P.listen?listenInfo(cur,P).opts:4;
@@ -827,6 +1066,7 @@ function refresh(){
   }
   updProg();
   saveActiveExam();
+  if(liveRoomId)syncStudentLive();
 }
 $('flagBtn').onclick=()=>{
   if(!flags[part])flags[part]=[];
@@ -901,7 +1141,7 @@ function onTick(){
   $('timer').classList.toggle('low',rem<=60);
   if(!warn5&&rem<=300&&rem>60){warn5=true;playBeep(1);toast('আর ৫ মিনিট বাকি আছে!')}
   if(!warn1&&rem<=60&&rem>0){warn1=true;playBeep(2);toast('আর ১ মিনিট বাকি আছে!')}
-  if(Date.now()-lastAutoSaveTs>5000){lastAutoSaveTs=Date.now();saveActiveExam()}
+  if(Date.now()-lastAutoSaveTs>4000){lastAutoSaveTs=Date.now();saveActiveExam();if(liveRoomId)syncStudentLive()}
   if(rem<=0)finishPart(true);
 }
 let pendingAuto=false;
@@ -911,6 +1151,18 @@ function finishPart(auto){
   paused=false;$('pauseBtn').textContent='⏸';$('timer').classList.remove('paused');
   $('exam').classList.remove('is-paused');$('pauseOverlay').classList.add('hide');
   used[part]=auto?limit:Math.min(limit,limit-remNow);
+  if(liveRoomId){
+    if(part===0&&cfg.parts.length>1){startPart(1,auto);return}
+    if(part===1&&liveRoom&&liveRoom.hasListen){
+      if(liveRoom.listenStarted){startPart(2,auto);return}
+      setLiveWait('waiting_listen','Part 2 শেষ!','অন্যান্যরা Part 2 শেষ করলে ও Sensei শুরু করলে Listening একসাথে শুরু হবে…','Listening-এর জন্য অপেক্ষা করা হচ্ছে');
+      return;
+    }
+    clearActiveExam();
+    if(liveRoom&&liveRoom.published){loadPublishedLiveReport();return}
+    setLiveWait('finished','Exam শেষ হয়েছে!','Sensei Answer Key publish করলে এখানেই তোমার Result Card দেখাবে…','Result-এর জন্য অপেক্ষা করা হচ্ছে');
+    return;
+  }
   if(part<cfg.parts.length-1)startPart(part+1,auto);
   else if(part===1&&cfg.parts.length===2){
     pendingAuto=!!auto;
@@ -1121,7 +1373,9 @@ function markStats(i){
 }
 function showReport(keepTime){
   stopYt();
-  $('setup').classList.add('hide');$('exam').classList.add('hide');$('listenReview').classList.add('hide');$('report').classList.remove('hide');
+  $('setup').classList.add('hide');$('exam').classList.add('hide');$('listenReview').classList.add('hide');$('liveWaitView').classList.add('hide');$('report').classList.remove('hide');
+  $('checkAnsBtn').classList.toggle('hide',!!liveRoomId);
+  $('copyLinkBtn').classList.toggle('hide',!!liveRoomId);
   if(!keepTime||!repTime)repTime=new Date().toLocaleString();
   saveCurrentExamToHistory();
   $('repName').textContent=(cfg.examName?'Exam Name: '+cfg.examName+' · ':'')+cfg.name+' · '+repTime;
@@ -1636,9 +1890,549 @@ function checkHashReview(){
   if(p.name&&!$('name').value)$('name').value=p.name;
   renderHistory();
   checkHashReview();
-  if($('setup').classList.contains('hide')===false)checkActiveExam();
-  window.addEventListener('hashchange',checkHashReview);
+  checkHashLive();
+  if($('setup').classList.contains('hide')===false&&!location.hash.startsWith('#live='))checkActiveExam();
+  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive()});
 })();
+
+/* ================= LIVE EXAMINER & ADMIN PORTAL (FIREBASE) ================= */
+const FB_CFG={
+  apiKey:"AIzaSyAFXEFIvFLSKa0N-2DnrCjEp23WHGw05vo",
+  authDomain:"mock-exam-live.firebaseapp.com",
+  databaseURL:"https://mock-exam-live-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"mock-exam-live",
+  storageBucket:"mock-exam-live.firebasestorage.app",
+  messagingSenderId:"446046370344",
+  appId:"1:446046370344:web:0359b6c85bda707375531d"
+};
+let fbDb=null;
+function db(){
+  if(!fbDb){
+    if(!firebase.apps.length)firebase.initializeApp(FB_CFG);
+    fbDb=firebase.database();
+  }
+  return fbDb;
+}
+let liveRoomId='',liveStuId='',liveRoom=null,liveRoomRef=null,lastGlobalDeltaTs=0,lastStuDeltaTs=0,ytMuted=false,lastYtSyncTs=0;
+let curAdmin=false,curExaminer=null,lcRoomId='',lcRoomRef=null,lcRoomData=null,lcYtPlayer=null,lcReturnView='examinerDash';
+
+function hideAllViews(){
+  ['setup','exam','report','listenReview','liveWaitView','portalAuth','adminDash','examinerDash','liveControl'].forEach(id=>$(id).classList.add('hide'));
+}
+const origGoHome=goHome;
+goHome=function(){
+  if(liveRoomRef){liveRoomRef.off();liveRoomRef=null}
+  liveRoomId='';liveRoom=null;liveStuId='';
+  hideAllViews();
+  origGoHome();
+};
+
+/* Student Live Sync */
+function syncStudentLive(){
+  if(!liveRoomId||!liveStuId)return;
+  const rem=paused?pausedRem:Math.max(0,Math.round((endAt-Date.now())/1000));
+  const P=cfg?.parts?.[part];
+  const st=$('liveWaitView').classList.contains('hide')?'active':($('lwStatusPill').dataset.st||'active');
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update({
+    name:cfg.name,
+    status:st,
+    part,
+    partLabel:P?P.label:'',
+    cur,
+    rem,
+    ans:cfg.parts.map((pt,i)=>packArr(ans[i]||[],pt.q,'0')),
+    marks:cfg.parts.map((pt,i)=>packArr(marks[i]||[],pt.q,'.')),
+    used:used.map(x=>Math.round(x||0)),
+    updatedAt:Date.now()
+  });
+}
+function setLiveWait(st,title,sub,pill){
+  stopYt();clearInterval(tick);
+  syncStudentLive();
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update({status:st,used:used.map(x=>Math.round(x||0)),updatedAt:Date.now()});
+  hideAllViews();
+  $('liveWaitView').classList.remove('hide');
+  $('lwTitle').textContent=title;
+  $('lwSub').textContent=sub;
+  $('lwJoinBox').classList.add('hide');
+  $('lwSpinBox').classList.remove('hide');
+  $('lwStatusPill').textContent=pill;
+  $('lwStatusPill').dataset.st=st;
+}
+function applyYtSync(){
+  if(!liveRoom||!liveRoom.ytSync||!ytPlayer||typeof ytPlayer.seekTo!=='function')return;
+  const y=liveRoom.ytSync;
+  if(y.ts===lastYtSyncTs)return;
+  lastYtSyncTs=y.ts;
+  try{
+    if(y.rate&&ytPlayer.setPlaybackRate)ytPlayer.setPlaybackRate(y.rate);
+    const elapsed=y.playing?(Date.now()-y.ts)/1000*(y.rate||1):0;
+    ytPlayer.seekTo(Math.max(0,(y.time||0)+elapsed),true);
+    if(y.playing)ytPlayer.playVideo();else ytPlayer.pauseVideo();
+    if(ytMuted)ytPlayer.mute();else ytPlayer.unMute();
+  }catch(e){}
+}
+$('ytMuteBtn').onclick=()=>{
+  ytMuted=!ytMuted;
+  $('ytMuteBtn').textContent=ytMuted?'🔇 Muted':'🔊 Sound On';
+  try{if(ytPlayer){if(ytMuted)ytPlayer.mute();else ytPlayer.unMute()}}catch(e){}
+};
+function loadPublishedLiveReport(){
+  if(!liveRoom||!liveRoom.students||!liveRoom.students[liveStuId])return;
+  const st=liveRoom.students[liveStuId];
+  if(Array.isArray(st.marks)){
+    marks=cfg.parts.map((P,i)=>unpackMarks(st.marks[i]||'',P.q));
+  }
+  showReport();
+}
+function startLiveStudent(room){
+  const stuName=$('lwNameIn').value.trim();
+  if(!stuName){$('lwErr').textContent='নাম লেখো।';return}
+  saveProfileName(stuName);
+  liveStuId='s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
+  const parts=[
+    {label:'Part 1',listen:false,pages:[],q:room.p1q,m:room.p1m},
+    {label:'Part 2',listen:false,pages:[],q:room.p2q,m:room.p2m}
+  ];
+  if(room.hasListen){
+    parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:room.lm||30});
+  }
+  $('listenMode').value=room.lMode||'instant';
+  lastGlobalDeltaTs=room.globalDeltaTs||0;
+  lastStuDeltaTs=0;
+  beginExam(stuName,room.driveId||'',parts,room.examName||'',room.ytId||'');
+  syncStudentLive();
+}
+function checkHashLive(){
+  if(!location.hash.startsWith('#live='))return;
+  const rid=location.hash.slice(6).trim();
+  if(!rid)return;
+  liveRoomId=rid;
+  hideAllViews();
+  $('liveWaitView').classList.remove('hide');
+  $('lwTitle').textContent='Live Exam';
+  $('lwSub').textContent='Exam-এর সাথে connect হচ্ছে…';
+  $('lwJoinBox').classList.add('hide');
+  $('lwSpinBox').classList.add('hide');
+  if(liveRoomRef)liveRoomRef.off();
+  liveRoomRef=db().ref('rooms/'+rid);
+  liveRoomRef.on('value',snap=>{
+    const r=snap.val();
+    liveRoom=r;
+    if(!r){
+      $('lwTitle').textContent='Exam পাওয়া যায়নি';
+      $('lwSub').textContent='এই লিংকটি সঠিক নয়।';
+      $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
+      return;
+    }
+    if(!liveStuId){
+      if(r.status==='ended'){
+        $('lwTitle').textContent=r.examName||'Live Exam';
+        $('lwSub').textContent='এই Exam-টি Examiner শেষ করে দিয়েছেন। নতুন করে join করা যাবে না।';
+        $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
+        return;
+      }
+      $('lwTitle').textContent=r.examName||'Live Exam';
+      $('lwSub').textContent=`Examiner: ${r.examinerName||'Sensei'} · Part 1 (${r.p1q}q, ${r.p1m}m) · Part 2 (${r.p2q}q, ${r.p2m}m)`+(r.hasListen?` · Listening (${r.lm}m)`:'');
+      const p=loadProfile();
+      if(p.name&&!$('lwNameIn').value)$('lwNameIn').value=p.name;
+      $('lwJoinBox').classList.remove('hide');
+      $('lwJoinBtn').onclick=()=>startLiveStudent(r);
+      return;
+    }
+    if(r.globalDeltaTs&&r.globalDeltaTs!==lastGlobalDeltaTs&&r.globalDeltaSec){
+      lastGlobalDeltaTs=r.globalDeltaTs;
+      if(!$('exam').classList.contains('hide')){
+        endAt+=r.globalDeltaSec*1000;onTick();
+        toast(`Sensei সবার সময় ${r.globalDeltaSec>0?'+':''}${Math.round(r.globalDeltaSec/60)} min পরিবর্তন করেছেন!`);
+      }
+    }
+    const me=r.students&&r.students[liveStuId];
+    if(me&&me.deltaTs&&me.deltaTs!==lastStuDeltaTs&&me.deltaSec){
+      lastStuDeltaTs=me.deltaTs;
+      if(!$('exam').classList.contains('hide')){
+        endAt+=me.deltaSec*1000;onTick();
+        toast(`Sensei তোমার সময় ${me.deltaSec>0?'+':''}${Math.round(me.deltaSec/60)} min পরিবর্তন করেছেন!`);
+      }
+    }
+    if(!$('liveWaitView').classList.contains('hide')){
+      if(me&&me.status==='waiting_listen'&&r.listenStarted){
+        $('liveWaitView').classList.add('hide');
+        $('exam').classList.remove('hide');
+        startPart(2,false);
+      }else if(me&&me.status==='finished'&&r.published){
+        loadPublishedLiveReport();
+      }
+    }
+    if(!$('exam').classList.contains('hide')&&cfg?.parts?.[part]?.listen){
+      applyYtSync();
+    }
+  });
+}
+$('lwHomeBtn').onclick=()=>goHome();
+
+/* Portal Auth (Examiner & Admin) */
+let authMode='examiner';
+$('openPortalBtn').onclick=()=>{closeMenu();hideAllViews();$('portalAuth').classList.remove('hide')};
+$('portalBackHome').onclick=()=>goHome();
+$('tabExaminer').onclick=()=>{
+  authMode='examiner';
+  $('tabExaminer').classList.add('sel');$('tabAdmin').classList.remove('sel');
+  $('authIdLbl').textContent='Examiner ID';$('authHint').classList.add('hide');$('authErr').textContent='';
+};
+$('tabAdmin').onclick=()=>{
+  authMode='admin';
+  $('tabAdmin').classList.add('sel');$('tabExaminer').classList.remove('sel');
+  $('authIdLbl').textContent='Admin ID';$('authHint').classList.remove('hide');$('authErr').textContent='';
+};
+async function ensureAdminInit(){
+  const ref=db().ref('config/admin');
+  const snap=await ref.once('value');
+  if(!snap.exists()){await ref.set({id:'admin',pass:'admin123'});return{id:'admin',pass:'admin123'}}
+  return snap.val();
+}
+$('authLoginBtn').onclick=async()=>{
+  $('authErr').textContent='';
+  const id=$('authId').value.trim(),pass=$('authPass').value;
+  if(!id||!pass){$('authErr').textContent='ID ও Password দাও।';return}
+  try{
+    if(authMode==='admin'){
+      const adm=await ensureAdminInit();
+      if(id===adm.id&&pass===adm.pass){curAdmin=true;openAdminDash()}
+      else $('authErr').textContent='Admin ID বা Password ভুল।';
+    }else{
+      const snap=await db().ref('examiners/'+id).once('value');
+      const ex=snap.val();
+      if(!ex||ex.pass!==pass){$('authErr').textContent='Examiner ID বা Password ভুল।';return}
+      if(ex.active===false){$('authErr').textContent='তোমার Examiner account-টি Admin বন্ধ করে দিয়েছে।';return}
+      curExaminer={id,...ex};
+      openExaminerDash();
+    }
+  }catch(e){$('authErr').textContent='Connection error: '+e.message}
+};
+
+/* Admin Dashboard */
+function openAdminDash(){
+  hideAllViews();$('adminDash').classList.remove('hide');
+  loadAdminData();
+}
+$('adminLogoutBtn').onclick=()=>{curAdmin=false;goHome()};
+$('addExBtn').onclick=async()=>{
+  const name=$('newExName').value.trim(),id=$('newExId').value.trim().replace(/[^a-zA-Z0-9_-]/g,''),pass=$('newExPass').value.trim();
+  if(!name||!id||!pass){toast('Name, ID ও Password সব দাও।');return}
+  await db().ref('examiners/'+id).set({name,pass,active:true,createdAt:Date.now()});
+  $('newExName').value='';$('newExId').value='';$('newExPass').value='';
+  toast('Examiner তৈরি হয়েছে!');
+  loadAdminData();
+};
+$('saveAdmCredBtn').onclick=async()=>{
+  const id=$('chgAdmId').value.trim(),pass=$('chgAdmPass').value;
+  if(!id||!pass){toast('নতুন Admin ID ও Password দাও।');return}
+  await db().ref('config/admin').set({id,pass});
+  $('chgAdmId').value='';$('chgAdmPass').value='';
+  toast('Admin login update হয়েছে!');
+};
+async function loadAdminData(){
+  const [exSnap,rmSnap]=await Promise.all([db().ref('examiners').once('value'),db().ref('rooms').once('value')]);
+  const exs=exSnap.val()||{},rms=rmSnap.val()||{};
+  const exCounts={};
+  Object.values(rms).forEach(r=>{if(r.examinerId)exCounts[r.examinerId]=(exCounts[r.examinerId]||0)+1});
+  const exKeys=Object.keys(exs);
+  $('adminExList').innerHTML=exKeys.length?exKeys.map(k=>{
+    const e=exs[k],on=e.active!==false;
+    return `<div class="hist-item">
+      <div class="hist-info">
+        <div class="hist-title">${esc(e.name)} <span class="mu">(@${esc(k)})</span></div>
+        <div class="hist-meta">Exams taken: ${exCounts[k]||0} · <span class="pill ${on?'live':'end'}">${on?'Active':'Off'}</span></div>
+      </div>
+      <div class="hist-acts">
+        <button type="button" class="btn sec adm-tog" data-id="${esc(k)}" data-on="${on?1:0}">${on?'Turn Off':'Turn On'}</button>
+        <button type="button" class="btn sec adm-del" data-id="${esc(k)}" style="color:var(--bad)">✕</button>
+      </div>
+    </div>`;
+  }).join(''):'<div class="mu">কোনো Examiner নেই।</div>';
+  $('adminExList').querySelectorAll('.adm-tog').forEach(b=>b.onclick=async()=>{
+    await db().ref('examiners/'+b.dataset.id+'/active').set(b.dataset.on!=='1');
+    loadAdminData();
+  });
+  $('adminExList').querySelectorAll('.adm-del').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Examiner delete করবে?'))return;
+    await db().ref('examiners/'+b.dataset.id).remove();
+    loadAdminData();
+  });
+  const rmList=Object.entries(rms).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  $('adminExamsList').innerHTML=rmList.length?rmList.map(([rid,r])=>{
+    const sc=r.students?Object.keys(r.students).length:0;
+    return `<div class="hist-item">
+      <div class="hist-info">
+        <div class="hist-title">${esc(r.examName||'Live Exam')} <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span></div>
+        <div class="hist-meta">Teacher: ${esc(r.examinerName)} · ${esc(r.dateStr||'')} · Students: ${sc}</div>
+      </div>
+      <div class="hist-acts">
+        <button type="button" class="btn sec adm-open-rm" data-id="${esc(rid)}">Open / Summary</button>
+      </div>
+    </div>`;
+  }).join(''):'<div class="mu">কোনো Exam নেওয়া হয়নি।</div>';
+  $('adminExamsList').querySelectorAll('.adm-open-rm').forEach(b=>b.onclick=()=>{
+    lcReturnView='adminDash';
+    openLiveControl(b.dataset.id);
+  });
+}
+
+/* Examiner Dashboard */
+$('exPreset43').onclick=()=>{$('exP1q').value=21;$('exP1m').value=20;$('exP2q').value=22;$('exP2m').value=40};
+$('exPreset67').onclick=()=>{$('exP1q').value=35;$('exP1m').value=25;$('exP2q').value=32;$('exP2m').value=50};
+$('exHasListen').onchange=()=>$('exListenFields').classList.toggle('hide',$('exHasListen').value!=='1');
+$('exLogoutBtn').onclick=()=>{curExaminer=null;goHome()};
+function openExaminerDash(){
+  hideAllViews();$('examinerDash').classList.remove('hide');
+  $('exDashTitle').textContent=curExaminer.name+' — Dashboard';
+  loadExaminerHistory();
+}
+async function loadExaminerHistory(){
+  const snap=await db().ref('rooms').orderByChild('examinerId').equalTo(curExaminer.id).once('value');
+  const rms=snap.val()||{};
+  const list=Object.entries(rms).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  $('exHistoryList').innerHTML=list.length?list.map(([rid,r])=>{
+    const sc=r.students?Object.keys(r.students).length:0;
+    return `<div class="hist-item">
+      <div class="hist-info">
+        <div class="hist-title">${esc(r.examName||'Live Exam')} <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span></div>
+        <div class="hist-meta">${esc(r.dateStr||'')} · Students: ${sc}</div>
+      </div>
+      <div class="hist-acts">
+        <button type="button" class="btn sec ex-open-rm" data-id="${esc(rid)}">Control / Summary</button>
+      </div>
+    </div>`;
+  }).join(''):'<div class="mu">এখনো কোনো Live Exam নেওয়া হয়নি।</div>';
+  $('exHistoryList').querySelectorAll('.ex-open-rm').forEach(b=>b.onclick=()=>{
+    lcReturnView='examinerDash';
+    openLiveControl(b.dataset.id);
+  });
+}
+$('exCreateBtn').onclick=async()=>{
+  $('exCreateErr').textContent='';
+  const examName=$('exExamName').value.trim();
+  const driveId=driveIdOf($('exDrive').value);
+  const p1q=+$('exP1q').value,p1m=+$('exP1m').value,p2q=+$('exP2q').value,p2m=+$('exP2m').value;
+  const hasListen=$('exHasListen').value==='1';
+  const lm=+$('exLm').value||30,lMode=$('exLMode').value;
+  const ytRaw=$('exYt').value.trim(),ytId=ytIdOf(ytRaw);
+  if(!examName){$('exCreateErr').textContent='Exam Name দাও।';return}
+  if(!driveId){$('exCreateErr').textContent='সঠিক Google Drive link দাও।';return}
+  if(!p1q||!p2q){$('exCreateErr').textContent='Part 1 ও Part 2 Questions সংখ্যা দাও।';return}
+  if(hasListen&&ytRaw&&!ytId){$('exCreateErr').textContent='সঠিক YouTube link দাও।';return}
+  const rid='rm_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
+  await db().ref('rooms/'+rid).set({
+    examName,examinerId:curExaminer.id,examinerName:curExaminer.name,
+    dateStr:new Date().toLocaleString(),createdAt:Date.now(),
+    status:'live',driveId,p1q,p1m,p2q,p2m,hasListen,lm,lMode,ytId,
+    listenStarted:false,published:false
+  });
+  lcReturnView='examinerDash';
+  openLiveControl(rid);
+};
+
+/* Live Examiner Control Room */
+function openLiveControl(rid){
+  lcRoomId=rid;
+  hideAllViews();$('liveControl').classList.remove('hide');
+  if(lcRoomRef)lcRoomRef.off();
+  if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
+  let ytMounted=false;
+  lcRoomRef=db().ref('rooms/'+rid);
+  lcRoomRef.on('value',snap=>{
+    const r=snap.val();if(!r)return;
+    lcRoomData=r;
+    $('lcTitle').textContent=r.examName||'Live Control';
+    $('lcSub').innerHTML=`Teacher: <b>${esc(r.examinerName)}</b> · ${esc(r.dateStr||'')} · <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span>`;
+    $('lcEndBtn').disabled=r.status==='ended';
+    $('lcListenCard').classList.toggle('hide',!r.hasListen);
+    $('lcKey3Wrap').classList.toggle('hide',!r.hasListen);
+    if(r.keys){
+      if(!$('lcKey1').value&&r.keys.k1)$('lcKey1').value=r.keys.k1;
+      if(!$('lcKey2').value&&r.keys.k2)$('lcKey2').value=r.keys.k2;
+      if(!$('lcKey3').value&&r.keys.k3)$('lcKey3').value=r.keys.k3;
+    }
+    if(r.hasListen){
+      $('lcStartListenBtn').textContent=r.listenStarted?'Listening Started ✓':'Start Listening for All';
+      $('lcStartListenBtn').disabled=!!r.listenStarted;
+      if(r.ytId&&!ytMounted){
+        ytMounted=true;
+        $('lcYtWrap').classList.remove('hide');
+        loadYtApi().then(()=>{
+          $('lcYtBox').innerHTML='<div id="lcYtTarget"></div>';
+          const pv={playsinline:1,rel:0,modestbranding:1};
+          if(location.protocol.startsWith('http'))pv.origin=location.origin;
+          lcYtPlayer=new YT.Player('lcYtTarget',{width:'100%',height:'100%',videoId:r.ytId,playerVars:pv});
+        }).catch(()=>{});
+      }
+    }
+    const stus=r.students?Object.entries(r.students):[];
+    $('lcStuCount').textContent=stus.length;
+    let waitCnt=0;
+    $('lcStuBody').innerHTML=stus.length?stus.map(([sid,s])=>{
+      if(s.status==='waiting_listen')waitCnt++;
+      const stTxt=s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
+      const qTxt=s.status==='finished'?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
+      return `<tr>
+        <td><b>${esc(s.name)}</b></td>
+        <td>${esc(stTxt)}</td>
+        <td>${esc(qTxt)}</td>
+        <td>${s.status==='finished'?'—':fmt(s.rem||0)}</td>
+        <td>
+          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="-60" style="padding:4px 7px;font-size:11px">−1m</button>
+          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="60" style="padding:4px 7px;font-size:11px">+1m</button>
+        </td>
+      </tr>`;
+    }).join(''):'<tr><td colspan="5" class="mu">এখনো কোনো student join করেনি।</td></tr>';
+    $('lcWaitCount').textContent='Waiting for Listening: '+waitCnt;
+    $('lcStuBody').querySelectorAll('.lc-stime').forEach(b=>b.onclick=()=>{
+      db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}`).update({deltaSec:+b.dataset.d,deltaTs:Date.now()});
+    });
+    renderLiveSummary(r,stus);
+  });
+}
+$('lcBackBtn').onclick=()=>{
+  if(lcRoomRef){lcRoomRef.off();lcRoomRef=null}
+  if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
+  if(lcReturnView==='adminDash')openAdminDash();else openExaminerDash();
+};
+$('lcCopyLinkBtn').onclick=async()=>{
+  const url=location.origin+location.pathname+'#live='+lcRoomId;
+  try{await navigator.clipboard.writeText(url);$('lcCopyLinkBtn').textContent='Copied ✓';setTimeout(()=>$('lcCopyLinkBtn').textContent='Copy Student Link',2500)}
+  catch(e){prompt('Student Link:',url)}
+};
+$('lcEndBtn').onclick=()=>{
+  if(confirm('Exam বন্ধ করে দেবে? আর কেউ নতুন করে join করতে পারবে না।'))db().ref('rooms/'+lcRoomId+'/status').set('ended');
+};
+document.querySelectorAll('.lc-gtime').forEach(b=>b.onclick=()=>{
+  db().ref('rooms/'+lcRoomId).update({globalDeltaSec:+b.dataset.d,globalDeltaTs:Date.now()});
+});
+$('lcStartListenBtn').onclick=()=>db().ref('rooms/'+lcRoomId+'/listenStarted').set(true);
+function pushYtSync(playing,rateOverride){
+  if(!lcYtPlayer||typeof lcYtPlayer.getCurrentTime!=='function')return;
+  const rate=rateOverride||(lcYtPlayer.getPlaybackRate?lcYtPlayer.getPlaybackRate():1)||1;
+  db().ref('rooms/'+lcRoomId+'/ytSync').set({playing,time:lcYtPlayer.getCurrentTime()||0,rate,ts:Date.now()});
+}
+$('lcYtPlayBtn').onclick=()=>{try{lcYtPlayer.playVideo();pushYtSync(true)}catch(e){}};
+$('lcYtPauseBtn').onclick=()=>{try{lcYtPlayer.pauseVideo();pushYtSync(false)}catch(e){}};
+$('lcYtBack10').onclick=()=>{try{lcYtPlayer.seekTo(Math.max(0,(lcYtPlayer.getCurrentTime()||0)-10),true);pushYtSync(lcYtPlayer.getPlayerState()===1)}catch(e){}};
+$('lcYtFwd10').onclick=()=>{try{lcYtPlayer.seekTo((lcYtPlayer.getCurrentTime()||0)+10,true);pushYtSync(lcYtPlayer.getPlayerState()===1)}catch(e){}};
+$('lcYtSpd').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  const r=+b.dataset.r;
+  $('lcYtSpd').querySelectorAll('button').forEach(x=>x.classList.toggle('sel',x===b));
+  try{lcYtPlayer.setPlaybackRate(r);pushYtSync(lcYtPlayer.getPlayerState()===1,r)}catch(e){}
+});
+$('lcPublishBtn').onclick=async()=>{
+  if(!lcRoomData)return;
+  const r=lcRoomData,k1=parseKeyTokens($('lcKey1').value),k2=parseKeyTokens($('lcKey2').value),k3=parseKeyTokens($('lcKey3').value);
+  if(r.hasListen&&r.lMode==='later'&&!k3.length){toast('Answer Later mode-এ Listening-এর Answer Key দাও।');return}
+  await db().ref('rooms/'+lcRoomId+'/keys').set({k1:$('lcKey1').value.trim(),k2:$('lcKey2').value.trim(),k3:$('lcKey3').value.trim()});
+  const stus=r.students?Object.entries(r.students):[];
+  const upd={};
+  const chors=[];
+  stus.forEach(([sid,s])=>{
+    const aArr=s.ans||[],mArr=s.marks||[];
+    const newMarks=[...mArr];
+    if(k1.length){
+      const A1=unpackAns(aArr[0]||'',r.p1q),M1=[];
+      for(let q=1;q<=Math.min(r.p1q,k1.length);q++)M1[q]=A1[q]===k1[q-1]?'ok':'bad';
+      newMarks[0]=packArr(M1,r.p1q,'.');
+    }
+    if(k2.length){
+      const A2=unpackAns(aArr[1]||'',r.p2q),M2=[];
+      for(let q=1;q<=Math.min(r.p2q,k2.length);q++)M2[q]=A2[q]===k2[q-1]?'ok':'bad';
+      newMarks[1]=packArr(M2,r.p2q,'.');
+    }
+    if(r.hasListen&&k3.length){
+      const A3=unpackAns(aArr[2]||'',LISTEN_TOTAL),M3=unpackMarks(mArr[2]||'',LISTEN_TOTAL);
+      if(r.lMode==='instant'){
+        const caught=[];
+        for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++){
+          if(M3[q]==='ok'&&A3[q]!==k3[q-1])caught.push(q);
+        }
+        if(caught.length)chors.push({name:s.name,qs:caught});
+      }else{
+        for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++)M3[q]=A3[q]===k3[q-1]?'ok':'bad';
+        newMarks[2]=packArr(M3,LISTEN_TOTAL,'.');
+      }
+    }
+    upd[`rooms/${lcRoomId}/students/${sid}/marks`]=newMarks;
+  });
+  upd[`rooms/${lcRoomId}/chors`]=chors;
+  upd[`rooms/${lcRoomId}/published`]=true;
+  await db().ref().update(upd);
+  toast('Results সবার কাছে publish হয়েছে!');
+};
+function calcStuSummary(r,s){
+  const mArr=s.marks||[],uArr=s.used||[];
+  const countOk=str=>{let ok=0;for(const c of (str||''))if(c==='o')ok++;return ok};
+  const p1=countOk(mArr[0]),p2=countOk(mArr[1]),p3=r.hasListen?countOk(mArr[2]):0;
+  const totQ=r.p1q+r.p2q+(r.hasListen?LISTEN_TOTAL:0);
+  const totOk=p1+p2+p3;
+  return{name:s.name,p1,p2,p3,t1:uArr[0]||0,t2:uArr[1]||0,totOk,totQ,pct:totQ?Math.round(totOk*100/totQ):0};
+}
+function renderLiveSummary(r,stus){
+  const chors=r.chors||[];
+  $('lcChorCard').classList.toggle('hide',!chors.length);
+  $('lcChorBody').innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('');
+  if(!stus.length){$('lcSumBody').innerHTML='<div class="mu">কোনো data নেই।</div>';return}
+  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.totOk-a.totOk);
+  $('lcSumBody').innerHTML=`<table class="tbl">
+    <thead><tr><th>Name</th><th>Part 1</th><th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}<th>Total</th></tr></thead>
+    <tbody>${rows.map(x=>`<tr>
+      <td><b>${esc(x.name)}</b></td>
+      <td>${x.p1}/${r.p1q} <span class="mu">(${fmt(x.t1)})</span></td>
+      <td>${x.p2}/${r.p2q} <span class="mu">(${fmt(x.t2)})</span></td>
+      ${r.hasListen?`<td>${x.p3}/${LISTEN_TOTAL}</td>`:''}
+      <td><b>${x.totOk}/${x.totQ} (${x.pct}%)</b></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+$('lcSumPngBtn').onclick=()=>{
+  if(!lcRoomData)return;
+  const r=lcRoomData,stus=r.students?Object.entries(r.students):[];
+  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.totOk-a.totOk);
+  const W=920,pad=28,rowH=34,headH=110,H=headH+Math.max(1,rows.length)*rowH+pad+16;
+  const dpr=2,c=document.createElement('canvas');c.width=W*dpr;c.height=H*dpr;
+  const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
+  ctx.fillStyle='#f4f5f7';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#18181b';ctx.font='bold 22px system-ui,sans-serif';
+  ctx.fillText((r.examName||'Live Exam')+' — Result Summary',pad,38);
+  ctx.fillStyle='#6b7280';ctx.font='14px system-ui,sans-serif';
+  ctx.fillText(`Examiner: ${r.examinerName||'Sensei'}  ·  ${r.dateStr||''}  ·  Students: ${rows.length}`,pad,62);
+  const cols=r.hasListen?[pad,260,420,580,730]:[pad,290,490,700];
+  ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
+  ctx.fillText('Student Name',cols[0]+8,96);
+  ctx.fillText('Part 1 (Time)',cols[1],96);
+  ctx.fillText('Part 2 (Time)',cols[2],96);
+  if(r.hasListen){ctx.fillText('Listening',cols[3],96);ctx.fillText('Total',cols[4],96)}
+  else ctx.fillText('Total',cols[3],96);
+  ctx.strokeStyle='#cbd5e1';ctx.beginPath();ctx.moveTo(pad,104);ctx.lineTo(W-pad,104);ctx.stroke();
+  rows.forEach((x,idx)=>{
+    const y=headH+idx*rowH;
+    if(idx%2===0){ctx.fillStyle='#ffffff';ctx.fillRect(pad,y,W-pad*2,rowH)}
+    ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
+    ctx.fillText((idx+1)+'. '+x.name,cols[0]+8,y+22);
+    ctx.font='13px system-ui,sans-serif';
+    ctx.fillText(`${x.p1}/${r.p1q} (${fmt(x.t1)})`,cols[1],y+22);
+    ctx.fillText(`${x.p2}/${r.p2q} (${fmt(x.t2)})`,cols[2],y+22);
+    if(r.hasListen){
+      ctx.fillText(`${x.p3}/${LISTEN_TOTAL}`,cols[3],y+22);
+      ctx.fillStyle='#16a34a';ctx.font='bold 13px system-ui,sans-serif';
+      ctx.fillText(`${x.totOk}/${x.totQ} (${x.pct}%)`,cols[4],y+22);
+    }else{
+      ctx.fillStyle='#16a34a';ctx.font='bold 13px system-ui,sans-serif';
+      ctx.fillText(`${x.totOk}/${x.totQ} (${x.pct}%)`,cols[3],y+22);
+    }
+  });
+  c.toBlob(blob=>{
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=`summary_${(r.examName||'exam').replace(/[^a-z0-9_-]/gi,'_')}.png`;
+    a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  },'image/png');
+};
 </script>
 </body>
 </html>
