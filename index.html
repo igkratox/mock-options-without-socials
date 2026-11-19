@@ -732,7 +732,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <label id="lcKey3Lbl">Listening Answer Key (24টি)</label>
       <input id="lcKey3" placeholder="Answer Later হলে mandatory; Instant হলে দিলে Chor ধরবে">
     </div>
-    <button type="button" class="btn" id="lcPublishBtn" style="margin-top:12px">Grade & Publish Results to All</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button type="button" class="btn sec" id="lcSaveKeyBtn" style="flex:1;min-width:140px">Save Answer Key</button>
+      <button type="button" class="btn" id="lcPublishBtn" style="flex:2;margin-top:0;min-width:180px">Grade & Publish Results to All</button>
+    </div>
   </div>
 
   <div class="card chor-card hide" id="lcChorCard">
@@ -3325,6 +3328,12 @@ function computePartWeights(stuMarkStrs,qCount,partTotal){
   stats.forEach((st,i)=>st.pts=pts[i]);
   return{pts,stats};
 }
+$('lcSaveKeyBtn').onclick=async()=>{
+  if(!lcRoomId)return;
+  const keysObj={k1:$('lcKey1').value.trim(),k2:$('lcKey2').value.trim(),k3:$('lcKey3').value.trim()};
+  await db().ref('rooms/'+lcRoomId+'/keys').set(keysObj);
+  toast('Answer Key save হয়েছে (এখনো Publish হয়নি)!');
+};
 $('lcPublishBtn').onclick=async()=>{
   if(!lcRoomData)return;
   const r=lcRoomData,k1=parseKeyTokens($('lcKey1').value),k2=parseKeyTokens($('lcKey2').value),k3=parseKeyTokens($('lcKey3').value);
