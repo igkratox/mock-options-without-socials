@@ -694,7 +694,13 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <h3 style="margin:0">Listening Sync & YouTube Control</h3>
         <div class="mu" id="lcWaitCount">Waiting for Listening: 0</div>
       </div>
-      <button type="button" class="btn" id="lcStartListenBtn" style="width:auto;margin:0;padding:9px 14px">Start Listening for All</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="lcLMode" style="width:auto;padding:7px 10px;font-size:13px">
+          <option value="instant">Mode: Answer Instant</option>
+          <option value="later">Mode: Answer Later</option>
+        </select>
+        <button type="button" class="btn" id="lcStartListenBtn" style="width:auto;margin:0;padding:9px 14px">Start Listening for All</button>
+      </div>
     </div>
     <div id="lcYtWrap" class="hide" style="margin-top:12px">
       <div class="yt-box" id="lcYtBox" style="max-width:480px"></div>
@@ -2587,6 +2593,14 @@ async function checkHashLive(){
       else if(!me.locked&&examinerLocked){examinerLocked=false;setPaused(false,true);toast('Examiner তোমার exam আবার চালু করেছেন!')}
     }
     if(me)liveDeduct=+(me.deduct||0);
+    const newLMode=r.lMode||'instant';
+    if($('listenMode').value!==newLMode){
+      $('listenMode').value=newLMode;
+      if(!$('exam').classList.contains('hide')&&cfg?.parts?.[part]?.listen){
+        refresh();
+        toast('Sensei Listening Mode '+(newLMode==='instant'?'Answer Instant':'Answer Later')+' করেছেন!');
+      }
+    }
     if(!$('liveWaitView').classList.contains('hide')){
       if(me&&me.status==='waiting_listen'&&r.listenStarted){
         const lIdx=cfg?.parts?.findIndex(p=>p.listen)??-1;
@@ -3082,6 +3096,8 @@ function openLiveControl(rid){
       if(!$('lcKey3').value&&r.keys.k3)$('lcKey3').value=r.keys.k3;
     }
     if(r.hasListen||r.onlyListen){
+      $('lcLMode').value=r.lMode||'instant';
+      $('lcLMode').disabled=(r.status==='ended');
       $('lcStartListenBtn').textContent=r.listenStarted?'Listening Started ✓':'Start Listening for All';
       $('lcStartListenBtn').disabled=!!r.listenStarted;
       if(r.ytId&&!ytMounted){
@@ -3257,6 +3273,12 @@ document.querySelectorAll('.lc-gansded').forEach(b=>b.onclick=async()=>{
   toast(`সবার থেকে ${d}টি Answer (lowest mark) deduct হয়েছে!`);
 });
 $('lcStartListenBtn').onclick=()=>db().ref('rooms/'+lcRoomId+'/listenStarted').set(true);
+$('lcLMode').onchange=()=>{
+  if(!lcRoomId)return;
+  const m=$('lcLMode').value;
+  db().ref('rooms/'+lcRoomId+'/lMode').set(m);
+  toast('Listening Mode সবার জন্য '+(m==='instant'?'Answer Instant':'Answer Later')+' করা হয়েছে!');
+};
 function pushYtSync(playing,rateOverride,force){
   if(!lcYtPlayer||typeof lcYtPlayer.getCurrentTime!=='function')return;
   const rate=rateOverride||(lcYtPlayer.getPlaybackRate?lcYtPlayer.getPlaybackRate():1)||1;
