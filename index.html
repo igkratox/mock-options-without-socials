@@ -1514,8 +1514,10 @@ function showReport(keepTime){
   $('repName').textContent=(cfg.examName?'Exam Name: '+cfg.examName+' · ':'')+cfg.name+' · '+repTime;
   let html='',txt=`Report Card\n${cfg.examName?'Exam Name: '+cfg.examName+'\n':''}Name: ${cfg.name}\nDate: ${repTime}\n`;
   if(liveRoomId&&liveRoom&&liveRoom.published&&liveRoom.students&&liveRoom.students[liveStuId]){
+    const stuObjs=Object.values(liveRoom.students);
+    const disp=buildStuDisp(stuObjs);
     const meSm=calcStuSummary(liveRoom,liveRoom.students[liveStuId]);
-    const stRows=Object.values(liveRoom.students).map(s=>calcStuSummary(liveRoom,s)).sort((a,b)=>b.finalTot-a.finalTot);
+    const stRows=stuObjs.map(s=>({...calcStuSummary(liveRoom,s),dName:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
     html+=`<div class="card" style="border-color:${meSm.pass?'var(--ok)':'var(--bad)'}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <h3 style="margin:0">Live Exam Result (Scaled 60/Part)</h3>
@@ -1532,7 +1534,7 @@ function showReport(keepTime){
         <thead><tr><th>#</th><th>Name</th><th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}<th>Total</th><th>Status</th></tr></thead>
         <tbody>${stRows.map((x,idx)=>`<tr>
           <td><b>${idx+1}</b></td>
-          <td><b>${esc(x.name)}</b></td>
+          <td><b>${esc(x.dName)}</b></td>
           <td>${x.s1}/60</td><td>${x.s2}/60</td>${liveRoom.hasListen?`<td>${x.s3}/60</td>`:''}
           <td><b>${x.ded>0?`${x.rawTot}−${x.ded}=`:''}${x.finalTot}/${x.maxTot}</b></td>
           <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
@@ -2695,13 +2697,19 @@ async function loadExaminerHistory(){
         <div class="hist-meta">${esc(r.dateStr||'')} · Students: ${sc}</div>
       </div>
       <div class="hist-acts">
-        <button type="button" class="btn sec ex-open-rm" data-id="${esc(rid)}">Control / Summary</button>
+        <button type="button" class="btn sec ex-open-rm" data-id="${esc(rid)}">Control</button>
+        <button type="button" class="btn sec ex-sum-rm" data-id="${esc(rid)}">Summary</button>
       </div>
     </div>`;
   }).join(''):'<div class="mu">এখনো কোনো Live Exam নেওয়া হয়নি।</div>';
   $('exHistoryList').querySelectorAll('.ex-open-rm').forEach(b=>b.onclick=()=>{
     lcReturnView='examinerDash';
     openLiveControl(b.dataset.id);
+  });
+  $('exHistoryList').querySelectorAll('.ex-sum-rm').forEach(b=>b.onclick=()=>{
+    lcReturnView='examinerDash';
+    openLiveControl(b.dataset.id);
+    setTimeout(()=>$('lcSumBody')?.scrollIntoView({behavior:'smooth'}),250);
   });
 }
 let exPdf=null,pendingExDraft=null;
@@ -2856,6 +2864,7 @@ function openLiveControl(rid){
       }
     }
     const stus=r.students?Object.entries(r.students):[];
+    const disp=buildStuDisp(stus.map(([,s])=>s));
     $('lcStuCount').textContent=stus.length;
     let waitCnt=0;
     $('lcStuBody').innerHTML=stus.length?stus.map(([sid,s])=>{
@@ -2864,7 +2873,7 @@ function openLiveControl(rid){
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
       const ded=+(s.deduct||0),aded=+(s.ansDeduct||0),tsw=+(s.tabSwitches||0);
       return `<tr>
-        <td><b>${esc(s.name)}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${aded?`<div class="mu" style="color:var(--bad);font-size:11px">Ans Deduct: −${aded} Q</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}</td>
+        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${aded?`<div class="mu" style="color:var(--bad);font-size:11px">Ans Deduct: −${aded} Q</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(s.rem||0)}</td>
@@ -3114,31 +3123,53 @@ function calcStuSummary(r,s){
   const totOk=p1Res.ok+p2Res.ok+p3Res.ok;
   return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,s1,s2,s3,t1:uArr[0]||0,t2:uArr[1]||0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
 }
+function buildStuDisp(stuObjs){
+  const cnt={};
+  stuObjs.forEach(s=>{const k=(s.name||'').trim().toLowerCase();cnt[k]=(cnt[k]||0)+1});
+  return s=>{
+    const k=(s.name||'').trim().toLowerCase();
+    return(cnt[k]>1&&s.username)?`${s.name} (@${s.username})`:(s.name||'Student');
+  };
+}
 function renderLiveSummary(r,stus){
+  const disp=buildStuDisp(stus.map(([,s])=>s));
   const chors=r.chors||[];
-  const tabChors=stus.filter(([,s])=>(s.tabSwitches||0)>0).map(([,s])=>`<div style="padding:3px 0;color:#d97706">⚠ <b>${esc(s.name)}</b>: ${s.tabSwitches}x Tab/App switch করেছে</div>`);
+  const tabChors=stus.filter(([,s])=>(s.tabSwitches||0)>0).map(([,s])=>`<div style="padding:3px 0;color:#d97706">⚠ <b>${esc(disp(s))}</b>: ${s.tabSwitches}x Tab/App switch করেছে</div>`);
   $('lcChorCard').classList.toggle('hide',!chors.length&&!tabChors.length);
   $('lcChorBody').innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('')+tabChors.join('');
   if(Array.isArray(r.qStats)&&r.qStats.length){
     $('lcQStatsCard').classList.remove('hide');
     const labels=['Part 1','Part 2','Listening'];
     const allP=(r.qPts||[]).flat().filter(v=>typeof v==='number'&&v>0);
-    const minPt=allP.length?Math.min(...allP):0;
+    const minPt=allP.length?Math.round(Math.min(...allP)*10)/10:0;
+    const wrongByQ=(pi,qNum)=>stus.filter(([,s])=>((s.marks&&s.marks[pi])||'')[qNum-1]!=='o').map(([,s])=>disp(s));
     $('lcQStatsBody').innerHTML=(minPt?`<div class="mu" style="margin-bottom:6px">সবচেয়ে কম নম্বরের প্রশ্ন: <b>${minPt}m</b> (−Ans দিলে প্রতি প্রশ্নে ${minPt}m করে কাটা যাবে)</div>`:'')+r.qStats.map((arr,pi)=>{
-      const sorted=[...arr].sort((a,b)=>b.errPct-a.errPct);
-      return `<div style="margin-top:8px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(বেশি ভুল % = বেশি নম্বর)</span>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">${sorted.map(q=>`<span class="badge ${q.errPct>=60?'pend':'ok'}" style="${q.errPct>=60?'background:rgba(220,38,38,.12);color:var(--bad)':''}">Q${q.q}: ${q.pts}m (${q.errPct}% ভুল)</span>`).join('')}</div>
+      const missed=[...arr].filter(q=>q.errPct>0).sort((a,b)=>b.errPct-a.errPct);
+      if(!missed.length)return `<div style="margin-top:8px"><b>${labels[pi]||('Part '+(pi+1))}:</b> <span class="mu">সবাই সব প্রশ্ন পেরেছে!</span></div>`;
+      return `<div style="margin-top:10px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(যেগুলো ভুল হয়েছে, 👁 চাপলে নাম দেখবে)</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${missed.map(q=>{
+          const wNames=wrongByQ(pi,q.q);
+          return `<span class="badge" style="background:rgba(220,38,38,.12);color:var(--bad);display:inline-flex;align-items:center;gap:5px;padding:4px 8px">
+            <span>Q${q.q}: ${q.pts}m (${q.errPct}% ভুল)</span>
+            <button type="button" class="q-eye" data-msg="${esc(labels[pi]+' Q'+q.q+' ('+q.errPct+'% ভুল) — '+wNames.join(', '))}" style="border:0;background:transparent;cursor:pointer;padding:0;font-size:13px" title="কারা ভুল করেছে দেখো">👁</button>
+          </span>`;
+        }).join('')}</div>
       </div>`;
-    }).join('');
+    }).join('')+`<div id="qEyeDetail" class="card hide" style="margin-top:10px;padding:10px 12px;border-color:var(--bad);font-size:13px"></div>`;
+    $('lcQStatsBody').querySelectorAll('.q-eye').forEach(b=>b.onclick=()=>{
+      const box=$('qEyeDetail');box.textContent=b.dataset.msg;box.classList.remove('hide');
+    });
   }else $('lcQStatsCard').classList.add('hide');
   if(!stus.length){$('lcSumBody').innerHTML='<div class="mu">কোনো data নেই।</div>';return}
-  const rows=stus.map(([sid,s])=>({sid,...calcStuSummary(r,s)})).sort((a,b)=>b.finalTot-a.finalTot);
-  $('lcSumBody').innerHTML=`<table class="tbl">
+  const rows=stus.map(([sid,s])=>({sid,...calcStuSummary(r,s),dName:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
+  const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
+  $('lcSumBody').innerHTML=`<div class="mu" style="margin-bottom:6px">Total: <b>${rows.length}</b> · <span style="color:var(--ok)">PASS: <b>${passCnt}</b></span> · <span style="color:var(--bad)">FAIL: <b>${failCnt}</b></span></div>
+  <table class="tbl">
     <thead><tr><th>Name</th><th>Part 1</th><th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th><th>Action</th></tr></thead>
     <tbody>${rows.map(x=>{
       const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
       return `<tr>
-        <td><b>${esc(x.name)}</b></td>
+        <td><b>${esc(x.dName)}</b></td>
         <td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>
         <td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>
         ${r.hasListen?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}
@@ -3155,7 +3186,8 @@ function renderLiveSummary(r,stus){
 $('lcSumPngBtn').onclick=()=>{
   if(!lcRoomData)return;
   const r=lcRoomData,stus=r.students?Object.entries(r.students):[];
-  const rows=stus.map(([,s])=>calcStuSummary(r,s)).sort((a,b)=>b.finalTot-a.finalTot);
+  const disp=buildStuDisp(stus.map(([,s])=>s));
+  const rows=stus.map(([,s])=>({...calcStuSummary(r,s),name:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
   const W=980,pad=28,rowH=34,headH=110,H=headH+Math.max(1,rows.length)*rowH+pad+16;
   const dpr=2,c=document.createElement('canvas');c.width=W*dpr;c.height=H*dpr;
   const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
