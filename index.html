@@ -2389,15 +2389,17 @@ $('stuAuthForm').onsubmit=async e=>{
       const ref=db().ref('students/'+u);
       const snap=await ref.once('value');
       if(snap.exists()){$('stuAuthErr').textContent='এই Username আগেই নেওয়া হয়েছে, অন্যটা দাও।';return}
-      await ref.set({name,pass,approved:false,createdAt:Date.now()});
+      await ref.set({name,pass,approved:true,createdAt:Date.now()});
       saveBrowserCred(u,pass,name);
-      $('stuAuthOk').textContent='✓ Account তৈরি হয়েছে! Admin বা Examiner approve করলে এই ID দিয়ে Login ও Live Exam দিতে পারবে।';
-      $('stuAuthPass').value='';
+      curStudent={username:u,name};
+      try{localStorage.setItem(STU_SESS_KEY,JSON.stringify(curStudent))}catch(e){}
+      toast('✓ Account তৈরি হয়েছে ও Login সম্পন্ন!');
+      enterNormalMode();
     }else{
       const snap=await db().ref('students/'+u).once('value');
       const s=snap.val();
       if(!s||s.pass!==pass){$('stuAuthErr').textContent='Username বা Password ভুল।';return}
-      if(!s.approved){$('stuAuthErr').textContent='তোমার Account এখনো Admin / Examiner approve করেনি।';return}
+      if(s.disabled){$('stuAuthErr').textContent='তোমার Account-টি Admin / Examiner বন্ধ করে দিয়েছে।';return}
       curStudent={username:u,name:s.name};
       saveBrowserCred(u,pass,s.name);
       try{localStorage.setItem(STU_SESS_KEY,JSON.stringify(curStudent))}catch(e){}
@@ -2659,11 +2661,11 @@ async function checkHashLive(){
   try{
     const sSnap=await db().ref('students/'+curStudent.username).once('value');
     const sVal=sSnap.val();
-    if(!sVal||!sVal.approved){
+    if(!sVal||sVal.disabled){
       pendingLiveRoomId=rid;
       curStudent=null;try{localStorage.removeItem(STU_SESS_KEY)}catch(e){}
       showGate();
-      $('stuAuthErr').textContent='তোমার Account এখনো Admin / Examiner approve করেনি।';
+      $('stuAuthErr').textContent=!sVal?'Student Account পাওয়া যায়নি, আবার Login করো।':'তোমার Account-টি Admin / Examiner বন্ধ করে দিয়েছে।';
       return;
     }
   }catch(e){}
@@ -2976,23 +2978,23 @@ async function loadAdminData(){
 async function loadStuApprovals(targetEl){
   const snap=await db().ref('students').once('value');
   const stus=snap.val()||{};
-  const keys=Object.keys(stus).sort((a,b)=>(stus[a].approved?1:0)-(stus[b].approved?1:0)||(stus[b].createdAt||0)-(stus[a].createdAt||0));
+  const keys=Object.keys(stus).sort((a,b)=>(stus[a].disabled?0:1)-(stus[b].disabled?0:1)||(stus[b].createdAt||0)-(stus[a].createdAt||0));
   targetEl.innerHTML=keys.length?keys.map(k=>{
-    const s=stus[k],ok=!!s.approved;
+    const s=stus[k],ok=!s.disabled;
     return `<div class="hist-item">
       <div class="hist-info">
         <div class="hist-title">${esc(s.name)} <span class="mu">(@${esc(k)})</span></div>
-        <div class="hist-meta"><span class="pill ${ok?'live':'end'}">${ok?'Approved':'Pending / Off'}</span></div>
+        <div class="hist-meta"><span class="pill ${ok?'live':'end'}">${ok?'Active':'Off'}</span></div>
       </div>
       <div class="hist-acts">
-        <button type="button" class="btn sec stu-app-tog" data-u="${esc(k)}" data-ok="${ok?1:0}">${ok?'Turn Off':'Approve'}</button>
+        <button type="button" class="btn sec stu-app-tog" data-u="${esc(k)}" data-ok="${ok?1:0}">${ok?'Turn Off':'Turn On'}</button>
         <button type="button" class="btn sec stu-app-pass" data-u="${esc(k)}" title="Reset Password">Pass</button>
         <button type="button" class="btn sec stu-app-del" data-u="${esc(k)}" style="color:var(--bad)">✕</button>
       </div>
     </div>`;
   }).join(''):'<div class="mu">কোনো Student Account নেই।</div>';
   targetEl.querySelectorAll('.stu-app-tog').forEach(b=>b.onclick=async()=>{
-    await db().ref('students/'+b.dataset.u+'/approved').set(b.dataset.ok!=='1');
+    await db().ref('students/'+b.dataset.u+'/disabled').set(b.dataset.ok==='1');
     loadStuApprovals(targetEl);
   });
   targetEl.querySelectorAll('.stu-app-pass').forEach(b=>b.onclick=async()=>{
