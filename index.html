@@ -17,6 +17,9 @@ label{display:block;margin:14px 0 5px;font-weight:600;font-size:14px}
 input,select{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx);font-size:15px;transition:border-color .15s}
 input:focus,select:focus{outline:none;border-color:var(--ac)}
 .row{display:flex;gap:10px}.row>*{flex:1}
+.pw-wrap{position:relative;display:flex;align-items:center}
+.pw-wrap input{padding-right:42px}
+.pw-eye{position:absolute;right:6px;background:none;border:0;color:var(--mu);padding:6px 8px;font-size:16px;line-height:1;border-radius:8px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:15px;margin-top:14px;box-shadow:var(--sh)}
 .card h3{margin:0 0 6px;font-size:15px}
 button{cursor:pointer;font:inherit;transition:transform .08s,opacity .15s,background .15s}
@@ -199,9 +202,9 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <input id="stuRegName" placeholder="e.g. Nur Mohammad">
     </div>
     <label>Username</label>
-    <input id="stuAuthUser" placeholder="username (e.g. nur123)">
+    <input id="stuAuthUser" placeholder="username (e.g. nur123)" autocapitalize="none" autocorrect="off">
     <label>Password</label>
-    <input id="stuAuthPass" type="password" placeholder="Password">
+    <div class="pw-wrap"><input id="stuAuthPass" type="password" placeholder="Password"><button type="button" class="pw-eye" data-pw="stuAuthPass" aria-label="Show password">👁</button></div>
     <div id="stuAuthErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
     <div id="stuAuthOk" class="mu" style="color:var(--ok);margin-top:8px"></div>
     <button type="button" class="btn" id="stuAuthBtn" style="margin-top:14px">Login</button>
@@ -465,9 +468,9 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <button type="button" id="tabAdmin">Admin Login</button>
     </div>
     <label id="authIdLbl">Examiner ID</label>
-    <input id="authId" placeholder="ID">
+    <input id="authId" placeholder="ID" autocapitalize="none" autocorrect="off">
     <label>Password</label>
-    <input id="authPass" type="password" placeholder="Password">
+    <div class="pw-wrap"><input id="authPass" type="password" placeholder="Password"><button type="button" class="pw-eye" data-pw="authPass" aria-label="Show password">👁</button></div>
     <div id="authErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
     <button type="button" class="btn" id="authLoginBtn">Login</button>
     <div id="authHint" class="mu hide" style="margin-top:8px">Admin credentials দিয়ে login করো।</div>
@@ -510,8 +513,8 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div class="card">
     <h3>Change Admin Credentials</h3>
     <div class="row">
-      <input id="chgAdmId" placeholder="New Admin ID">
-      <input id="chgAdmPass" type="password" placeholder="New Password">
+      <input id="chgAdmId" placeholder="New Admin ID" autocapitalize="none" autocorrect="off">
+      <div class="pw-wrap"><input id="chgAdmPass" type="password" placeholder="New Password"><button type="button" class="pw-eye" data-pw="chgAdmPass" aria-label="Show password">👁</button></div>
     </div>
     <button type="button" class="btn sec" id="saveAdmCredBtn" style="margin-top:10px;width:100%">Update Admin Login</button>
   </div>
@@ -2606,6 +2609,15 @@ async function checkHashLive(){
 $('lwHomeBtn').onclick=()=>goHome();
 
 /* Portal Auth (Examiner & Admin) */
+document.querySelectorAll('.pw-eye').forEach(btn=>{
+  btn.onclick=()=>{
+    const inp=$(btn.dataset.pw);
+    if(!inp)return;
+    const show=inp.type==='password';
+    inp.type=show?'text':'password';
+    btn.textContent=show?'🙈':'👁';
+  };
+});
 let authMode='examiner';
 $('openPortalBtn').onclick=()=>{closeMenu();hideAllViews();$('portalAuth').classList.remove('hide')};
 $('portalBackHome').onclick=()=>goHome();
@@ -2632,14 +2644,20 @@ $('authLoginBtn').onclick=async()=>{
   try{
     if(authMode==='admin'){
       const adm=await ensureAdminInit();
-      if(id===adm.id&&pass===adm.pass){curAdmin=true;openAdminDash()}
+      if(id.toLowerCase()===String(adm.id||'').trim().toLowerCase()&&pass===adm.pass){curAdmin=true;openAdminDash()}
       else $('authErr').textContent='Admin ID বা Password ভুল।';
     }else{
-      const snap=await db().ref('examiners/'+id).once('value');
-      const ex=snap.val();
+      let snap=await db().ref('examiners/'+id).once('value');
+      let exId=id,ex=snap.val();
+      if(!ex){
+        const allSnap=await db().ref('examiners').once('value');
+        const all=allSnap.val()||{};
+        const hit=Object.keys(all).find(k=>k.toLowerCase()===id.toLowerCase());
+        if(hit){exId=hit;ex=all[hit]}
+      }
       if(!ex||ex.pass!==pass){$('authErr').textContent='Examiner ID বা Password ভুল।';return}
       if(ex.active===false){$('authErr').textContent='তোমার Examiner account-টি Admin বন্ধ করে দিয়েছে।';return}
-      curExaminer={id,...ex};
+      curExaminer={id:exId,...ex};
       openExaminerDash();
     }
   }catch(e){$('authErr').textContent='Connection error: '+e.message}
