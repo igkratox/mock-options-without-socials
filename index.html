@@ -2634,7 +2634,7 @@ $('tabAdmin').onclick=()=>{
 async function ensureAdminInit(){
   const ref=db().ref('config/admin');
   const snap=await ref.once('value');
-  if(!snap.exists()){await ref.set({id:'kratox',pass:'nur1229'});return{id:'kratox',pass:'nur1229'}}
+  if(!snap.exists()){await ref.set({id:'kratox',pass:'iamnur1229'});return{id:'kratox',pass:'iamnur1229'}}
   return snap.val();
 }
 $('authLoginBtn').onclick=async()=>{
