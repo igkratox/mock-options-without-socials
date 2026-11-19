@@ -536,18 +536,20 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <input id="exDrive" type="url" placeholder="https://drive.google.com/file/d/.../view">
     <div id="exDetect" class="mu" style="margin-top:6px"></div>
     <label>Exam Type</label>
-    <select id="exPartsMode"><option value="2">2 Parts (+ Optional Listening)</option><option value="1">1 Part Only</option></select>
+    <select id="exPartsMode"><option value="2">2 Parts (+ Optional Listening)</option><option value="1">1 Part (+ Optional Listening)</option><option value="listen">Only Listening (24 Questions)</option></select>
     <div class="presets" id="exPresetsWrap">
       <button type="button" class="preset-btn" id="exPreset43">43 Questions<br><span style="font-weight:500;font-size:11px">21q (20m) + 22q (40m)</span></button>
       <button type="button" class="preset-btn" id="exPreset67">67 Questions<br><span style="font-weight:500;font-size:11px">35q (25m) + 32q (50m)</span></button>
     </div>
-    <div class="row" style="margin-top:10px">
-      <div><div class="mu">Questions</div><input id="exP1q" type="number" min="1" value="21"></div>
-      <div><div class="mu">Time (min)</div><input id="exP1m" type="number" min="1" value="20"></div>
+    <div id="exP1Wrap">
+      <div class="row" style="margin-top:10px">
+        <div><div class="mu">Questions</div><input id="exP1q" type="number" min="1" value="21"></div>
+        <div><div class="mu">Time (min)</div><input id="exP1m" type="number" min="1" value="20"></div>
+      </div>
+      <div style="margin-top:8px"><div class="mu">Part 1 Pages <span style="color:var(--bad)">*</span></div><input id="exP1pages" placeholder="e.g. 2-6 (mandatory)"></div>
     </div>
-    <div style="margin-top:8px"><div class="mu">Part 1 Pages <span style="color:var(--bad)">*</span></div><input id="exP1pages" placeholder="e.g. 2-6 (mandatory)"></div>
     <div id="exOneTotalWrap" class="hide" style="margin-top:8px">
-      <div class="mu">Total Marks (এই exam কত নম্বরের?)</div>
+      <div class="mu" id="exOneTotalLbl">Total Marks (এই exam কত নম্বরের?)</div>
       <input id="exOneTotal" type="number" min="1" value="100">
     </div>
     <div id="exP2Wrap">
@@ -559,8 +561,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
     <div style="margin-top:12px;border-top:1px solid var(--bd);padding-top:10px">
       <div id="exListenSection">
-        <label style="margin-top:0">Listening আছে?</label>
-        <select id="exHasListen"><option value="1">হ্যাঁ, Listening আছে</option><option value="0">না, শুধু Part 1 ও Part 2</option></select>
+        <div id="exHasListenWrap">
+          <label style="margin-top:0">Listening আছে?</label>
+          <select id="exHasListen"><option value="1">হ্যাঁ, Listening আছে</option><option value="0">না, Listening নেই</option></select>
+        </div>
         <div id="exListenFields">
           <div class="row" style="margin-top:8px">
             <div><div class="mu">Listening Time (min)</div><input id="exLm" type="number" min="1" value="30"></div>
@@ -583,7 +587,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div class="modal" style="max-width:440px;max-height:90vh;overflow:auto">
     <h3>Exam Re-Check (Start করার আগে যাচাই করো)</h3>
     <div class="mu" id="exConfSub" style="margin-bottom:10px"></div>
-    <div class="row">
+    <div id="ecP1Wrap" class="row">
       <div><div class="mu">Part 1 Q</div><input id="ecP1q" type="number" min="1"></div>
       <div><div class="mu">Part 1 Min</div><input id="ecP1m" type="number" min="1"></div>
       <div><div class="mu">Part 1 Pages</div><input id="ecP1p"></div>
@@ -1331,10 +1335,12 @@ function finishPart(auto){
   $('exam').classList.remove('is-paused');$('pauseOverlay').classList.add('hide');
   used[part]=auto?limit:Math.min(limit,limit-remNow);
   if(liveRoomId){
-    if(part===0&&cfg.parts.length>1){startPart(1,auto);return}
-    if(part===1&&liveRoom&&liveRoom.hasListen){
-      if(liveRoom.listenStarted){startPart(2,auto);return}
-      setLiveWait('waiting_listen','Part 2 শেষ!','অন্যান্যরা Part 2 শেষ করলে ও Sensei শুরু করলে Listening একসাথে শুরু হবে…','Listening-এর জন্য অপেক্ষা করা হচ্ছে');
+    const nextP=cfg.parts[part+1];
+    if(nextP&&!nextP.listen){startPart(part+1,auto);return}
+    if(nextP&&nextP.listen){
+      if(liveRoom&&liveRoom.listenStarted){startPart(part+1,auto);return}
+      const doneLbl=cfg.parts[part].label||'Part';
+      setLiveWait('waiting_listen',doneLbl+' শেষ!',`অন্যান্যরা ${doneLbl} শেষ করলে ও Sensei শুরু করলে Listening একসাথে শুরু হবে…`,'Listening-এর জন্য অপেক্ষা করা হচ্ছে');
       return;
     }
     clearActiveExam();
@@ -1567,30 +1573,38 @@ function showReport(keepTime){
     const disp=buildStuDisp(stuObjs);
     const meSm=calcStuSummary(liveRoom,liveRoom.students[liveStuId]);
     const stRows=stuObjs.map(s=>({...calcStuSummary(liveRoom,s),dName:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
-    html+=`<div class="card" style="border-color:${meSm.pass?'var(--ok)':'var(--bad)'}">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <h3 style="margin:0">Live Exam Result (${liveRoom.onePart?meSm.maxTot+' Marks':'Scaled 60/Part'})</h3>
-        <span class="pill ${meSm.pass?'live':'end'}" style="font-size:13px;padding:4px 10px">${esc(meSm.statusLabel)}</span>
-      </div>
-      ${liveRoom.onePart
-        ?`<div class="stat" style="margin-top:8px"><span>Score</span><b>${meSm.s1} / ${meSm.maxTot}</b></div>`
+    const rModeLbl=liveRoom.onlyListen?`Only Listening (${meSm.maxTot} Marks)`:(liveRoom.onePart?`${meSm.maxTot} Marks`:'Scaled 60/Part');
+    const meStatsHtml=liveRoom.onlyListen
+      ?`<div class="stat" style="margin-top:8px"><span>Listening</span><b>${meSm.s3} / ${meSm.maxTot}</b></div>`
+      :(liveRoom.onePart
+        ?`<div class="stat" style="margin-top:8px"><span>Part 1</span><b>${meSm.s1} / ${meSm.p1Tot}</b></div>
+          ${liveRoom.hasListen?`<div class="stat"><span>Listening</span><b>${meSm.s3} / 60</b></div>`:''}`
         :`<div class="stat" style="margin-top:8px"><span>Part 1 (Min 19)</span><b>${meSm.s1} / 60 <span style="color:${meSm.s1>=19?'var(--ok)':'var(--bad)'}">${meSm.s1>=19?'✓':'✕'}</span></b></div>
           <div class="stat"><span>Part 2 (Min 19)</span><b>${meSm.s2} / 60 <span style="color:${meSm.s2>=19?'var(--ok)':'var(--bad)'}">${meSm.s2>=19?'✓':'✕'}</span></b></div>
-          ${liveRoom.hasListen?`<div class="stat"><span>Listening (Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}`
-      }
+          ${liveRoom.hasListen?`<div class="stat"><span>Listening (Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}`);
+    const lbHeadHtml=liveRoom.onlyListen?'':(liveRoom.onePart?(liveRoom.hasListen?'<th>P1</th><th>List.</th>':''):`<th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}`);
+    html+=`<div class="card" style="border-color:${meSm.pass?'var(--ok)':'var(--bad)'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <h3 style="margin:0">Live Exam Result (${rModeLbl})</h3>
+        <span class="pill ${meSm.pass?'live':'end'}" style="font-size:13px;padding:4px 10px">${esc(meSm.statusLabel)}</span>
+      </div>
+      ${meStatsHtml}
       <div class="stat" style="margin-top:4px;border-top:1px solid var(--bd);padding-top:6px"><span>Total (Pass: ${meSm.passTot})</span><b>${meSm.ded>0?`${meSm.rawTot} − ${meSm.ded} = `:''}${meSm.finalTot} / ${meSm.maxTot}</b></div>
     </div>
     <div class="card">
       <h3>Class Leaderboard (এই Exam-এ কে কত পেয়েছে)</h3>
       <div style="overflow:auto"><table class="tbl">
-        <thead><tr><th>#</th><th>Name</th>${liveRoom.onePart?'':`<th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}`}<th>Total</th><th>Status</th></tr></thead>
-        <tbody>${stRows.map((x,idx)=>`<tr>
+        <thead><tr><th>#</th><th>Name</th>${lbHeadHtml}<th>Total</th><th>Status</th></tr></thead>
+        <tbody>${stRows.map((x,idx)=>{
+          const lbCells=liveRoom.onlyListen?'':(liveRoom.onePart?(liveRoom.hasListen?`<td>${x.s1}/${x.p1Tot}</td><td>${x.s3}/60</td>`:''):`<td>${x.s1}/60</td><td>${x.s2}/60</td>${liveRoom.hasListen?`<td>${x.s3}/60</td>`:''}`);
+          return `<tr>
           <td><b>${idx+1}</b></td>
           <td><b>${esc(x.dName)}</b></td>
-          ${liveRoom.onePart?'':`<td>${x.s1}/60</td><td>${x.s2}/60</td>${liveRoom.hasListen?`<td>${x.s3}/60</td>`:''}`}
+          ${lbCells}
           <td><b>${x.ded>0?`${x.rawTot}−${x.ded}=`:''}${x.finalTot}/${x.maxTot}</b></td>
           <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
-        </tr>`).join('')}</tbody>
+        </tr>`;
+        }).join('')}</tbody>
       </table></div>
     </div>`;
   }
@@ -2348,24 +2362,27 @@ async function loadStuLiveHistory(){
     });
   }catch(e){el.innerHTML='<div class="mu">Load করা যায়নি।</div>'}
 }
+function buildLiveParts(r){
+  const p1p=r.pdfPages&&r.p1pages?parsePages(r.p1pages,999):[];
+  const p2p=r.pdfPages&&r.p2pages?parsePages(r.p2pages,999):[];
+  const p3p=r.pdfPages&&r.p3pages?parsePages(r.p3pages,999):(r.onlyListen&&r.pdfPages?Object.keys(r.pdfPages).map(Number).sort((a,b)=>a-b):[]);
+  if(r.onlyListen)return[{label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:r.p3pages||'',q:LISTEN_TOTAL,m:r.lm||30}];
+  const parts=r.onePart
+    ?[{label:'Exam',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m}]
+    :[
+      {label:'Part 1',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m},
+      {label:'Part 2',listen:false,pages:p2p,pageRange:r.p2pages||'',q:r.p2q,m:r.p2m}
+    ];
+  if(r.hasListen)parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:r.p3pages||'',q:LISTEN_TOTAL,m:r.lm||30});
+  return parts;
+}
 function startLiveStudent(room){
   const stuName=(curStudent&&curStudent.name)||$('lwNameIn').value.trim();
   if(!stuName){$('lwErr').textContent='নাম লেখো।';return}
   saveProfileName(stuName);
   liveStuId=curStudent?('u_'+curStudent.username):('s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5));
   if(curStudent&&liveRoomId)db().ref('studentRooms/'+curStudent.username+'/'+liveRoomId).set(true);
-  const p1p=room.pdfPages&&room.p1pages?parsePages(room.p1pages,999):[];
-  const p2p=room.pdfPages&&room.p2pages?parsePages(room.p2pages,999):[];
-  const p3p=room.pdfPages&&room.p3pages?parsePages(room.p3pages,999):[];
-  const parts=room.onePart
-    ?[{label:'Exam',listen:false,pages:p1p,pageRange:room.p1pages||'',q:room.p1q,m:room.p1m}]
-    :[
-      {label:'Part 1',listen:false,pages:p1p,pageRange:room.p1pages||'',q:room.p1q,m:room.p1m},
-      {label:'Part 2',listen:false,pages:p2p,pageRange:room.p2pages||'',q:room.p2q,m:room.p2m}
-    ];
-  if(!room.onePart&&room.hasListen){
-    parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:room.p3pages||'',q:LISTEN_TOTAL,m:room.lm||30});
-  }
+  const parts=buildLiveParts(room);
   $('listenMode').value=room.lMode||'instant';
   lastGlobalDeltaTs=room.globalDeltaTs||0;
   lastStuDeltaTs=0;examinerLocked=false;liveDeduct=0;
@@ -2401,18 +2418,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)recordTabSw
 window.addEventListener('blur',()=>recordTabSwitch());
 function resumeLiveStudentFromRecord(r,me,stuId){
   liveStuId=stuId;
-  const p1p=r.pdfPages&&r.p1pages?parsePages(r.p1pages,999):[];
-  const p2p=r.pdfPages&&r.p2pages?parsePages(r.p2pages,999):[];
-  const p3p=r.pdfPages&&r.p3pages?parsePages(r.p3pages,999):[];
-  const parts=r.onePart
-    ?[{label:'Exam',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m}]
-    :[
-      {label:'Part 1',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m},
-      {label:'Part 2',listen:false,pages:p2p,pageRange:r.p2pages||'',q:r.p2q,m:r.p2m}
-    ];
-  if(!r.onePart&&r.hasListen){
-    parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:r.p3pages||'',q:LISTEN_TOTAL,m:r.lm||30});
-  }
+  const parts=buildLiveParts(r);
   $('listenMode').value=r.lMode||'instant';
   lastGlobalDeltaTs=r.globalDeltaTs||0;
   lastStuDeltaTs=me.deltaTs||0;
@@ -2431,12 +2437,13 @@ function resumeLiveStudentFromRecord(r,me,stuId){
     return;
   }
   if(me.status==='waiting_listen'){
-    if(r.listenStarted){
+    const lIdx=parts.findIndex(p=>p.listen);
+    if(r.listenStarted&&lIdx>=0){
       $('driveWrap').innerHTML='';$('driveWrap').classList.add('hide');$('pages').classList.remove('hide');
       hideAllViews();$('exam').classList.remove('hide');
-      startPart(2,false);
+      startPart(lIdx,false);
     }else{
-      setLiveWait('waiting_listen','Part 2 শেষ!','অন্যান্যরা Part 2 শেষ করলে ও Sensei শুরু করলে Listening একসাথে শুরু হবে…','Listening-এর জন্য অপেক্ষা করা হচ্ছে');
+      setLiveWait('waiting_listen','Listening-এর জন্য অপেক্ষা','অন্যান্যরা শেষ করলে ও Sensei শুরু করলে Listening একসাথে শুরু হবে…','Listening-এর জন্য অপেক্ষা করা হচ্ছে');
     }
     return;
   }
@@ -2513,9 +2520,11 @@ async function checkHashLive(){
         return;
       }
       $('lwTitle').textContent=r.examName||'Live Exam';
-      $('lwSub').textContent=r.onePart
-        ?`Examiner: ${r.examinerName||'Sensei'} · ${r.p1q}q, ${r.p1m}m · Total: ${r.oneTotal||100} marks`
-        :`Examiner: ${r.examinerName||'Sensei'} · Part 1 (${r.p1q}q, ${r.p1m}m) · Part 2 (${r.p2q}q, ${r.p2m}m)`+(r.hasListen?` · Listening (${r.lm}m)`:'');
+      $('lwSub').textContent=r.onlyListen
+        ?`Examiner: ${r.examinerName||'Sensei'} · Only Listening (${LISTEN_TOTAL}q, ${r.lm||30}m) · Total: ${r.oneTotal||60} marks`
+        :(r.onePart
+          ?`Examiner: ${r.examinerName||'Sensei'} · ${r.p1q}q, ${r.p1m}m`+(r.hasListen?` · Listening (${r.lm||30}m)`:'')+` · Total: ${(r.oneTotal||100)+(r.hasListen?60:0)} marks`
+          :`Examiner: ${r.examinerName||'Sensei'} · Part 1 (${r.p1q}q, ${r.p1m}m) · Part 2 (${r.p2q}q, ${r.p2m}m)`+(r.hasListen?` · Listening (${r.lm}m)`:''));
       $('lwNameIn').value=curStudent.name||'';
       $('lwNameIn').readOnly=true;
       $('lwJoinBox').classList.remove('hide');
@@ -2577,9 +2586,12 @@ async function checkHashLive(){
     if(me)liveDeduct=+(me.deduct||0);
     if(!$('liveWaitView').classList.contains('hide')){
       if(me&&me.status==='waiting_listen'&&r.listenStarted){
-        $('liveWaitView').classList.add('hide');
-        $('exam').classList.remove('hide');
-        startPart(2,false);
+        const lIdx=cfg?.parts?.findIndex(p=>p.listen)??-1;
+        if(lIdx>=0){
+          $('liveWaitView').classList.add('hide');
+          $('exam').classList.remove('hide');
+          startPart(lIdx,false);
+        }
       }else if(me&&me.status==='finished'&&r.published){
         loadPublishedLiveReport();
       }
@@ -2739,12 +2751,7 @@ async function loadStuApprovals(targetEl){
 /* Examiner Dashboard */
 $('exPreset43').onclick=()=>{$('exP1q').value=21;$('exP1m').value=20;$('exP2q').value=22;$('exP2m').value=40};
 $('exPreset67').onclick=()=>{$('exP1q').value=35;$('exP1m').value=25;$('exP2q').value=32;$('exP2m').value=50};
-$('exHasListen').onchange=()=>{
-  const has=$('exHasListen').value==='1';
-  $('exListenFields').classList.toggle('hide',!has);
-  $('exPassTotal').value=has?90:58;
-  $('exPassHint').textContent=has?'(180-এর মধ্যে 90, প্রতি Part-এ কমপক্ষে 19)':'(120-এর 48% = 58, প্রতি Part-এ কমপক্ষে 19)';
-};
+$('exHasListen').onchange=syncExModeUi;
 $('exLogoutBtn').onclick=()=>{curExaminer=null;clearPortalSess();goHome()};
 function openExaminerDash(){
   savePortalSess({role:'examiner',examiner:curExaminer});
@@ -2863,50 +2870,69 @@ $('exDrive').oninput=()=>{
   else $('exDetect').textContent='';
 };
 function syncExModeUi(){
-  const one=$('exPartsMode').value==='1';
-  $('exP2Wrap').classList.toggle('hide',one);
-  $('exPresetsWrap').classList.toggle('hide',one);
-  $('exListenSection').classList.toggle('hide',one);
-  $('exOneTotalWrap').classList.toggle('hide',!one);
-  if(one){
-    const tot=Math.max(1,+$('exOneTotal').value||100);
+  const mode=$('exPartsMode').value,one=mode==='1',onlyL=mode==='listen';
+  $('exP1Wrap').classList.toggle('hide',onlyL);
+  $('exP2Wrap').classList.toggle('hide',one||onlyL);
+  $('exPresetsWrap').classList.toggle('hide',one||onlyL);
+  $('exOneTotalWrap').classList.toggle('hide',!(one||onlyL));
+  $('exHasListenWrap').classList.toggle('hide',onlyL);
+  const hasL=onlyL||$('exHasListen').value==='1';
+  $('exListenFields').classList.toggle('hide',!hasL);
+  if(onlyL){
+    $('exOneTotalLbl').textContent='Listening Total Marks (এই exam কত নম্বরের?)';
+    const tot=Math.max(1,+$('exOneTotal').value||60);
     const pass=Math.round(tot*0.48);
     $('exPassTotal').value=pass;
     $('exPassHint').textContent=`(${tot}-এর 48% = ${pass})`;
+  }else if(one){
+    $('exOneTotalLbl').textContent='Part 1 Total Marks (এই Part কত নম্বরের?)';
+    const tot=Math.max(1,+$('exOneTotal').value||100);
+    const maxTot=tot+(hasL?60:0);
+    const pass=Math.round(maxTot*0.48);
+    $('exPassTotal').value=pass;
+    $('exPassHint').textContent=hasL?`(Part 1 ${tot} + Listening 60 = ${maxTot}-এর 48% = ${pass})`:`(${tot}-এর 48% = ${pass})`;
   }else{
-    const has=$('exHasListen').value==='1';
-    $('exPassTotal').value=has?90:58;
-    $('exPassHint').textContent=has?'(180-এর মধ্যে 90, প্রতি Part-এ কমপক্ষে 19)':'(120-এর 48% = 58, প্রতি Part-এ কমপক্ষে 19)';
+    $('exPassTotal').value=hasL?90:58;
+    $('exPassHint').textContent=hasL?'(180-এর মধ্যে 90, প্রতি Part-এ কমপক্ষে 19)':'(120-এর 48% = 58, প্রতি Part-এ কমপক্ষে 19)';
   }
 }
-$('exPartsMode').onchange=syncExModeUi;
-$('exOneTotal').oninput=()=>{if($('exPartsMode').value==='1')syncExModeUi()};
+$('exPartsMode').onchange=()=>{
+  if($('exPartsMode').value==='listen'&&$('exOneTotal').value==='100')$('exOneTotal').value='60';
+  else if($('exPartsMode').value==='1'&&$('exOneTotal').value==='60')$('exOneTotal').value='100';
+  syncExModeUi();
+};
+$('exOneTotal').oninput=()=>{if($('exPartsMode').value!=='2')syncExModeUi()};
 $('exCreateBtn').onclick=()=>{
   $('exCreateErr').textContent='';
   const examName=$('exExamName').value.trim();
   const f=$('exFile').files[0],driveId=driveIdOf($('exDrive').value);
-  const onePart=$('exPartsMode').value==='1';
-  const oneTotal=Math.max(1,+$('exOneTotal').value||100);
-  const p1q=+$('exP1q').value,p1m=+$('exP1m').value,p2q=+$('exP2q').value,p2m=+$('exP2m').value;
-  const p1pages=$('exP1pages').value.trim(),p2pages=$('exP2pages').value.trim(),p3pages=$('exP3pages').value.trim();
-  const hasListen=!onePart&&$('exHasListen').value==='1';
+  const mode=$('exPartsMode').value,onePart=mode==='1',onlyListen=mode==='listen';
+  const oneTotal=Math.max(1,+$('exOneTotal').value||(onlyListen?60:100));
+  const p1q=onlyListen?0:(+$('exP1q').value),p1m=onlyListen?0:(+$('exP1m').value);
+  const p2q=(onePart||onlyListen)?0:(+$('exP2q').value),p2m=(onePart||onlyListen)?0:(+$('exP2m').value);
+  const p1pages=onlyListen?'':$('exP1pages').value.trim(),p2pages=(onePart||onlyListen)?'':$('exP2pages').value.trim(),p3pages=$('exP3pages').value.trim();
+  const hasListen=onlyListen||$('exHasListen').value==='1';
   const lm=+$('exLm').value||30,lMode=$('exLMode').value;
   const ytRaw=$('exYt').value.trim(),ytId=ytIdOf(ytRaw);
   if(!examName){$('exCreateErr').textContent='Exam Name দাও।';return}
-  if(!f&&!driveId){$('exCreateErr').textContent='Question PDF select করো অথবা Google Drive link দাও।';return}
-  if(!p1q||(!onePart&&!p2q)){$('exCreateErr').textContent='Questions সংখ্যা দাও।';return}
-  if(!p1pages||(!onePart&&!p2pages)){$('exCreateErr').textContent='Pages দেওয়া বাধ্যতামূলক!';return}
+  if(!onlyListen&&!f&&!driveId){$('exCreateErr').textContent='Question PDF select করো অথবা Google Drive link দাও।';return}
+  if(!onlyListen&&(!p1q||(!onePart&&!p2q))){$('exCreateErr').textContent='Questions সংখ্যা দাও।';return}
+  if(!onlyListen&&(!p1pages||(!onePart&&!p2pages))){$('exCreateErr').textContent='Pages দেওয়া বাধ্যতামূলক!';return}
   if(hasListen&&ytRaw&&!ytId){$('exCreateErr').textContent='সঠিক YouTube link দাও।';return}
-  pendingExDraft={examName,driveId:f?'':driveId,hasPdf:!!f,onePart,oneTotal,hasListen,lMode,ytId};
-  $('exConfSub').textContent=`Exam: ${examName} · ${onePart?'1 Part ('+oneTotal+' marks)':'2 Parts'} · Source: ${f?'PDF ('+f.name+')':'Google Drive Link'}`;
+  const srcLbl=f?('PDF ('+f.name+')'):(driveId?'Google Drive Link':'Listening Pad');
+  const modeLbl=onlyListen?`Only Listening (${oneTotal} marks)`:(onePart?`1 Part (${oneTotal} marks${hasListen?' + Listening 60':''})`:'2 Parts');
+  pendingExDraft={examName,driveId:f?'':driveId,hasPdf:!!f,onePart,onlyListen,oneTotal,hasListen,lMode,ytId};
+  $('exConfSub').textContent=`Exam: ${examName} · ${modeLbl} · Source: ${srcLbl}`;
+  $('ecP1Wrap').classList.toggle('hide',onlyListen);
   $('ecP1q').value=p1q;$('ecP1m').value=p1m;$('ecP1p').value=p1pages;
-  $('ecP2Wrap').classList.toggle('hide',onePart);
-  $('ecOneTotWrap').classList.toggle('hide',!onePart);
+  $('ecP2Wrap').classList.toggle('hide',onePart||onlyListen);
+  $('ecOneTotWrap').classList.toggle('hide',!(onePart||onlyListen));
   $('ecOneTot').value=oneTotal;
   $('ecP2q').value=p2q;$('ecP2m').value=p2m;$('ecP2p').value=p2pages;
   $('ecListenWrap').classList.toggle('hide',!hasListen);
   $('ecLm').value=lm;$('ecP3p').value=p3pages;
-  $('ecPassTotal').value=+$('exPassTotal').value||(onePart?Math.round(oneTotal*0.48):(hasListen?90:58));
+  const maxTot=onlyListen?oneTotal:(onePart?(oneTotal+(hasListen?60:0)):(hasListen?180:120));
+  $('ecPassTotal').value=+$('exPassTotal').value||((onePart||onlyListen)?Math.round(maxTot*0.48):(hasListen?90:58));
   $('ecErr').textContent='';
   $('exConfirmModal').classList.remove('hide');
 };
@@ -2914,19 +2940,21 @@ $('ecCancelBtn').onclick=()=>$('exConfirmModal').classList.add('hide');
 $('ecGoBtn').onclick=async()=>{
   if(!pendingExDraft)return;
   $('ecErr').textContent='';
-  const onePart=!!pendingExDraft.onePart;
-  const oneTotal=Math.max(1,+$('ecOneTot').value||pendingExDraft.oneTotal||100);
-  const p1q=+$('ecP1q').value,p1m=+$('ecP1m').value,p1pages=$('ecP1p').value.trim();
-  const p2q=onePart?0:(+$('ecP2q').value),p2m=onePart?0:(+$('ecP2m').value),p2pages=onePart?'':$('ecP2p').value.trim();
+  const onePart=!!pendingExDraft.onePart,onlyListen=!!pendingExDraft.onlyListen;
+  const oneTotal=Math.max(1,+$('ecOneTot').value||pendingExDraft.oneTotal||(onlyListen?60:100));
+  const p1q=onlyListen?0:(+$('ecP1q').value),p1m=onlyListen?0:(+$('ecP1m').value),p1pages=onlyListen?'':$('ecP1p').value.trim();
+  const p2q=(onePart||onlyListen)?0:(+$('ecP2q').value),p2m=(onePart||onlyListen)?0:(+$('ecP2m').value),p2pages=(onePart||onlyListen)?'':$('ecP2p').value.trim();
   const lm=+$('ecLm').value||30,p3pages=$('ecP3p').value.trim();
-  const passTotal=Math.max(1,+$('ecPassTotal').value||(onePart?Math.round(oneTotal*0.48):(pendingExDraft.hasListen?90:58)));
-  if(!p1q||!p1m||!p1pages||(!onePart&&(!p2q||!p2m||!p2pages))){$('ecErr').textContent='সবগুলো field সঠিকভাবে পূরণ করো।';return}
+  const maxTot=onlyListen?oneTotal:(onePart?(oneTotal+(pendingExDraft.hasListen?60:0)):(pendingExDraft.hasListen?180:120));
+  const passTotal=Math.max(1,+$('ecPassTotal').value||((onePart||onlyListen)?Math.round(maxTot*0.48):(pendingExDraft.hasListen?90:58)));
+  if(!onlyListen&&(!p1q||!p1m||!p1pages||(!onePart&&(!p2q||!p2m||!p2pages)))){$('ecErr').textContent='সবগুলো field সঠিকভাবে পূরণ করো।';return}
   let pdfPages=null;
   if(pendingExDraft.hasPdf){
     $('ecGoBtn').textContent='Uploading Pages…';$('ecGoBtn').disabled=true;
     try{
       if(!exPdf){await setWorker();exPdf=await pdfjsLib.getDocument({data:await $('exFile').files[0].arrayBuffer()}).promise}
-      const need=new Set([...parsePages(p1pages,exPdf.numPages),...(onePart?[]:parsePages(p2pages,exPdf.numPages)),...(pendingExDraft.hasListen&&p3pages?parsePages(p3pages,exPdf.numPages):[])]);
+      const lPages=pendingExDraft.hasListen?(p3pages?parsePages(p3pages,exPdf.numPages):(onlyListen?Array.from({length:exPdf.numPages},(_,k)=>k+1):[])):[];
+      const need=new Set([...(onlyListen?[]:parsePages(p1pages,exPdf.numPages)),...((onePart||onlyListen)?[]:parsePages(p2pages,exPdf.numPages)),...lPages]);
       if(!need.size)throw new Error('কোনো valid page পাওয়া যায়নি।');
       pdfPages={};
       for(const n of need){
@@ -2947,9 +2975,9 @@ $('ecGoBtn').onclick=async()=>{
   const roomObj={
     examName:pendingExDraft.examName,examinerId:curExaminer.id,examinerName:curExaminer.name,
     dateStr:new Date().toLocaleString(),createdAt:Date.now(),
-    status:'live',driveId:pendingExDraft.driveId,onePart,oneTotal,p1q,p1m,p1pages,p2q,p2m,p2pages,
+    status:'live',driveId:pendingExDraft.driveId,onePart,onlyListen,oneTotal,p1q,p1m,p1pages,p2q,p2m,p2pages,
     hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,p3pages,ytId:pendingExDraft.ytId,
-    passTotal,listenStarted:false,published:false
+    passTotal,listenStarted:onlyListen,published:false
   };
   if(pdfPages)roomObj.pdfPages=pdfPages;
   await db().ref('rooms/'+rid).set(roomObj);
@@ -2977,16 +3005,19 @@ function openLiveControl(rid){
     $('lcEndBtn').disabled=r.status==='ended';
     $('lcLinkLockBtn').textContent=r.linkLocked?'Unlock Link':'Lock Link';
     $('lcLinkLockBtn').style.color=r.linkLocked?'var(--ok)':'var(--bad)';
-    $('lcListenCard').classList.toggle('hide',!r.hasListen);
-    $('lcKey3Wrap').classList.toggle('hide',!r.hasListen);
-    $('lcKey2').classList.toggle('hide',!!r.onePart);
-    if($('lcKey2').previousElementSibling)$('lcKey2').previousElementSibling.classList.toggle('hide',!!r.onePart);
+    $('lcListenCard').classList.toggle('hide',!r.hasListen&&!r.onlyListen);
+    $('lcStartListenBtn').classList.toggle('hide',!!r.onlyListen);
+    $('lcKey3Wrap').classList.toggle('hide',!r.hasListen&&!r.onlyListen);
+    $('lcKey1').classList.toggle('hide',!!r.onlyListen);
+    if($('lcKey1').previousElementSibling)$('lcKey1').previousElementSibling.classList.toggle('hide',!!r.onlyListen);
+    $('lcKey2').classList.toggle('hide',!!(r.onePart||r.onlyListen));
+    if($('lcKey2').previousElementSibling)$('lcKey2').previousElementSibling.classList.toggle('hide',!!(r.onePart||r.onlyListen));
     if(r.keys){
       if(!$('lcKey1').value&&r.keys.k1)$('lcKey1').value=r.keys.k1;
       if(!$('lcKey2').value&&r.keys.k2)$('lcKey2').value=r.keys.k2;
       if(!$('lcKey3').value&&r.keys.k3)$('lcKey3').value=r.keys.k3;
     }
-    if(r.hasListen){
+    if(r.hasListen||r.onlyListen){
       $('lcStartListenBtn').textContent=r.listenStarted?'Listening Started ✓':'Start Listening for All';
       $('lcStartListenBtn').disabled=!!r.listenStarted;
       if(r.ytId&&!ytMounted){
@@ -3059,10 +3090,28 @@ function openLiveControl(rid){
         const elapsed=Math.max(0,Math.floor((Date.now()-(s.kickedAt||Date.now()))/1000));
         const usedArr=Array.isArray(s.used)?s.used.slice():[0,0,0];
         let p=s.kickedPart||0,rem=s.kickedRem||0,newSt=s.kickedStatus==='finished'?'finished':'active';
+        const lIdx=lcRoomData.onlyListen?0:(lcRoomData.onePart?1:2);
         if(newSt!=='finished'){
           if(s.kickedStatus==='waiting_listen'){
-            if(lcRoomData.listenStarted){p=2;rem=(lcRoomData.lm||30)*60;newSt='active'}
+            if(lcRoomData.listenStarted){p=lIdx;rem=(lcRoomData.lm||30)*60;newSt='active'}
             else newSt='waiting_listen';
+          }else if(lcRoomData.onlyListen){
+            if(elapsed<rem){rem-=elapsed}
+            else{usedArr[0]=(lcRoomData.lm||30)*60;newSt='finished'}
+          }else if(lcRoomData.onePart){
+            if(p===0){
+              if(elapsed<rem){rem-=elapsed}
+              else{
+                usedArr[0]=(lcRoomData.p1m||20)*60;
+                if(lcRoomData.hasListen){
+                  if(lcRoomData.listenStarted){p=1;rem=(lcRoomData.lm||30)*60}
+                  else{p=0;rem=0;newSt='waiting_listen'}
+                }else{newSt='finished'}
+              }
+            }else if(p===1){
+              if(elapsed<rem){rem-=elapsed}
+              else{usedArr[1]=(lcRoomData.lm||30)*60;newSt='finished'}
+            }
           }else if(p===0){
             if(elapsed<rem){rem-=elapsed}
             else{
@@ -3193,48 +3242,61 @@ function computePartWeights(stuMarkStrs,qCount,partTotal){
 $('lcPublishBtn').onclick=async()=>{
   if(!lcRoomData)return;
   const r=lcRoomData,k1=parseKeyTokens($('lcKey1').value),k2=parseKeyTokens($('lcKey2').value),k3=parseKeyTokens($('lcKey3').value);
-  if(r.hasListen&&r.lMode==='later'&&!k3.length){toast('Answer Later mode-এ Listening-এর Answer Key দাও।');return}
+  const hasL=!!(r.hasListen||r.onlyListen);
+  if(hasL&&r.lMode==='later'&&!k3.length){toast('Answer Later mode-এ Listening-এর Answer Key দাও।');return}
   await db().ref('rooms/'+lcRoomId+'/keys').set({k1:$('lcKey1').value.trim(),k2:$('lcKey2').value.trim(),k3:$('lcKey3').value.trim()});
   const stus=r.students?Object.entries(r.students):[];
   const upd={};
-  const chors=[],mList0=[],mList1=[],mList2=[];
+  const chors=[],mList0=[],mList1=[],mListL=[];
+  const lIdx=r.onlyListen?0:(r.onePart?1:2);
   stus.forEach(([sid,s])=>{
     const aArr=s.ans||[],mArr=s.marks||[];
     const newMarks=[...mArr];
-    if(k1.length){
+    if(!r.onlyListen&&k1.length){
       const A1=unpackAns(aArr[0]||'',r.p1q),M1=[];
       for(let q=1;q<=Math.min(r.p1q,k1.length);q++)M1[q]=A1[q]===k1[q-1]?'ok':'bad';
       newMarks[0]=packArr(M1,r.p1q,'.');
     }
-    if(k2.length){
+    if(!r.onlyListen&&!r.onePart&&k2.length){
       const A2=unpackAns(aArr[1]||'',r.p2q),M2=[];
       for(let q=1;q<=Math.min(r.p2q,k2.length);q++)M2[q]=A2[q]===k2[q-1]?'ok':'bad';
       newMarks[1]=packArr(M2,r.p2q,'.');
     }
-    if(r.hasListen&&k3.length){
-      const A3=unpackAns(aArr[2]||'',LISTEN_TOTAL),M3=unpackMarks(mArr[2]||'',LISTEN_TOTAL);
+    if(hasL&&k3.length){
+      const AL=unpackAns(aArr[lIdx]||'',LISTEN_TOTAL),ML=unpackMarks(mArr[lIdx]||'',LISTEN_TOTAL);
       if(r.lMode==='instant'){
         const caught=[];
         for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++){
-          if(M3[q]==='ok'&&A3[q]!==k3[q-1])caught.push(q);
+          if(ML[q]==='ok'&&AL[q]!==k3[q-1])caught.push(q);
         }
         if(caught.length)chors.push({name:s.name,qs:caught});
       }else{
-        for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++)M3[q]=A3[q]===k3[q-1]?'ok':'bad';
-        newMarks[2]=packArr(M3,LISTEN_TOTAL,'.');
+        for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++)ML[q]=AL[q]===k3[q-1]?'ok':'bad';
+        newMarks[lIdx]=packArr(ML,LISTEN_TOTAL,'.');
       }
     }
-    mList0.push(newMarks[0]||'');mList1.push(newMarks[1]||'');if(r.hasListen)mList2.push(newMarks[2]||'');
+    if(!r.onlyListen)mList0.push(newMarks[0]||'');
+    if(!r.onlyListen&&!r.onePart)mList1.push(newMarks[1]||'');
+    if(hasL)mListL.push(newMarks[lIdx]||'');
     upd[`rooms/${lcRoomId}/students/${sid}/marks`]=newMarks;
   });
-  const p1Tot=r.onePart?(r.oneTotal||100):60;
-  const w0=computePartWeights(mList0,r.p1q,p1Tot);
-  const qPts=[w0.pts],qStats=[w0.stats];
-  if(!r.onePart){
-    const w1=computePartWeights(mList1,r.p2q,60);
-    qPts.push(w1.pts);qStats.push(w1.stats);
+  let qPts=[],qStats=[];
+  if(r.onlyListen){
+    const wL=computePartWeights(mListL,LISTEN_TOTAL,r.oneTotal||60);
+    qPts=[wL.pts];qStats=[wL.stats];
+  }else{
+    const p1Tot=r.onePart?(r.oneTotal||100):60;
+    const w0=computePartWeights(mList0,r.p1q,p1Tot);
+    qPts=[w0.pts];qStats=[w0.stats];
+    if(!r.onePart){
+      const w1=computePartWeights(mList1,r.p2q,60);
+      qPts.push(w1.pts);qStats.push(w1.stats);
+    }
+    if(hasL){
+      const wL=computePartWeights(mListL,LISTEN_TOTAL,60);
+      qPts.push(wL.pts);qStats.push(wL.stats);
+    }
   }
-  if(!r.onePart&&r.hasListen){const w2=computePartWeights(mList2,LISTEN_TOTAL,60);qPts.push(w2.pts);qStats.push(w2.stats)}
   upd[`rooms/${lcRoomId}/qPts`]=qPts;
   upd[`rooms/${lcRoomId}/qStats`]=qStats;
   upd[`rooms/${lcRoomId}/chors`]=chors;
@@ -3257,29 +3319,32 @@ function scorePartFromMarks(markStr,qCount,ptsArr,partTotal){
 }
 function calcStuSummary(r,s){
   const mArr=s.marks||[],uArr=s.used||[],qPts=r.qPts||[];
-  const p1Tot=r.onePart?(r.oneTotal||100):60;
-  const p1Res=scorePartFromMarks(mArr[0],r.p1q,qPts[0],p1Tot);
-  const p2Res=r.onePart?{ok:0,scaled:0}:scorePartFromMarks(mArr[1],r.p2q,qPts[1],60);
-  const p3Res=(!r.onePart&&r.hasListen)?scorePartFromMarks(mArr[2],LISTEN_TOTAL,qPts[2],60):{ok:0,scaled:0};
+  const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
+  const p1Tot=onlyL?0:(one?(r.oneTotal||100):60);
+  const lTot=onlyL?(r.oneTotal||60):60;
+  const lIdx=onlyL?0:(one?1:2);
+  const p1Res=onlyL?{ok:0,scaled:0}:scorePartFromMarks(mArr[0],r.p1q,qPts[0],p1Tot);
+  const p2Res=(onlyL||one)?{ok:0,scaled:0}:scorePartFromMarks(mArr[1],r.p2q,qPts[1],60);
+  const p3Res=hasL?scorePartFromMarks(mArr[lIdx],LISTEN_TOTAL,qPts[lIdx],lTot):{ok:0,scaled:0};
   const s1=p1Res.scaled,s2=p2Res.scaled,s3=p3Res.scaled;
-  const maxTot=r.onePart?p1Tot:(r.hasListen?180:120);
-  const passTot=r.passTotal||(r.onePart?Math.round(p1Tot*0.48):(r.hasListen?90:58));
+  const maxTot=onlyL?lTot:(one?(p1Tot+(hasL?60:0)):(hasL?180:120));
+  const passTot=r.passTotal||((onlyL||one)?Math.round(maxTot*0.48):(hasL?90:58));
   const rawTot=Math.round((s1+s2+s3)*10)/10;
   const allPts=qPts.flat().filter(v=>typeof v==='number'&&v>0);
-  const minQPt=allPts.length?Math.round(Math.min(...allPts)*10)/10:Math.round((p1Tot/Math.max(1,r.p1q,r.p2q||1))*10)/10;
+  const minQPt=allPts.length?Math.round(Math.min(...allPts)*10)/10:Math.round(((onlyL?lTot:p1Tot)/Math.max(1,r.p1q||LISTEN_TOTAL,r.p2q||1))*10)/10;
   const markDed=+(s.deduct||0),ansDed=+(s.ansDeduct||0);
   const ansDedMarks=Math.round(ansDed*minQPt*10)/10;
   const ded=Math.round((markDed+ansDedMarks)*10)/10;
   const finalTot=Math.max(0,Math.round((rawTot-ded)*10)/10);
-  const numPass=r.onePart?(finalTot>=passTot):(s1>=19&&s2>=19&&(!r.hasListen||s3>=19)&&finalTot>=passTot);
+  const numPass=(onlyL||one)?(finalTot>=passTot):(s1>=19&&s2>=19&&(!hasL||s3>=19)&&finalTot>=passTot);
   const senseiFailed=!!s.senseiFailed;
   const pass=numPass&&!senseiFailed;
   const sn=r.examinerName||'Sensei';
   const statusLabel=senseiFailed?(numPass?`Pass by Number · Failed by ${sn}`:`Failed by ${sn}`):(pass?'PASS ✓':'FAIL ✕');
   const shortStatus=senseiFailed?(numPass?`Pass by # · Failed by ${sn}`:`Failed by ${sn}`):(pass?'PASS':'FAIL');
-  const totQ=r.p1q+r.p2q+(r.hasListen?LISTEN_TOTAL:0);
+  const totQ=(onlyL?0:r.p1q)+(onlyL||one?0:r.p2q)+(hasL?LISTEN_TOTAL:0);
   const totOk=p1Res.ok+p2Res.ok+p3Res.ok;
-  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,s1,s2,s3,t1:uArr[0]||0,t2:uArr[1]||0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
+  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,s1,s2,s3,p1Tot,lTot,t1:onlyL?0:(uArr[0]||0),t2:(onlyL||one)?0:(uArr[1]||0),t3:hasL?(uArr[lIdx]||0):0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
 }
 function buildStuDisp(stuObjs){
   const cnt={};
@@ -3298,7 +3363,7 @@ function renderLiveSummary(r,stus){
   $('lcChorBody').innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('')+tabChors.join('')+ssChors.join('');
   if(Array.isArray(r.qStats)&&r.qStats.length){
     $('lcQStatsCard').classList.remove('hide');
-    const labels=['Part 1','Part 2','Listening'];
+    const labels=r.onlyListen?['Listening']:(r.onePart?['Part 1','Listening']:['Part 1','Part 2','Listening']);
     const allP=(r.qPts||[]).flat().filter(v=>typeof v==='number'&&v>0);
     const minPt=allP.length?Math.round(Math.min(...allP)*10)/10:0;
     const wrongByQ=(pi,qNum)=>stus.filter(([,s])=>((s.marks&&s.marks[pi])||'')[qNum-1]!=='o').map(([,s])=>disp(s));
@@ -3322,15 +3387,21 @@ function renderLiveSummary(r,stus){
   if(!stus.length){$('lcSumBody').innerHTML='<div class="mu">কোনো data নেই।</div>';return}
   const rows=stus.map(([sid,s])=>({sid,...calcStuSummary(r,s),dName:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
+  const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
+  const thCols=onlyL?`<th>Listening (Time)</th>`:(one?`<th>Part 1 (Time)</th>${hasL?'<th>Listening</th>':''}`:`<th>Part 1</th><th>Part 2</th>${hasL?'<th>Listening</th>':''}`);
   $('lcSumBody').innerHTML=`<div class="mu" style="margin-bottom:6px">Total: <b>${rows.length}</b> · <span style="color:var(--ok)">PASS: <b>${passCnt}</b></span> · <span style="color:var(--bad)">FAIL: <b>${failCnt}</b></span></div>
   <table class="tbl">
-    <thead><tr><th>Name</th><th>${r.onePart?'Score (Time)':'Part 1'}</th>${r.onePart?'':`<th>Part 2</th>${r.hasListen?'<th>Listening</th>':''}`}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th><th>Action</th></tr></thead>
+    <thead><tr><th>Name</th>${thCols}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th><th>Action</th></tr></thead>
     <tbody>${rows.map(x=>{
       const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
+      const tdCols=onlyL
+        ?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL} · ${fmt(x.t3)})</span></td>`
+        :(one
+          ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`
+          :`<td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td><td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`);
       return `<tr>
         <td><b>${esc(x.dName)}</b></td>
-        <td><b>${x.s1}/${r.onePart?x.maxTot:60}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>
-        ${r.onePart?'':`<td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${r.hasListen?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`}
+        ${tdCols}
         <td>${totStr}</td>
         <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
         <td><button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button></td>
@@ -3356,16 +3427,20 @@ $('lcSumPngBtn').onclick=()=>{
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
   const passInfo=rows.length?`PASS: ${passCnt} · FAIL: ${failCnt} · Pass Mark: ${rows[0].passTot}/${rows[0].maxTot}`:'';
   ctx.fillText(`Examiner: ${r.examinerName||'Sensei'}  ·  ${r.dateStr||''}  ·  ${passInfo}`,pad,62);
-  const one=!!r.onePart;
-  const cols=one?[pad,290,540,780]:(r.hasListen?[pad,240,395,550,695,840]:[pad,275,470,665,830]);
+  const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
+  const cols=onlyL?[pad,290,540,780]:(one?(hasL?[pad,260,460,655,835]:[pad,290,540,780]):(hasL?[pad,240,395,550,695,840]:[pad,275,470,665,830]));
   ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
   ctx.fillText('Student Name',cols[0]+8,96);
-  if(one){
-    ctx.fillText('Score (Time)',cols[1],96);ctx.fillText('Total',cols[2],96);ctx.fillText('Status',cols[3],96);
+  if(onlyL){
+    ctx.fillText('Listening (Time)',cols[1],96);ctx.fillText('Total',cols[2],96);ctx.fillText('Status',cols[3],96);
+  }else if(one){
+    ctx.fillText('Part 1 (Time)',cols[1],96);
+    if(hasL){ctx.fillText('Listening',cols[2],96);ctx.fillText('Total',cols[3],96);ctx.fillText('Status',cols[4],96)}
+    else{ctx.fillText('Total',cols[2],96);ctx.fillText('Status',cols[3],96)}
   }else{
     ctx.fillText('Part 1 (Time)',cols[1],96);
     ctx.fillText('Part 2 (Time)',cols[2],96);
-    if(r.hasListen){ctx.fillText('Listening',cols[3],96);ctx.fillText('Total',cols[4],96);ctx.fillText('Status',cols[5],96)}
+    if(hasL){ctx.fillText('Listening',cols[3],96);ctx.fillText('Total',cols[4],96);ctx.fillText('Status',cols[5],96)}
     else{ctx.fillText('Total',cols[3],96);ctx.fillText('Status',cols[4],96)}
   }
   ctx.strokeStyle='#cbd5e1';ctx.beginPath();ctx.moveTo(pad,104);ctx.lineTo(W-pad,104);ctx.stroke();
@@ -3376,16 +3451,30 @@ $('lcSumPngBtn').onclick=()=>{
     ctx.fillText((idx+1)+'. '+x.name,cols[0]+8,y+22);
     ctx.font='13px system-ui,sans-serif';
     const totTxt=x.ded>0?`${x.rawTot}-${x.ded}=${x.finalTot}/${x.maxTot}`:`${x.finalTot}/${x.maxTot}`;
-    if(one){
-      ctx.fillText(`${x.s1}/${x.p1Tot} (${fmt(x.t1)})`,cols[1],y+22);
+    if(onlyL){
+      ctx.fillText(`${x.s3}/${x.lTot} (${fmt(x.t3)})`,cols[1],y+22);
       ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
       ctx.fillText(totTxt,cols[2],y+22);
       ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
       ctx.fillText(x.shortStatus,cols[3],y+22);
+    }else if(one){
+      ctx.fillText(`${x.s1}/${x.p1Tot} (${fmt(x.t1)})`,cols[1],y+22);
+      if(hasL){
+        ctx.fillText(`${x.s3}/60 (${x.p3}/${LISTEN_TOTAL})`,cols[2],y+22);
+        ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
+        ctx.fillText(totTxt,cols[3],y+22);
+        ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
+        ctx.fillText(x.shortStatus,cols[4],y+22);
+      }else{
+        ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
+        ctx.fillText(totTxt,cols[2],y+22);
+        ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
+        ctx.fillText(x.shortStatus,cols[3],y+22);
+      }
     }else{
       ctx.fillText(`${x.s1}/60 (${fmt(x.t1)})`,cols[1],y+22);
       ctx.fillText(`${x.s2}/60 (${fmt(x.t2)})`,cols[2],y+22);
-      if(r.hasListen){
+      if(hasL){
         ctx.fillText(`${x.s3}/60 (${x.p3}/${LISTEN_TOTAL})`,cols[3],y+22);
         ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
         ctx.fillText(totTxt,cols[4],y+22);
