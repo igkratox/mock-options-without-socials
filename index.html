@@ -565,6 +565,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button type="button" class="btn sec" id="lcCopyLinkBtn">Copy Student Link</button>
+      <button type="button" class="btn sec" id="lcLinkLockBtn">Lock Link</button>
       <button type="button" class="btn sec" id="lcEndBtn" style="color:var(--bad)">End Exam</button>
       <button type="button" class="btn sec" id="lcBackBtn">Back</button>
     </div>
@@ -2132,6 +2133,50 @@ function startLiveStudent(room){
   beginExam(stuName,room.driveId||'',parts,room.examName||'',room.ytId||'');
   syncStudentLive();
 }
+let lastStuResumeTs=0;
+function resumeLiveStudentFromRecord(r,me,stuId){
+  liveStuId=stuId;
+  const parts=[
+    {label:'Part 1',listen:false,pages:[],q:r.p1q,m:r.p1m},
+    {label:'Part 2',listen:false,pages:[],q:r.p2q,m:r.p2m}
+  ];
+  if(r.hasListen){
+    parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:r.lm||30});
+  }
+  $('listenMode').value=r.lMode||'instant';
+  lastGlobalDeltaTs=r.globalDeltaTs||0;
+  lastStuDeltaTs=me.deltaTs||0;
+  lastStuResumeTs=me.resumeTs||0;
+  examinerLocked=!!me.locked;
+  liveDeduct=+(me.deduct||0);
+  currentExamId='live_'+liveRoomId;
+  cfg={name:me.name||curStudent.name,driveId:r.driveId||'',examName:r.examName||'',ytId:r.ytId||'',style:$('style').value,parts};
+  ans=parts.map((pt,i)=>unpackAns((me.ans&&me.ans[i])||'',pt.q));
+  marks=parts.map((pt,i)=>unpackMarks((me.marks&&me.marks[i])||'',pt.q));
+  flags=parts.map(()=>[]);
+  used=Array.isArray(me.used)?me.used.slice():parts.map(()=>0);
+  if(me.status==='finished'){
+    if(r.published)loadPublishedLiveReport();
+    else setLiveWait('finished','Exam শেষ হয়েছে!','Sensei Answer Key publish করলে এখানেই তোমার Result Card দেখাবে…','Result-এর জন্য অপেক্ষা করা হচ্ছে');
+    return;
+  }
+  if(me.status==='waiting_listen'){
+    if(r.listenStarted){
+      $('driveWrap').innerHTML='';$('driveWrap').classList.add('hide');$('pages').classList.remove('hide');
+      hideAllViews();$('exam').classList.remove('hide');
+      startPart(2,false);
+    }else{
+      setLiveWait('waiting_listen','Part 2 শেষ!','অন্যান্যরা Part 2 শেষ করলে ও Sensei শুরু করলে Listening একসাথে শুরু হবে…','Listening-এর জন্য অপেক্ষা করা হচ্ছে');
+    }
+    return;
+  }
+  const pIdx=Math.min(parts.length-1,Math.max(0,me.resumePart!==undefined?me.resumePart:(me.part||0)));
+  const rSec=me.resumeRem!==undefined?me.resumeRem:(me.rem||parts[pIdx].m*60);
+  $('driveWrap').innerHTML='';$('driveWrap').classList.add('hide');$('pages').classList.remove('hide');
+  hideAllViews();$('exam').classList.remove('hide');
+  startPart(pIdx,false,Math.max(1,rSec));
+  if(examinerLocked)setPaused(true,true);
+}
 async function checkHashLive(){
   if(!location.hash.startsWith('#live='))return;
   const rid=location.hash.slice(6).trim();
@@ -2171,10 +2216,29 @@ async function checkHashLive(){
       $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
       return;
     }
+    const expectedStuId='u_'+curStudent.username;
+    const existing=r.students&&r.students[expectedStuId];
     if(!liveStuId){
+      if(existing&&existing.kicked){
+        liveStuId=expectedStuId;
+        $('lwTitle').textContent='🚫 Kicked from Exam';
+        $('lwSub').textContent='Examiner তোমাকে এই exam থেকে বের করে দিয়েছেন। Unban না করা পর্যন্ত আর ঢুকতে পারবে না।';
+        $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
+        return;
+      }
+      if(existing){
+        resumeLiveStudentFromRecord(r,existing,expectedStuId);
+        return;
+      }
       if(r.status==='ended'){
         $('lwTitle').textContent=r.examName||'Live Exam';
         $('lwSub').textContent='এই Exam-টি Examiner শেষ করে দিয়েছেন। নতুন করে join করা যাবে না।';
+        $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
+        return;
+      }
+      if(r.linkLocked){
+        $('lwTitle').textContent=r.examName||'Live Exam';
+        $('lwSub').textContent='🔒 এই Exam-এর Link সাময়িকভাবে Lock করা আছে। Examiner Unlock করলে আবার join করতে পারবে।';
         $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
         return;
       }
@@ -2186,6 +2250,22 @@ async function checkHashLive(){
       $('lwJoinBtn').onclick=()=>startLiveStudent(r);
       return;
     }
+    const me=r.students&&r.students[liveStuId];
+    if(me&&me.kicked){
+      stopYt();clearInterval(tick);
+      hideAllViews();
+      $('liveWaitView').classList.remove('hide');
+      $('lwTitle').textContent='🚫 Kicked from Exam';
+      $('lwSub').textContent='Examiner তোমাকে এই exam থেকে বের করে দিয়েছেন। Unban না করা পর্যন্ত আর ঢুকতে পারবে না।';
+      $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
+      return;
+    }
+    if(me&&!me.kicked&&me.resumeTs&&me.resumeTs!==lastStuResumeTs){
+      lastStuResumeTs=me.resumeTs;
+      toast('Examiner তোমাকে Unban করেছেন! বাকি সময় নিয়ে exam চালু হচ্ছে…');
+      resumeLiveStudentFromRecord(r,me,liveStuId);
+      return;
+    }
     if(r.globalDeltaTs&&r.globalDeltaTs!==lastGlobalDeltaTs&&r.globalDeltaSec){
       lastGlobalDeltaTs=r.globalDeltaTs;
       if(!$('exam').classList.contains('hide')){
@@ -2193,7 +2273,6 @@ async function checkHashLive(){
         toast(`Sensei সবার সময় ${r.globalDeltaSec>0?'+':''}${Math.round(r.globalDeltaSec/60)} min পরিবর্তন করেছেন!`);
       }
     }
-    const me=r.students&&r.students[liveStuId];
     if(me&&me.deltaTs&&me.deltaTs!==lastStuDeltaTs&&me.deltaSec){
       lastStuDeltaTs=me.deltaTs;
       if(!$('exam').classList.contains('hide')){
@@ -2439,8 +2518,10 @@ function openLiveControl(rid){
     const r=snap.val();if(!r)return;
     lcRoomData=r;
     $('lcTitle').textContent=r.examName||'Live Control';
-    $('lcSub').innerHTML=`Teacher: <b>${esc(r.examinerName)}</b> · ${esc(r.dateStr||'')} · <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span>`;
+    $('lcSub').innerHTML=`Teacher: <b>${esc(r.examinerName)}</b> · ${esc(r.dateStr||'')} · <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span>`+(r.linkLocked?' <span class="pill end">LINK LOCKED</span>':'');
     $('lcEndBtn').disabled=r.status==='ended';
+    $('lcLinkLockBtn').textContent=r.linkLocked?'Unlock Link':'Lock Link';
+    $('lcLinkLockBtn').style.color=r.linkLocked?'var(--ok)':'var(--bad)';
     $('lcListenCard').classList.toggle('hide',!r.hasListen);
     $('lcKey3Wrap').classList.toggle('hide',!r.hasListen);
     if(r.keys){
@@ -2466,20 +2547,21 @@ function openLiveControl(rid){
     $('lcStuCount').textContent=stus.length;
     let waitCnt=0;
     $('lcStuBody').innerHTML=stus.length?stus.map(([sid,s])=>{
-      if(s.status==='waiting_listen')waitCnt++;
-      const stTxt=s.locked?'🔒 Locked':s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
-      const qTxt=s.status==='finished'?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
+      if(s.status==='waiting_listen'&&!s.kicked)waitCnt++;
+      const stTxt=s.kicked?'🚫 Kicked':s.locked?'🔒 Locked':s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
+      const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
       const ded=+(s.deduct||0);
       return `<tr>
         <td><b>${esc(s.name)}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Deduct: −${ded}</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
-        <td>${s.status==='finished'?'—':fmt(s.rem||0)}</td>
+        <td>${(s.status==='finished'||s.kicked)?'—':fmt(s.rem||0)}</td>
         <td style="white-space:nowrap">
           <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="-60" style="padding:4px 6px;font-size:11px">−1m</button>
           <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="60" style="padding:4px 6px;font-size:11px">+1m</button>
           <button type="button" class="btn sec lc-slock" data-s="${esc(sid)}" data-lk="${s.locked?1:0}" style="padding:4px 6px;font-size:11px;color:${s.locked?'var(--ok)':'var(--bad)'}">${s.locked?'On':'Off'}</button>
           <button type="button" class="btn sec lc-sded" data-s="${esc(sid)}" data-ded="${ded}" style="padding:4px 6px;font-size:11px">−Mark</button>
+          <button type="button" class="btn sec lc-skick" data-s="${esc(sid)}" data-kk="${s.kicked?1:0}" style="padding:4px 6px;font-size:11px;color:${s.kicked?'var(--ok)':'var(--bad)'}">${s.kicked?'Unban':'Kick'}</button>
         </td>
       </tr>`;
     }).join(''):'<tr><td colspan="5" class="mu">এখনো কোনো student join করেনি।</td></tr>';
@@ -2497,9 +2579,61 @@ function openLiveControl(rid){
       const num=Math.max(0,parseInt(v,10)||0);
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/deduct`).set(num);
     });
+    $('lcStuBody').querySelectorAll('.lc-skick').forEach(b=>b.onclick=()=>{
+      const sid=b.dataset.s,s=lcRoomData?.students?.[sid];if(!s)return;
+      if(b.dataset.kk!=='1'){
+        if(!confirm(`${s.name}-কে Kick করবে? তার timer কিন্তু চলতেই থাকবে!`))return;
+        db().ref(`rooms/${lcRoomId}/students/${sid}`).update({
+          kicked:true,kickedAt:Date.now(),kickedPart:s.part||0,kickedRem:s.rem||0,kickedStatus:s.status||'active'
+        });
+      }else{
+        const elapsed=Math.max(0,Math.floor((Date.now()-(s.kickedAt||Date.now()))/1000));
+        const usedArr=Array.isArray(s.used)?s.used.slice():[0,0,0];
+        let p=s.kickedPart||0,rem=s.kickedRem||0,newSt=s.kickedStatus==='finished'?'finished':'active';
+        if(newSt!=='finished'){
+          if(s.kickedStatus==='waiting_listen'){
+            if(lcRoomData.listenStarted){p=2;rem=(lcRoomData.lm||30)*60;newSt='active'}
+            else newSt='waiting_listen';
+          }else if(p===0){
+            if(elapsed<rem){rem-=elapsed}
+            else{
+              usedArr[0]=(lcRoomData.p1m||20)*60;
+              const left=elapsed-rem,p2Sec=(lcRoomData.p2m||40)*60;
+              if(left<p2Sec){p=1;rem=p2Sec-left}
+              else{
+                usedArr[1]=p2Sec;
+                if(lcRoomData.hasListen){
+                  if(lcRoomData.listenStarted){p=2;rem=(lcRoomData.lm||30)*60}
+                  else{p=1;rem=0;newSt='waiting_listen'}
+                }else{newSt='finished'}
+              }
+            }
+          }else if(p===1){
+            if(elapsed<rem){rem-=elapsed}
+            else{
+              usedArr[1]=(lcRoomData.p2m||40)*60;
+              if(lcRoomData.hasListen){
+                if(lcRoomData.listenStarted){p=2;rem=(lcRoomData.lm||30)*60}
+                else{p=1;rem=0;newSt='waiting_listen'}
+              }else{newSt='finished'}
+            }
+          }else if(p===2){
+            if(elapsed<rem){rem-=elapsed}
+            else{usedArr[2]=(lcRoomData.lm||30)*60;newSt='finished'}
+          }
+        }
+        db().ref(`rooms/${lcRoomId}/students/${sid}`).update({
+          kicked:false,status:newSt,part:p,rem,used:usedArr,resumePart:p,resumeRem:rem,resumeTs:Date.now()
+        });
+      }
+    });
     renderLiveSummary(r,stus);
   });
 }
+$('lcLinkLockBtn').onclick=()=>{
+  if(!lcRoomData)return;
+  db().ref('rooms/'+lcRoomId+'/linkLocked').set(!lcRoomData.linkLocked);
+};
 $('lcBackBtn').onclick=()=>{
   if(lcRoomRef){lcRoomRef.off();lcRoomRef=null}
   if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
