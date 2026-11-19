@@ -525,7 +525,12 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <h3 style="margin:0">All Teachers' Exams</h3>
-      <button type="button" class="btn sec" id="admClean30Btn" style="padding:6px 10px;font-size:12px;color:var(--bad)">Clear >30 Days</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn sec" id="admBackupBtn" style="padding:6px 10px;font-size:12px">⬇ Backup (.json)</button>
+        <button type="button" class="btn sec" id="admRestoreBtn" style="padding:6px 10px;font-size:12px">⬆ Restore</button>
+        <input id="admRestoreIn" type="file" accept=".json,application/json" class="hide">
+        <button type="button" class="btn sec" id="admClean30Btn" style="padding:6px 10px;font-size:12px;color:var(--bad)">Clear >30 Days</button>
+      </div>
     </div>
     <div id="adminExamsList" class="mu" style="margin-top:6px">Loading…</div>
   </div>
@@ -2885,6 +2890,38 @@ $('saveAdmCredBtn').onclick=async()=>{
   await db().ref('config/admin').set({id,pass});
   $('chgAdmId').value='';$('chgAdmPass').value='';
   toast('Admin login update হয়েছে!');
+};
+$('admBackupBtn').onclick=async()=>{
+  try{
+    $('admBackupBtn').disabled=true;$('admBackupBtn').textContent='Backing up…';
+    const snap=await db().ref().once('value');
+    const data=snap.val()||{};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`mock_exam_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+    toast('Backup JSON download হয়েছে!');
+  }catch(e){toast('Backup ব্যর্থ: '+e.message)}
+  $('admBackupBtn').disabled=false;$('admBackupBtn').textContent='⬇ Backup (.json)';
+};
+$('admRestoreBtn').onclick=()=>$('admRestoreIn').click();
+$('admRestoreIn').onchange=async()=>{
+  const f=$('admRestoreIn').files[0];$('admRestoreIn').value='';
+  if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(!data||typeof data!=='object'||(!data.rooms&&!data.students&&!data.examiners)){
+      toast('সঠিক Backup JSON file নয়।');return;
+    }
+    if(!confirm('এই Backup file থেকে সব Examiners, Students ও Exams restore করবে?'))return;
+    const upd={};
+    ['examiners','students','rooms','studentRooms','config'].forEach(k=>{if(data[k])upd[k]=data[k]});
+    await db().ref().update(upd);
+    toast('Backup থেকে Data restore হয়েছে!');
+    loadAdminData();
+  }catch(e){toast('Restore ব্যর্থ: '+e.message)}
 };
 $('admClean30Btn').onclick=async()=>{
   if(!confirm('৩০ দিনের বেশি পুরনো সব Live Exam data Firebase থেকে delete করবে?'))return;
