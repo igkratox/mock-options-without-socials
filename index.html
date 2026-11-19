@@ -430,7 +430,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <input id="authPass" type="password" placeholder="Password">
     <div id="authErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
     <button type="button" class="btn" id="authLoginBtn">Login</button>
-    <div id="authHint" class="mu hide" style="margin-top:8px">Default Admin: <b>admin</b> / <b>admin123</b> (Login করে change করতে পারবে)</div>
+    <div id="authHint" class="mu hide" style="margin-top:8px">Admin credentials দিয়ে login করো।</div>
   </div>
 </div>
 
@@ -2088,7 +2088,7 @@ $('tabAdmin').onclick=()=>{
 async function ensureAdminInit(){
   const ref=db().ref('config/admin');
   const snap=await ref.once('value');
-  if(!snap.exists()){await ref.set({id:'admin',pass:'admin123'});return{id:'admin',pass:'admin123'}}
+  if(!snap.exists()){await ref.set({id:'kratox',pass:'nur1229'});return{id:'kratox',pass:'nur1229'}}
   return snap.val();
 }
 $('authLoginBtn').onclick=async()=>{
