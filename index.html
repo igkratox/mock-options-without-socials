@@ -174,6 +174,9 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 .tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 .tbl th,.tbl td{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:middle}
 .tbl th{font-size:12px;color:var(--mu);font-weight:700}
+.tbl tr.stu-main td{border-bottom:0;padding-bottom:4px}
+.tbl tr.stu-act td{padding-top:2px;padding-bottom:10px;border-bottom:2px solid var(--bd)}
+.stu-acts{display:flex;gap:6px;flex-wrap:wrap}
 .chor-card{border-color:var(--bad);background:rgba(220,38,38,.06)}
 .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
 .pill.live{background:rgba(22,163,74,.15);color:var(--ok)}
@@ -573,6 +576,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
             <div><div class="mu">Listening Time (min)</div><input id="exLm" type="number" min="1" value="30"></div>
             <div><div class="mu">Listening Mode</div><select id="exLMode"><option value="instant">Answer Instant</option><option value="later">Answer Later</option></select></div>
           </div>
+          <div style="margin-top:8px"><div class="mu">Listening Audio/Video Control</div><select id="exLSelfCtrl"><option value="0">Sensei Sync (Teacher control করবে)</option><option value="1">Self-Control (Student নিজে control করবে)</option></select></div>
           <div style="margin-top:8px"><div class="mu">Listening Pages (optional)</div><input id="exP3pages" placeholder="খালি রাখলে Listening Pad দেখাবে"></div>
           <div style="margin-top:8px"><div class="mu">YouTube Link (Listening)</div><input id="exYt" type="url" placeholder="https://youtu.be/..."></div>
         </div>
@@ -682,7 +686,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <h3>Live Students (<span id="lcStuCount">0</span>)</h3>
     <div style="overflow:auto">
       <table class="tbl" id="lcStuTable">
-        <thead><tr><th>Name</th><th>Status / Part</th><th>Q#</th><th>Time Left</th><th>Controls (Time · Lock · Deduct)</th></tr></thead>
+        <thead><tr><th>Name</th><th>Status</th><th>Q#</th><th>Time</th></tr></thead>
         <tbody id="lcStuBody"></tbody>
       </table>
     </div>
@@ -698,6 +702,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <select id="lcLMode" style="width:auto;padding:7px 10px;font-size:13px">
           <option value="instant">Mode: Answer Instant</option>
           <option value="later">Mode: Answer Later</option>
+        </select>
+        <select id="lcAudioCtrl" style="width:auto;padding:7px 10px;font-size:13px">
+          <option value="0">Audio: Sensei Sync</option>
+          <option value="1">Audio: Self-Control</option>
         </select>
         <button type="button" class="btn" id="lcStartListenBtn" style="width:auto;margin:0;padding:9px 14px">Start Listening for All</button>
       </div>
@@ -1010,6 +1018,7 @@ async function startPart(i,auto,resumeSec){
   const usePad=P.listen&&!cfg.driveId&&!P.pages.length;
   const hasYt=!!(P.listen&&cfg.ytId);
   const isLive=!!liveRoomId;
+  const ytSynced=isLive&&!(liveRoom&&liveRoom.listenSelfCtrl);
   const prot=isLive&&!P.listen;
   $('exam').classList.toggle('no-copy',prot);
   if(prot){
@@ -1022,8 +1031,8 @@ async function startPart(i,auto,resumeSec){
   $('pauseBtn').classList.toggle('hide',isLive);
   $('flagBtn').classList.toggle('hide',isLive);
   $('listenMode').disabled=isLive;
-  $('ytMuteBtn').classList.toggle('hide',!(isLive&&hasYt));
-  $('ytSpdBar').classList.toggle('hide',!hasYt||isLive);
+  $('ytMuteBtn').classList.toggle('hide',!(ytSynced&&hasYt));
+  $('ytSpdBar').classList.toggle('hide',!hasYt||ytSynced);
   $('ytSpdBar').querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.r==='1'));
   document.querySelector('.dock').classList.toggle('pad-only',usePad);
   if(usePad){
@@ -1031,14 +1040,14 @@ async function startPart(i,auto,resumeSec){
     $('pages').style.width='100%';$('pages').style.height='100%';
     $('pages').innerHTML=`<div class="listen-pad${hasYt?' has-yt':''}">
       ${hasYt?'<div class="yt-box" id="ytBox"></div>':''}
-      <div class="l-head">${hasYt&&!isLive?'<button type="button" class="yt-seek" id="ytBack10">« 10s</button><span id="lHead">Mondai 1 · Q1</span><button type="button" class="yt-seek" id="ytFwd10">10s »</button>':'<span id="lHead">Mondai 1 · Q1</span>'}</div>
+      <div class="l-head">${hasYt&&!ytSynced?'<button type="button" class="yt-seek" id="ytBack10">« 10s</button><span id="lHead">Mondai 1 · Q1</span><button type="button" class="yt-seek" id="ytFwd10">10s »</button>':'<span id="lHead">Mondai 1 · Q1</span>'}</div>
       <div class="l-opts" id="lOpts"></div>
       <div class="l-rw"><button class="ok" id="lOk">✓ Right</button><button class="bad" id="lBad">✕ Wrong</button></div>
       <div class="l-nav"><button id="lPrev">◀ আগের প্রশ্ন</button><button id="lNext">পরের প্রশ্ন ▶</button></div>
     </div>`;
     if(hasYt){
-      mountYt($('ytBox'),cfg.ytId,{locked:isLive,onReady:()=>{if(isLive)applyYtSync()}});
-      if(!isLive){
+      mountYt($('ytBox'),cfg.ytId,{locked:ytSynced,onReady:()=>{if(ytSynced)applyYtSync()}});
+      if(!ytSynced){
         $('ytBack10').onclick=()=>seekYt(-10);
         $('ytFwd10').onclick=()=>seekYt(10);
       }
@@ -1054,7 +1063,7 @@ async function startPart(i,auto,resumeSec){
       const top=$('ytTopWrap');
       top.innerHTML='<div class="yt-box" id="ytBoxTop"></div>';
       top.classList.remove('hide');
-      mountYt($('ytBoxTop'),cfg.ytId,{locked:isLive,onReady:()=>{if(isLive)applyYtSync()}});
+      mountYt($('ytBoxTop'),cfg.ytId,{locked:ytSynced,onReady:()=>{if(ytSynced)applyYtSync()}});
     }
   }
   buildSheet();
@@ -2155,7 +2164,7 @@ function db(){
   }
   return fbDb;
 }
-let liveRoomId='',liveStuId='',liveRoom=null,liveRoomRef=null,lastGlobalDeltaTs=0,lastStuDeltaTs=0,ytMuted=false,lastYtSyncTs=0,examinerLocked=false,liveDeduct=0;
+let liveRoomId='',liveStuId='',liveRoom=null,liveRoomRef=null,lastGlobalDeltaTs=0,lastStuDeltaTs=0,ytMuted=false,lastYtSyncTs=0,examinerLocked=false,liveDeduct=0,lastSelfCtrl=null;
 let curAdmin=false,curExaminer=null,lcRoomId='',lcRoomRef=null,lcRoomData=null,lcYtPlayer=null,lcReturnView='examinerDash';
 let gateMode='login',pendingLiveRoomId='';
 
@@ -2165,7 +2174,7 @@ function hideAllViews(){
 const origGoHome=goHome;
 goHome=function(){
   if(liveRoomRef){liveRoomRef.off();liveRoomRef=null}
-  liveRoomId='';liveRoom=null;liveStuId='';examinerLocked=false;liveDeduct=0;
+  liveRoomId='';liveRoom=null;liveStuId='';examinerLocked=false;liveDeduct=0;lastSelfCtrl=null;
   hideAllViews();
   origGoHome();
 };
@@ -2295,7 +2304,7 @@ function setLiveWait(st,title,sub,pill){
   $('lwStatusPill').dataset.st=st;
 }
 function applyYtSync(){
-  if(!liveRoom||!liveRoom.ytSync||!ytPlayer||typeof ytPlayer.seekTo!=='function')return;
+  if(!liveRoom||liveRoom.listenSelfCtrl||!liveRoom.ytSync||!ytPlayer||typeof ytPlayer.seekTo!=='function')return;
   const y=liveRoom.ytSync;
   if(y.ts===lastYtSyncTs)return;
   lastYtSyncTs=y.ts;
@@ -2619,7 +2628,18 @@ async function checkHashLive(){
       loadPublishedLiveReport();
     }
     if(!$('exam').classList.contains('hide')&&cfg?.parts?.[part]?.listen){
-      applyYtSync();
+      const selfCtrl=!!r.listenSelfCtrl;
+      if(lastSelfCtrl!==null&&lastSelfCtrl!==selfCtrl){
+        const remNow=paused?pausedRem:Math.max(0,(endAt-Date.now())/1000);
+        const prevCur=cur;
+        startPart(part,false,remNow).then(()=>{cur=prevCur;refresh()});
+        toast(selfCtrl?'এখন তুমি নিজেই Listening Audio/Video control করতে পারবে!':'Sensei Listening Sync চালু করেছেন!');
+      }else if(!selfCtrl){
+        applyYtSync();
+      }
+      lastSelfCtrl=selfCtrl;
+    }else{
+      lastSelfCtrl=!!r.listenSelfCtrl;
     }
   });
 }
@@ -2867,7 +2887,7 @@ async function loadExaminerHistory(){
       dateStr:new Date().toLocaleString(),createdAt:Date.now(),status:'live',
       driveId:src.driveId||'',onePart:!!src.onePart,onlyListen:false,oneTotal:src.oneTotal||100,
       p1q:src.p1q,p1m:src.p1m,p1pages:src.p1pages||'',p2q:src.p2q||0,p2m:src.p2m||0,p2pages:src.p2pages||'',
-      hasListen:!!src.hasListen,lm:src.lm||30,lMode:src.lMode||'instant',p3pages:src.p3pages||'',ytId:src.ytId||'',
+      hasListen:!!src.hasListen,lm:src.lm||30,lMode:src.lMode||'instant',listenSelfCtrl:!!src.listenSelfCtrl,p3pages:src.p3pages||'',ytId:src.ytId||'',
       passTotal:src.passTotal||58,listenStarted:false,published:false,linkLocked:false
     };
     if(src.keys)newRoom.keys=src.keys;
@@ -2982,7 +3002,7 @@ $('exCreateBtn').onclick=()=>{
   const p2q=(onePart||onlyListen)?0:(+$('exP2q').value),p2m=(onePart||onlyListen)?0:(+$('exP2m').value);
   const p1pages=onlyListen?'':$('exP1pages').value.trim(),p2pages=(onePart||onlyListen)?'':$('exP2pages').value.trim(),p3pages=$('exP3pages').value.trim();
   const hasListen=onlyListen||$('exHasListen').value==='1';
-  const lm=+$('exLm').value||30,lMode=$('exLMode').value;
+  const lm=+$('exLm').value||30,lMode=$('exLMode').value,listenSelfCtrl=$('exLSelfCtrl').value==='1';
   const ytRaw=$('exYt').value.trim(),ytId=ytIdOf(ytRaw);
   if(!examName){$('exCreateErr').textContent='Exam Name দাও।';return}
   if(!onlyListen&&!f&&!driveId){$('exCreateErr').textContent='Question PDF select করো অথবা Google Drive link দাও।';return}
@@ -2991,7 +3011,7 @@ $('exCreateBtn').onclick=()=>{
   if(hasListen&&ytRaw&&!ytId){$('exCreateErr').textContent='সঠিক YouTube link দাও।';return}
   const srcLbl=f?('PDF ('+f.name+')'):(driveId?'Google Drive Link':'Listening Pad');
   const modeLbl=onlyListen?`Only Listening (${oneTotal} marks)`:(onePart?`1 Part (${oneTotal} marks${hasListen?' + Listening 60':''})`:'2 Parts');
-  pendingExDraft={examName,driveId:f?'':driveId,hasPdf:!!f,onePart,onlyListen,oneTotal,hasListen,lMode,ytId};
+  pendingExDraft={examName,driveId:f?'':driveId,hasPdf:!!f,onePart,onlyListen,oneTotal,hasListen,lMode,listenSelfCtrl,ytId};
   $('exConfSub').textContent=`Exam: ${examName} · ${modeLbl} · Source: ${srcLbl}`;
   $('ecP1Wrap').classList.toggle('hide',onlyListen);
   $('ecP1q').value=p1q;$('ecP1m').value=p1m;$('ecP1p').value=p1pages;
@@ -3046,7 +3066,7 @@ $('ecGoBtn').onclick=async()=>{
     examName:pendingExDraft.examName,examinerId:curExaminer.id,examinerName:curExaminer.name,
     dateStr:new Date().toLocaleString(),createdAt:Date.now(),
     status:'live',driveId:pendingExDraft.driveId,onePart,onlyListen,oneTotal,p1q,p1m,p1pages,p2q,p2m,p2pages,
-    hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,p3pages,ytId:pendingExDraft.ytId,
+    hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,listenSelfCtrl:!!pendingExDraft.listenSelfCtrl,p3pages,ytId:pendingExDraft.ytId,
     passTotal,listenStarted:onlyListen,published:false
   };
   if(!onlyListen){roomObj.batchGroupId=rid;roomObj.batchNum=1;roomObj.baseExamName=pendingExDraft.examName}
@@ -3101,11 +3121,13 @@ function openLiveControl(rid){
     if(r.hasListen||r.onlyListen){
       $('lcLMode').value=r.lMode||'instant';
       $('lcLMode').disabled=(r.status==='ended');
+      $('lcAudioCtrl').value=r.listenSelfCtrl?'1':'0';
+      $('lcAudioCtrl').disabled=(r.status==='ended');
       $('lcStartListenBtn').textContent=r.listenStarted?'Listening Started ✓':'Start Listening for All';
       $('lcStartListenBtn').disabled=!!r.listenStarted;
-      if(r.ytId&&!ytMounted){
+      $('lcYtWrap').classList.toggle('hide',!(r.ytId&&!r.listenSelfCtrl));
+      if(r.ytId&&!r.listenSelfCtrl&&!ytMounted){
         ytMounted=true;
-        $('lcYtWrap').classList.remove('hide');
         loadYtApi().then(()=>{
           $('lcYtBox').innerHTML='<div id="lcYtTarget"></div>';
           const pv={playsinline:1,rel:0,modestbranding:1};
@@ -3126,21 +3148,21 @@ function openLiveControl(rid){
       const stTxt=s.kicked?'🚫 Kicked':s.locked?'🔒 Locked':s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
       const ded=+(s.deduct||0),aded=+(s.ansDeduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0);
-      return `<tr>
+      return `<tr class="stu-main">
         <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${aded?`<div class="mu" style="color:var(--bad);font-size:11px">Ans Deduct: −${aded} Q</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(s.rem||0)}</td>
-        <td style="white-space:nowrap">
-          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="-60" style="padding:4px 6px;font-size:11px">−1m</button>
-          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="60" style="padding:4px 6px;font-size:11px">+1m</button>
-          <button type="button" class="btn sec lc-slock" data-s="${esc(sid)}" data-lk="${s.locked?1:0}" style="padding:4px 6px;font-size:11px;color:${s.locked?'var(--ok)':'var(--bad)'}">${s.locked?'On':'Off'}</button>
-          <button type="button" class="btn sec lc-sded" data-s="${esc(sid)}" data-ded="${ded}" style="padding:4px 6px;font-size:11px">−Mark</button>
-          <button type="button" class="btn sec lc-sansded" data-s="${esc(sid)}" data-aded="${aded}" style="padding:4px 6px;font-size:11px">−Ans</button>
-          <button type="button" class="btn sec lc-skick" data-s="${esc(sid)}" data-kk="${s.kicked?1:0}" style="padding:4px 6px;font-size:11px;color:${s.kicked?'var(--ok)':'var(--bad)'}">${s.kicked?'Unban':'Kick'}</button>
-        </td>
-      </tr>`;
-    }).join(''):'<tr><td colspan="5" class="mu">এখনো কোনো student join করেনি।</td></tr>';
+      </tr>
+      <tr class="stu-act"><td colspan="4"><div class="stu-acts">
+          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="-60" style="padding:4px 8px;font-size:11px">−1m</button>
+          <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="60" style="padding:4px 8px;font-size:11px">+1m</button>
+          <button type="button" class="btn sec lc-slock" data-s="${esc(sid)}" data-lk="${s.locked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.locked?'var(--ok)':'var(--bad)'}">${s.locked?'On':'Off'}</button>
+          <button type="button" class="btn sec lc-sded" data-s="${esc(sid)}" data-ded="${ded}" style="padding:4px 8px;font-size:11px">−Mark</button>
+          <button type="button" class="btn sec lc-sansded" data-s="${esc(sid)}" data-aded="${aded}" style="padding:4px 8px;font-size:11px">−Ans</button>
+          <button type="button" class="btn sec lc-skick" data-s="${esc(sid)}" data-kk="${s.kicked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.kicked?'var(--ok)':'var(--bad)'}">${s.kicked?'Unban':'Kick'}</button>
+      </div></td></tr>`;
+    }).join(''):'<tr><td colspan="4" class="mu">এখনো কোনো student join করেনি।</td></tr>';
     $('lcWaitCount').textContent='Waiting for Listening: '+waitCnt;
     $('lcStuBody').querySelectorAll('.lc-stime').forEach(b=>b.onclick=()=>{
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}`).update({deltaSec:+b.dataset.d,deltaTs:Date.now()});
@@ -3281,6 +3303,12 @@ $('lcLMode').onchange=()=>{
   const m=$('lcLMode').value;
   db().ref('rooms/'+lcRoomId+'/lMode').set(m);
   toast('Listening Mode সবার জন্য '+(m==='instant'?'Answer Instant':'Answer Later')+' করা হয়েছে!');
+};
+$('lcAudioCtrl').onchange=()=>{
+  if(!lcRoomId)return;
+  const selfCtrl=$('lcAudioCtrl').value==='1';
+  db().ref('rooms/'+lcRoomId+'/listenSelfCtrl').set(selfCtrl);
+  toast(selfCtrl?'Self-Control চালু: Students নিজেরাই Audio/Video control করবে!':'Sensei Sync চালু: Teacher Audio/Video control করবে!');
 };
 function pushYtSync(playing,rateOverride,force){
   if(!lcYtPlayer||typeof lcYtPlayer.getCurrentTime!=='function')return;
