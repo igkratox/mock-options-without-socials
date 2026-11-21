@@ -29,7 +29,7 @@ button:active{transform:scale(.97)}
 .mu{color:var(--mu);font-size:13px}
 .hide{display:none!important}
 /* exam */
-#exam{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
+#exam{position:fixed;inset:0;z-index:1;background:var(--bg);display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
 .top{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--bd);position:relative}
 .top .t{font-variant-numeric:tabular-nums;font-size:21px;font-weight:800;margin-left:auto;padding:2px 8px;border-radius:8px;background:var(--bg)}
 .top .t.low{color:var(--bad);background:rgba(220,38,38,.1)}
@@ -45,8 +45,8 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 .step{display:flex;gap:6px}.step button{flex:none;width:44px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx);font-size:20px}
 .step input{text-align:center;min-width:0}
 .toast{position:fixed;left:12px;right:12px;top:60px;background:var(--bad);color:#fff;padding:10px 14px;border-radius:10px;z-index:9;box-shadow:var(--sh)}
-.dock{background:var(--card);border-top:1px solid var(--bd);padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -2px 12px rgba(0,0,0,.05)}
-.chips{display:flex;align-items:center;gap:5px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none}
+.dock{background:var(--card);border-top:1px solid var(--bd);padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -2px 12px rgba(0,0,0,.05);touch-action:manipulation;overscroll-behavior:contain}
+.chips{display:flex;align-items:center;gap:5px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;touch-action:pan-x}
 .chips::-webkit-scrollbar{display:none}
 .m-tag{flex:none;padding:4px 7px;border-radius:7px;background:var(--ac-soft);color:var(--ac);font-size:11px;font-weight:800;letter-spacing:.02em;border:1px solid rgba(37,99,235,.2)}
 .chip{flex:none;min-width:34px;padding:6px 6px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--mu);font-size:13px;font-weight:600}
@@ -1115,7 +1115,7 @@ function beginExam(name,driveId,parts,examName,ytId){
   flags=parts.map(()=>[]);
   used=parts.map(()=>0);
   $('driveWrap').innerHTML='';$('driveWrap').classList.add('hide');$('pages').classList.remove('hide');
-  $('setup').classList.add('hide');$('report').classList.add('hide');$('listenReview').classList.add('hide');$('exam').classList.remove('hide');
+  hideAllViews();$('exam').classList.remove('hide');window.scrollTo(0,0);
   startPart(0);
 }
 
