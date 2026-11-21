@@ -845,8 +845,9 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
       <label style="margin:0;font-size:13px">Grading:</label>
       <select id="lcGradeMode" style="width:auto;padding:6px 10px;font-size:13px">
-        <option value="irt" selected>IRT (JLPT Style)</option>
-        <option value="weighted">Weighted (Old)</option>
+        <option value="excel" selected>Excel Scaled (JLPT 5-Tier)</option>
+        <option value="weighted">Simple Weighted</option>
+        <option value="irt">IRT (Old)</option>
       </select>
       <label style="margin:0;font-size:13px;margin-left:4px">Min Total Pass:</label>
       <input id="lcPassTotal" type="number" min="1" style="width:82px;padding:6px 8px;font-size:13px">
@@ -1793,7 +1794,7 @@ function showReport(keepTime){
         :`<div class="stat" style="margin-top:8px"><span>Part 1 (${meSm.p1}/${liveRoom.p1q} টি সঠিক)</span><b>${meSm.s1} / 60</b></div>
           <div class="stat"><span>Part 2 (${meSm.p2}/${liveRoom.p2q} টি সঠিক)</span><b>${meSm.s2} / 60</b></div>
           <div class="stat"><span>Part 1 + Part 2 (Min 38)</span><b>${Math.round((meSm.s1+meSm.s2)*10)/10} / 120 <span style="color:${Math.round((meSm.s1+meSm.s2)*10)/10>=38?'var(--ok)':'var(--bad)'}">${Math.round((meSm.s1+meSm.s2)*10)/10>=38?'✓':'✕'}</span></b></div>
-          ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক · Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}`);
+          ${liveRoom.hasListen?(()=>{const lMinOk=lTotQ>=10?10:Math.ceil(lTotQ*0.42),lOk=meSm.s3>=19&&meSm.p3>=lMinOk;return `<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক · Min ${lMinOk} সঠিক & 19)</span><b>${meSm.s3} / 60 <span style="color:${lOk?'var(--ok)':'var(--bad)'}">${lOk?'✓':'✕'}</span></b></div>`})():''}`);
     const lbHeadHtml=liveRoom.onlyListen?'':(liveRoom.onePart?(liveRoom.hasListen?'<th>P1</th><th>List.</th>':''):`<th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}`);
     const circleCls=meSm.tierCls||(meSm.pass?'':'fail-c');
     const rankLine=meSm.rank?`${meSm.medal} Rank #${meSm.rank}`:(meSm.pass?'PASS':'FAIL');
@@ -3712,7 +3713,7 @@ function openLiveControl(rid){
     updateLcKeyHints();
     const defPass=(r.onlyListen||r.onePart)?Math.round((r.onlyListen?(r.oneTotal||60):((r.oneTotal||100)+(r.hasListen?60:0)))*0.48):(r.hasListen?80:58);
     if(document.activeElement!==$('lcPassTotal'))$('lcPassTotal').value=r.passTotal||defPass;
-    $('lcGradeMode').value=r.gradeMode||'irt';
+    $('lcGradeMode').value=r.gradeMode||'excel';
     if(listenOn){
       const mds=roomMondai(r);
       $('lcMondaiCtrls').innerHTML=mds.map((md,idx)=>`<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 6px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);font-size:12px">
@@ -4083,6 +4084,22 @@ $('lcSavePagesBtn').onclick=async()=>{
   await db().ref('rooms/'+lcRoomId).update(upd);
   toast('Pages আপডেট হয়েছে — Student-দের প্যানেলেও আপডেট হয়ে যাবে!');
 };
+function computeExcelWeights(stuMarkStrs,qCount,partTotal){
+  const targetTot=partTotal||60;
+  const S=stuMarkStrs.length,w=[],stats=[];
+  let sumW=0;
+  for(let q=1;q<=qCount;q++){
+    let ok=0;
+    for(const ms of stuMarkStrs)if(ms[q-1]==='o')ok++;
+    const p=S?ok/S:0,errRate=S?(S-ok)/S:0;
+    const wq=p<=0.20?1.5:(p<=0.45?1.25:(p<=0.72?1.0:(p<=0.86?0.8:0.6)));
+    w.push(wq);sumW+=wq;
+    stats.push({q,errPct:Math.round(errRate*100)});
+  }
+  const pts=w.map(wq=>sumW?Math.round((wq*targetTot/sumW)*10000)/10000:0);
+  stats.forEach((st,i)=>st.pts=Math.round(pts[i]*10)/10);
+  return{pts,stats};
+}
 function computePartWeights(stuMarkStrs,qCount,partTotal){
   const targetTot=partTotal||60;
   const S=stuMarkStrs.length,w=[],stats=[];
@@ -4169,7 +4186,7 @@ function computePartIRT(stuMarkStrs,qCount,partTotal){
 }
 $('lcGradeMode').onchange=async()=>{
   if(!lcRoomId||!lcRoomData)return;
-  const gm=$('lcGradeMode').value==='weighted'?'weighted':'irt';
+  const gm=['excel','weighted','irt'].includes($('lcGradeMode').value)?$('lcGradeMode').value:'excel';
   const upd={};
   let targetRooms=[[lcRoomId,lcRoomData]];
   if(!lcRoomData.onlyListen&&lcRoomData.examinerId){
@@ -4178,7 +4195,7 @@ $('lcGradeMode').onchange=async()=>{
   }
   targetRooms.forEach(([rmId])=>{upd[`rooms/${rmId}/gradeMode`]=gm});
   await db().ref().update(upd);
-  toast('Grading System: '+(gm==='irt'?'IRT (JLPT Style)':'Weighted (Old)'));
+  toast('Grading System: '+(gm==='excel'?'Excel Scaled (JLPT 5-Tier)':(gm==='weighted'?'Simple Weighted':'IRT (Old)')));
 };
 $('lcSavePassBtn').onclick=async()=>{
   if(!lcRoomId||!lcRoomData)return;
@@ -4394,32 +4411,56 @@ $('lcPublishBtn').onclick=async()=>{
       upd[`rooms/${rmId}/students/${sid}/marks`]=newMarks;
     });
   });
+  const curGradeMode=['excel','weighted','irt'].includes($('lcGradeMode').value)?$('lcGradeMode').value:'excel';
   let qPts=[],qStats=[],irtCols=[];
   const rLTot=roomListenTotal(r);
-  if(r.onlyListen){
-    const wL=computePartWeights(mListL,rLTot,r.oneTotal||60);
-    qPts=[wL.pts];qStats=[wL.stats];
-    irtCols=[computePartIRT(mListL,rLTot,r.oneTotal||60).scores];
-  }else{
-    const p1Tot=r.onePart?(r.oneTotal||100):60;
-    const w0=computePartWeights(mList0,r.p1q,p1Tot);
-    qPts=[w0.pts];qStats=[w0.stats];
-    irtCols=[computePartIRT(mList0,r.p1q,p1Tot).scores];
-    if(!r.onePart){
-      const w1=computePartWeights(mList1,r.p2q,60);
-      qPts.push(w1.pts);qStats.push(w1.stats);
-      irtCols.push(computePartIRT(mList1,r.p2q,60).scores);
+  if(curGradeMode==='excel'){
+    if(r.onlyListen){
+      const wL=computeExcelWeights(mListL,rLTot,r.oneTotal||60);
+      qPts=[wL.pts];qStats=[wL.stats];
+    }else if(r.onePart){
+      const p1Tot=r.oneTotal||100;
+      const w0=computeExcelWeights(mList0,r.p1q,p1Tot);
+      qPts=[w0.pts];qStats=[w0.stats];
+      if(hasL){
+        const wL=computeExcelWeights(mListL,rLTot,60);
+        qPts.push(wL.pts);qStats.push(wL.stats);
+      }
+    }else{
+      const mList12=stuRefs.map((_,i)=>(mList0[i]||'').padEnd(r.p1q,'.').slice(0,r.p1q)+(mList1[i]||'').padEnd(r.p2q,'.').slice(0,r.p2q));
+      const w12=computeExcelWeights(mList12,r.p1q+r.p2q,120);
+      qPts=[w12.pts.slice(0,r.p1q),w12.pts.slice(r.p1q)];
+      qStats=[w12.stats.slice(0,r.p1q),w12.stats.slice(r.p1q).map((st,idx)=>({...st,q:idx+1}))];
+      if(hasL){
+        const wL=computeExcelWeights(mListL,rLTot,60);
+        qPts.push(wL.pts);qStats.push(wL.stats);
+      }
     }
-    if(hasL){
-      const wL=computePartWeights(mListL,rLTot,60);
-      qPts.push(wL.pts);qStats.push(wL.stats);
-      irtCols.push(computePartIRT(mListL,rLTot,60).scores);
+  }else{
+    if(r.onlyListen){
+      const wL=computePartWeights(mListL,rLTot,r.oneTotal||60);
+      qPts=[wL.pts];qStats=[wL.stats];
+      irtCols=[computePartIRT(mListL,rLTot,r.oneTotal||60).scores];
+    }else{
+      const p1Tot=r.onePart?(r.oneTotal||100):60;
+      const w0=computePartWeights(mList0,r.p1q,p1Tot);
+      qPts=[w0.pts];qStats=[w0.stats];
+      irtCols=[computePartIRT(mList0,r.p1q,p1Tot).scores];
+      if(!r.onePart){
+        const w1=computePartWeights(mList1,r.p2q,60);
+        qPts.push(w1.pts);qStats.push(w1.stats);
+        irtCols.push(computePartIRT(mList1,r.p2q,60).scores);
+      }
+      if(hasL){
+        const wL=computePartWeights(mListL,rLTot,60);
+        qPts.push(wL.pts);qStats.push(wL.stats);
+        irtCols.push(computePartIRT(mListL,rLTot,60).scores);
+      }
     }
   }
   stuRefs.forEach(([rmId,sid],idx)=>{
-    upd[`rooms/${rmId}/students/${sid}/irtScores`]=irtCols.map(col=>col[idx]||0);
+    upd[`rooms/${rmId}/students/${sid}/irtScores`]=irtCols.length?irtCols.map(col=>col[idx]||0):null;
   });
-  const curGradeMode=$('lcGradeMode').value==='weighted'?'weighted':'irt';
   targetRooms.forEach(([rmId])=>{
     upd[`rooms/${rmId}/keys`]=keysObj;
     upd[`rooms/${rmId}/qPts`]=qPts;
@@ -4480,7 +4521,8 @@ function scorePartFromMarks(markStr,qCount,ptsArr,partTotal){
       raw+=(ptsArr&&ptsArr[q]!==undefined)?ptsArr[q]:(targetTot/Math.max(1,qCount));
     }
   }
-  const scaled=ok===qCount?targetTot:Math.min(targetTot,Math.round(raw*10)/10);
+  const cap=(ptsArr&&ptsArr.length)?Math.round(ptsArr.reduce((a,b)=>a+(+b||0),0)*10)/10:targetTot;
+  const scaled=ok===qCount?cap:Math.min(cap,Math.round(raw*10)/10);
   return{ok,scaled};
 }
 function rankStudents(rows){
@@ -4503,7 +4545,7 @@ function calcStuSummary(r,s){
   const p1Res=onlyL?{ok:0,scaled:0}:scorePartFromMarks(mArr[0],r.p1q,qPts[0],p1Tot);
   const p2Res=(onlyL||one)?{ok:0,scaled:0}:scorePartFromMarks(mArr[1],r.p2q,qPts[1],60);
   const p3Res=hasL?scorePartFromMarks(mArr[lIdx],lTotQ,qPts[lIdx],lTot):{ok:0,scaled:0};
-  const useIrt=(r.gradeMode||'irt')==='irt'&&Array.isArray(s.irtScores);
+  const useIrt=r.gradeMode==='irt'&&Array.isArray(s.irtScores);
   const s1=onlyL?0:(useIrt?(+(s.irtScores[0]||0)):p1Res.scaled);
   const s2=(onlyL||one)?0:(useIrt?(+(s.irtScores[1]||0)):p2Res.scaled);
   const s3=hasL?(useIrt?(+(s.irtScores[lIdx]||0)):p3Res.scaled):0;
@@ -4513,7 +4555,8 @@ function calcStuSummary(r,s){
   const ded=Math.round((+(s.deduct||0))*10)/10;
   const finalTot=Math.max(0,Math.round((rawTot-ded)*10)/10);
   const p12Tot=Math.round((s1+s2)*10)/10;
-  const numPass=(onlyL||one)?(finalTot>=passTot):(p12Tot>=38&&(!hasL||s3>=19)&&finalTot>=passTot);
+  const lMinOk=hasL?(lTotQ>=10?10:Math.ceil(lTotQ*0.42)):0;
+  const numPass=(onlyL||one)?(finalTot>=passTot):(p12Tot>=38&&(!hasL||(s3>=19&&p3Res.ok>=lMinOk))&&finalTot>=passTot);
   const senseiFailed=!!s.senseiFailed;
   const pass=numPass&&!senseiFailed;
   const sn=r.examinerName||'Sensei';
@@ -4550,8 +4593,9 @@ function renderLiveSummary(r,stus){
     const allP=(r.qPts||[]).flat().filter(v=>typeof v==='number'&&v>0);
     const minPt=allP.length?Math.round(Math.min(...allP)*10)/10:0;
     const wrongByQ=(pi,qNum)=>stus.filter(([,s])=>((s.marks&&s.marks[pi])||'')[qNum-1]!=='o').map(([,s])=>disp(s));
-    const isIrt=(r.gradeMode||'irt')==='irt';
-    $('lcQStatsBody').innerHTML=(isIrt?`<div class="mu" style="margin-bottom:6px">IRT (JLPT Style) Mode: answering pattern ও প্রশ্নের কঠিনতা অনুযায়ী 0–60 scale-এ নম্বর হিসাব হচ্ছে।</div>`:'')+r.qStats.map((arr,pi)=>{
+    const gm=r.gradeMode||'excel';
+    const gmNote=gm==='irt'?`<div class="mu" style="margin-bottom:6px">IRT (Old) Mode: answering pattern ও প্রশ্নের কঠিনতা অনুযায়ী 0–60 scale-এ নম্বর হিসাব হচ্ছে।</div>`:(gm==='excel'?`<div class="mu" style="margin-bottom:6px">Excel Scaled (JLPT 5-Tier) Mode: 5-tier কঠিনতা অনুযায়ী (1.5 / 1.25 / 1.0 / 0.8 / 0.6) Part 1+2 (120) ও Listening (60) scale-এ নম্বর হিসাব হচ্ছে।</div>`:'');
+    $('lcQStatsBody').innerHTML=gmNote+r.qStats.map((arr,pi)=>{
       const missed=[...arr].filter(q=>q.errPct>0).sort((a,b)=>b.errPct-a.errPct);
       if(!missed.length)return `<div style="margin-top:8px"><b>${labels[pi]||('Part '+(pi+1))}:</b> <span class="mu">সবাই সব প্রশ্ন পেরেছে!</span></div>`;
       return `<div style="margin-top:10px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(বেশি ভুল হওয়া প্রশ্ন = বেশি কঠিন · 👁 চাপলে কারা পারেনি দেখবে)</span>
