@@ -2416,30 +2416,6 @@ $('stuAuthForm').onsubmit=async e=>{
 const PORTAL_SESS_KEY='mock_exam_portal_v1';
 function savePortalSess(obj){try{localStorage.setItem(PORTAL_SESS_KEY,JSON.stringify(obj))}catch(e){}}
 function clearPortalSess(){try{localStorage.removeItem(PORTAL_SESS_KEY)}catch(e){}}
-(()=>{
-  applyTheme(localStorage.getItem(THEME_KEY)||'auto');
-  try{const s=JSON.parse(localStorage.getItem(STU_SESS_KEY)||'null');if(s&&s.username)curStudent=s}catch(e){}
-  let pSess=null;
-  try{pSess=JSON.parse(localStorage.getItem(PORTAL_SESS_KEY)||'null')}catch(e){}
-  if(location.hash.startsWith('#r=')){
-    renderHistory();checkHashReview();
-  }else if(location.hash.startsWith('#live=')){
-    checkHashLive();
-  }else if(pSess&&pSess.role==='admin'){
-    curAdmin=true;
-    if(pSess.lcRoomId){lcReturnView='adminDash';openLiveControl(pSess.lcRoomId)}
-    else openAdminDash();
-  }else if(pSess&&pSess.role==='examiner'&&pSess.examiner){
-    curExaminer=pSess.examiner;
-    if(pSess.lcRoomId){lcReturnView='examinerDash';openLiveControl(pSess.lcRoomId)}
-    else openExaminerDash();
-  }else if(curStudent){
-    enterNormalMode();
-  }else{
-    showGate();
-  }
-  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive()});
-})();
 
 /* Student Live Sync */
 function syncStudentLive(){
@@ -3310,7 +3286,15 @@ function openLiveControl(rid){
   let ytMounted=false;
   lcRoomRef=db().ref('rooms/'+rid);
   lcRoomRef.on('value',async snap=>{
-    const r=snap.val();if(!r)return;
+    const r=snap.val();
+    if(!r){
+      if(lcRoomRef){lcRoomRef.off();lcRoomRef=null}
+      toast('এই Live Exam আর পাওয়া যায়নি।');
+      if(curAdmin)openAdminDash();
+      else if(curExaminer)openExaminerDash();
+      else goHome();
+      return;
+    }
     lcRoomData=r;
     await refreshBatchRooms(r,rid);
     $('lcTitle').textContent=r.examName||'Live Control';
@@ -3939,6 +3923,35 @@ $('lcSumPngBtn').onclick=()=>{
   const rows=stus.map(([,s])=>({...calcStuSummary(r,s),name:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
   exportSummaryPng(r,rows,' — Result Summary','');
 };
+(()=>{
+  try{
+    applyTheme(localStorage.getItem(THEME_KEY)||'auto');
+    try{const s=JSON.parse(localStorage.getItem(STU_SESS_KEY)||'null');if(s&&s.username)curStudent=s}catch(e){}
+    let pSess=null;
+    try{pSess=JSON.parse(localStorage.getItem(PORTAL_SESS_KEY)||'null')}catch(e){}
+    if(location.hash.startsWith('#r=')){
+      renderHistory();checkHashReview();
+    }else if(location.hash.startsWith('#live=')){
+      checkHashLive();
+    }else if(pSess&&pSess.role==='admin'){
+      curAdmin=true;
+      if(pSess.lcRoomId){lcReturnView='adminDash';openLiveControl(pSess.lcRoomId)}
+      else openAdminDash();
+    }else if(pSess&&pSess.role==='examiner'&&pSess.examiner){
+      curExaminer=pSess.examiner;
+      if(pSess.lcRoomId){lcReturnView='examinerDash';openLiveControl(pSess.lcRoomId)}
+      else openExaminerDash();
+    }else if(curStudent){
+      enterNormalMode();
+    }else{
+      showGate();
+    }
+  }catch(e){
+    clearPortalSess();
+    showGate();
+  }
+  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive()});
+})();
 </script>
 </body>
 </html>
