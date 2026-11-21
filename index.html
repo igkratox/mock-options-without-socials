@@ -368,8 +368,16 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   </div>
   <div class="yt-top hide" id="ytTopWrap"></div>
   <div id="stuNoticeBanner" class="hide" style="padding:7px 12px;background:#fef3c7;color:#92400e;font-size:13px;font-weight:700;border-bottom:1px solid #f59e0b;text-align:center"></div>
-  <div class="main">
+  <div class="main" style="position:relative">
     <div class="qpane" id="qpane"><div id="pages"></div><div id="driveWrap" class="hide" style="width:100%;height:100%;display:flex;flex-direction:column"></div><div id="wmOverlay" class="wm-ov hide"></div></div>
+    <div id="coolBanner" class="hide" style="position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);backdrop-filter:blur(10px);padding:20px;text-align:center">
+      <div class="card" style="max-width:340px;padding:20px;border:2px solid var(--bad)">
+        <div style="font-size:28px">⏳</div>
+        <h3 style="margin:6px 0 4px;color:var(--bad)">Cool-down Penalty</h3>
+        <div id="coolTxt" style="font-weight:700;font-size:15px">30s বাকি</div>
+        <div class="mu" style="margin-top:6px;font-size:12px">Sensei তোমার screen 30s-এর জন্য লক করেছেন (Timer চলছে)।</div>
+      </div>
+    </div>
     <div class="zoom"><button id="zIn">+</button><button id="zOut">−</button><button id="zFit" style="font-size:14px">Fit</button></div>
   </div>
   <div class="dock">
@@ -478,6 +486,11 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
     <div id="lwSpinBox" class="hide" style="margin-top:18px">
       <div class="badge pend" style="font-size:13px;padding:6px 14px" id="lwStatusPill">অপেক্ষা করো…</div>
+      <div id="lwWaitProg" class="hide" style="margin-top:12px">
+        <div id="lwWaitProgTxt" style="font-weight:700;font-size:14px"></div>
+        <button type="button" class="btn sec" id="lwDetailsBtn" style="margin-top:8px;padding:6px 12px;font-size:12px;width:auto">Details</button>
+        <div id="lwDetailsBox" class="hide" style="margin-top:10px;text-align:left;border:1px solid var(--bd);border-radius:10px;padding:10px;background:var(--bg);font-size:12px"></div>
+      </div>
     </div>
     <button type="button" class="btn sec" id="lwHomeBtn" style="margin-top:18px">Back to Home</button>
   </div>
@@ -709,6 +722,17 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <button type="button" class="btn sec" id="lcNoticeBtn" style="white-space:nowrap">Send Notice</button>
       </div>
     </div>
+  </div>
+
+  <div class="card" id="lcNotifCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <h3 style="margin:0">Live Notifications</h3>
+        <span class="pill live" id="lcNotifWaitPill" style="font-size:12px">Listening Queue: 0 / 0</span>
+      </div>
+      <button type="button" class="btn sec" id="lcClearNotifsBtn" style="width:auto;margin:0;padding:5px 10px;font-size:12px">Clear</button>
+    </div>
+    <div id="lcNotifBody" style="margin-top:8px;max-height:160px;overflow:auto;font-size:13px"><div class="mu">কোনো notification নেই।</div></div>
   </div>
 
   <div class="card">
@@ -1174,8 +1198,16 @@ async function startPart(i,auto,resumeSec){
   limit=P.m*60;
   const rem0=(typeof resumeSec==='number'&&resumeSec>0)?Math.min(limit,resumeSec):limit;
   endAt=Date.now()+rem0*1000;
-  paused=false;pausedRem=0;
-  $('pauseBtn').textContent='⏸';$('timer').classList.remove('paused');
+  const holdForVideo=isLive&&P.listen&&liveRoom&&liveRoom.ytId&&!liveRoom.listenSelfCtrl&&!liveRoom.listenVideoStarted;
+  if(holdForVideo){
+    paused=true;pausedRem=rem0;
+    $('pauseBtn').textContent='▶';$('timer').classList.add('paused');
+    $('stuNoticeBanner').textContent='⏸ Sensei YouTube Video চালু করলে Listening Timer শুরু হবে…';
+    $('stuNoticeBanner').classList.remove('hide');
+  }else{
+    paused=false;pausedRem=0;
+    $('pauseBtn').textContent='⏸';$('timer').classList.remove('paused');
+  }
   warn5=rem0<=300;warn1=rem0<=60;
   clearInterval(tick);tick=setInterval(onTick,250);onTick();
   saveActiveExam();
@@ -1421,8 +1453,9 @@ function setPaused(state,byExaminer){
     $('pauseBtn').textContent='▶';$('timer').classList.add('paused');
     $('exam').classList.add('is-paused');$('pauseOverlay').classList.remove('hide');
     $('pauseIcon').textContent=byExaminer?'🔒':'⏸';
-    $('pauseTitle').textContent=byExaminer?'Exam Locked by Examiner':'Exam Paused';
-    $('pauseSub').textContent=byExaminer?'Examiner তোমার exam সাময়িকভাবে বন্ধ করে দিয়েছেন। On করলে এখান থেকেই আবার শুরু হবে।':'Question ও Answer লক করা আছে।';
+    const lockRsn=liveRoom?.students?.[liveStuId]?.lockReason||'';
+    $('pauseTitle').textContent=byExaminer?(lockRsn?`Auto-Locked (${lockRsn})`:'Exam Locked by Examiner'):'Exam Paused';
+    $('pauseSub').textContent=byExaminer?(lockRsn?`${lockRsn} করার কারণে Exam লক হয়েছে! Sensei আনলক করলে আবার চলবে।`:'Examiner তোমার exam সাময়িকভাবে বন্ধ করে দিয়েছেন। On করলে এখান থেকেই আবার শুরু হবে।'):'Question ও Answer লক করা আছে।';
     $('resumeOverlayBtn').classList.toggle('hide',!!byExaminer);
     try{if(ytPlayer&&typeof ytPlayer.pauseVideo==='function')ytPlayer.pauseVideo()}catch(e){}
   }else{
@@ -2504,6 +2537,9 @@ function setLiveWait(st,title,sub,pill){
   stopYt();clearInterval(tick);
   syncStudentLive();
   db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update({status:st,used:used.map(x=>Math.round(x||0)),updatedAt:Date.now()});
+  if(st==='waiting_listen'&&liveRoomId){
+    db().ref(`rooms/${liveRoomId}/alerts`).push({type:'wait',stuName:cfg?.name||'Student',ts:Date.now()});
+  }
   hideAllViews();
   $('liveWaitView').classList.remove('hide');
   $('lwTitle').textContent=title;
@@ -2512,7 +2548,9 @@ function setLiveWait(st,title,sub,pill){
   $('lwSpinBox').classList.remove('hide');
   $('lwStatusPill').textContent=pill;
   $('lwStatusPill').dataset.st=st;
+  $('lwWaitProg').classList.toggle('hide',st!=='waiting_listen');
 }
+$('lwDetailsBtn').onclick=()=>$('lwDetailsBox').classList.toggle('hide');
 function applyYtSync(){
   if(!liveRoom||liveRoom.listenSelfCtrl||!liveRoom.ytSync||!ytPlayer||typeof ytPlayer.seekTo!=='function')return;
   const y=liveRoom.ytSync;
@@ -2630,28 +2668,47 @@ function startLiveStudent(room){
 }
 function isProtectedPart(){return !!(liveRoomId&&!$('exam').classList.contains('hide')&&cfg?.parts?.[part]&&!cfg.parts[part].listen)}
 ['contextmenu','copy','cut','dragstart'].forEach(ev=>document.addEventListener(ev,e=>{if(isProtectedPart())e.preventDefault()}));
+function triggerAutoLock(reason){
+  if(!liveRoomId||!liveStuId||examinerLocked)return;
+  examinerLocked=true;
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update({locked:true,lockReason:reason});
+  db().ref(`rooms/${liveRoomId}/alerts`).push({type:'lock',stuName:cfg?.name||'Student',reason,ts:Date.now()});
+  setPaused(true,true);
+}
+function handlePrintScreenAttempt(){
+  $('qpane').style.filter='blur(14px)';
+  setTimeout(()=>{if(!coolUntilMs||Date.now()>=coolUntilMs)$('qpane').style.filter=''},1500);
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}/ssAttempts`).transaction(v=>(v||0)+1,(err,ok,snap)=>{
+    if(ok&&snap&&snap.val()>=3)triggerAutoLock('3x Screenshot Attempt');
+  });
+}
 document.addEventListener('keydown',e=>{
   if(!isProtectedPart())return;
   if((e.ctrlKey||e.metaKey)&&['c','s','p','u','a'].includes(e.key.toLowerCase()))e.preventDefault();
-  if(e.key==='PrintScreen'){
-    $('qpane').style.filter='blur(14px)';
-    setTimeout(()=>{$('qpane').style.filter=''},1500);
-    db().ref(`rooms/${liveRoomId}/students/${liveStuId}/ssAttempts`).transaction(v=>(v||0)+1);
-  }
+  if(e.key==='PrintScreen')handlePrintScreenAttempt();
 });
 document.addEventListener('keyup',e=>{
-  if(isProtectedPart()&&e.key==='PrintScreen'){
-    $('qpane').style.filter='blur(14px)';
-    setTimeout(()=>{$('qpane').style.filter=''},1500);
-    db().ref(`rooms/${liveRoomId}/students/${liveStuId}/ssAttempts`).transaction(v=>(v||0)+1);
-  }
+  if(isProtectedPart()&&e.key==='PrintScreen')handlePrintScreenAttempt();
 });
-let lastStuResumeTs=0,lastNoticeTs=0,lastTabSwitchAt=0;
+let lastStuResumeTs=0,lastNoticeTs=0,lastWarnTs=0,lastTabSwitchAt=0,coolUntilMs=0,coolTimer=null;
+function updateCoolOverlay(){
+  const rem=Math.ceil((coolUntilMs-Date.now())/1000);
+  if(rem>0){
+    $('coolTxt').textContent=`${rem}s বাকি`;
+    $('coolBanner').classList.remove('hide');
+  }else{
+    coolUntilMs=0;
+    $('coolBanner').classList.add('hide');
+    if(coolTimer){clearInterval(coolTimer);coolTimer=null}
+  }
+}
 function recordTabSwitch(){
   if(!liveRoomId||!liveStuId||$('exam').classList.contains('hide'))return;
   if(Date.now()-lastTabSwitchAt<1500)return;
   lastTabSwitchAt=Date.now();
-  db().ref(`rooms/${liveRoomId}/students/${liveStuId}/tabSwitches`).transaction(v=>(v||0)+1);
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}/tabSwitches`).transaction(v=>(v||0)+1,(err,ok,snap)=>{
+    if(ok&&snap&&snap.val()>=3)triggerAutoLock('3x Tab Switch');
+  });
 }
 document.addEventListener('visibilitychange',()=>{if(document.hidden)recordTabSwitch()});
 window.addEventListener('blur',()=>recordTabSwitch());
@@ -2818,6 +2875,23 @@ async function checkHashLive(){
         toast(`Sensei তোমার সময় ${me.deltaSec>0?'+':''}${Math.round(me.deltaSec/60)} min পরিবর্তন করেছেন!`);
       }
     }
+    if(me&&me.warnMsg&&me.warnMsg.ts&&me.warnMsg.ts!==lastWarnTs){
+      lastWarnTs=me.warnMsg.ts;
+      if(!$('exam').classList.contains('hide')){
+        $('stuNoticeBanner').textContent='⚠ Sensei Warning: '+me.warnMsg.msg;
+        $('stuNoticeBanner').style.background='#fee2e2';
+        $('stuNoticeBanner').style.color='#991b1b';
+        $('stuNoticeBanner').style.borderColor='#ef4444';
+        $('stuNoticeBanner').classList.remove('hide');
+        playBeep(2);
+        toast('⚠ Sensei তোমাকে Warning দিয়েছেন!');
+      }
+    }
+    if(me&&me.coolUntil&&me.coolUntil>Date.now()&&!$('exam').classList.contains('hide')){
+      coolUntilMs=me.coolUntil;
+      updateCoolOverlay();
+      if(!coolTimer)coolTimer=setInterval(updateCoolOverlay,500);
+    }
     if(me&&!$('exam').classList.contains('hide')){
       if(me.locked&&!examinerLocked){examinerLocked=true;setPaused(true,true)}
       else if(!me.locked&&examinerLocked){examinerLocked=false;setPaused(false,true);toast('Examiner তোমার exam আবার চালু করেছেন!')}
@@ -2887,6 +2961,19 @@ async function checkHashLive(){
       }
     }
     if(!$('liveWaitView').classList.contains('hide')){
+      if(me&&me.status==='waiting_listen'){
+        const activeStus=Object.values(r.students||{}).filter(s=>!s.kicked);
+        const waitStus=activeStus.filter(s=>s.status==='waiting_listen');
+        const pendStus=activeStus.filter(s=>s.status!=='waiting_listen'&&s.status!=='finished');
+        $('lwWaitProg').classList.remove('hide');
+        $('lwWaitProgTxt').textContent=`${waitStus.length} out of ${activeStus.length} have joined Listening section — waiting for ${pendStus.length} more`;
+        $('lwDetailsBox').innerHTML=pendStus.length
+          ?pendStus.map(s=>`<div style="padding:3px 0;border-bottom:1px dashed var(--bd)"><b>${esc(s.name||'Student')}</b> — ${esc(s.partLabel||'Exam')} · Q${s.cur||1} · <b>${fmt(s.rem||0)}</b> বাকি</div>`).join('')
+          :'<div class="mu">সবাই চলে এসেছে! Listening শুরু হচ্ছে…</div>';
+        if(r.hasListen&&!r.onlyListen&&!r.listenStarted&&activeStus.length>0&&pendStus.length===0){
+          db().ref('rooms/'+rid+'/listenStarted').set(true);
+        }
+      }
       if(me&&me.status==='waiting_listen'&&r.listenStarted){
         const lIdx=cfg?.parts?.findIndex(p=>p.listen)??-1;
         if(lIdx>=0){
@@ -2901,6 +2988,13 @@ async function checkHashLive(){
       loadPublishedLiveReport();
     }
     if(!$('exam').classList.contains('hide')&&cfg?.parts?.[part]?.listen){
+      if(r.listenVideoStarted&&paused&&!examinerLocked){
+        paused=false;endAt=Date.now()+pausedRem*1000;
+        $('pauseBtn').textContent='⏸';$('timer').classList.remove('paused');
+        $('stuNoticeBanner').classList.add('hide');
+        onTick();
+        toast('Sensei Video চালু করেছেন — Listening Timer শুরু!');
+      }
       const selfCtrl=!!r.listenSelfCtrl;
       const newYtId=r.ytId||'';
       const ytChanged=(cfg.ytId||'')!==newYtId;
@@ -3407,7 +3501,7 @@ function openLiveControl(rid){
   if(lcRoomRef)lcRoomRef.off();
   if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
   if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
-  let mountedYtId='';
+  let mountedYtId='',lastLcAlertTs=Date.now();
   lcRoomRef=db().ref('rooms/'+rid);
   lcRoomRef.on('value',async snap=>{
     const r=snap.val();
@@ -3515,14 +3609,15 @@ function openLiveControl(rid){
     const stus=r.students?Object.entries(r.students):[];
     const disp=buildStuDisp(stus.map(([,s])=>s));
     $('lcStuCount').textContent=stus.length;
-    let waitCnt=0;
+    let waitCnt=0,activeCnt=0;
     $('lcStuBody').innerHTML=stus.length?stus.map(([sid,s])=>{
+      if(!s.kicked)activeCnt++;
       if(s.status==='waiting_listen'&&!s.kicked)waitCnt++;
-      const stTxt=s.kicked?'🚫 Kicked':s.locked?'🔒 Locked':s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
+      const stTxt=s.kicked?'🚫 Kicked':s.locked?('🔒 Locked'+(s.lockReason?' ('+s.lockReason+')':'')):s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
-      const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0);
+      const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0),wrn=+(s.warnCount||0);
       return `<tr class="stu-main">
-        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
+        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(s.rem||0)}</td>
@@ -3531,16 +3626,49 @@ function openLiveControl(rid){
           <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="-60" style="padding:4px 8px;font-size:11px">−1m</button>
           <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="60" style="padding:4px 8px;font-size:11px">+1m</button>
           <button type="button" class="btn sec lc-slock" data-s="${esc(sid)}" data-lk="${s.locked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.locked?'var(--ok)':'var(--bad)'}">${s.locked?'On':'Off'}</button>
+          <button type="button" class="btn sec lc-scool" data-s="${esc(sid)}" style="padding:4px 8px;font-size:11px">⏳ 30s</button>
+          <button type="button" class="btn sec lc-swarn" data-s="${esc(sid)}" data-w="${wrn}" style="padding:4px 8px;font-size:11px;color:#d97706">⚠ Warn</button>
           <button type="button" class="btn sec lc-sded" data-s="${esc(sid)}" data-ded="${ded}" style="padding:4px 8px;font-size:11px">−Mark</button>
           <button type="button" class="btn sec lc-skick" data-s="${esc(sid)}" data-kk="${s.kicked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.kicked?'var(--ok)':'var(--bad)'}">${s.kicked?'Unban':'Kick'}</button>
       </div></td></tr>`;
     }).join(''):'<tr><td colspan="4" class="mu">এখনো কোনো student join করেনি।</td></tr>';
-    $('lcWaitCount').textContent=(r.hasListen||r.onlyListen)?('Waiting for Listening: '+waitCnt):'Listening বর্তমানে Off আছে';
+    $('lcWaitCount').textContent=(r.hasListen||r.onlyListen)?(`Waiting for Listening: ${waitCnt} / ${activeCnt}`):'Listening বর্তমানে Off আছে';
+    $('lcNotifWaitPill').textContent=(r.hasListen||r.onlyListen)?(`Listening Queue: ${waitCnt} / ${activeCnt}`):'Listening Off';
+    if(r.hasListen&&!r.onlyListen&&!r.listenStarted&&activeCnt>0&&waitCnt===activeCnt){
+      db().ref('rooms/'+rid+'/listenStarted').set(true);
+    }
+    const alertList=r.alerts?Object.values(r.alerts).sort((a,b)=>(b.ts||0)-(a.ts||0)):[];
+    const newestAlert=alertList[0];
+    if(newestAlert&&newestAlert.ts>lastLcAlertTs){
+      lastLcAlertTs=newestAlert.ts;
+      const msg=newestAlert.type==='lock'?`🔒 ${newestAlert.stuName} Auto-Locked (${newestAlert.reason})`:`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`;
+      toast(msg);
+      playBeep(newestAlert.type==='lock'?2:1);
+    }
+    $('lcNotifBody').innerHTML=alertList.length?alertList.slice(0,20).map(a=>{
+      const tStr=a.ts?new Date(a.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
+      const txt=a.type==='lock'?`🔒 <b>${esc(a.stuName)}</b>-এর Exam Auto-Lock হয়েছে (${esc(a.reason||'')})`
+        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`;
+      return `<div style="padding:5px 0;border-bottom:1px dashed var(--bd);display:flex;justify-content:space-between;gap:8px"><span>${txt}</span><span class="mu" style="font-size:11px;white-space:nowrap">${tStr}</span></div>`;
+    }).join(''):'<div class="mu">কোনো notification নেই।</div>';
+    $('lcClearNotifsBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/alerts').remove()};
     $('lcStuBody').querySelectorAll('.lc-stime').forEach(b=>b.onclick=()=>{
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}`).update({deltaSec:+b.dataset.d,deltaTs:Date.now()});
     });
     $('lcStuBody').querySelectorAll('.lc-slock').forEach(b=>b.onclick=()=>{
-      db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/locked`).set(b.dataset.lk!=='1');
+      const lk=b.dataset.lk!=='1';
+      db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}`).update({locked:lk,lockReason:lk?'Manual Lock':null});
+    });
+    $('lcStuBody').querySelectorAll('.lc-scool').forEach(b=>b.onclick=()=>{
+      db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/coolUntil`).set(Date.now()+30000);
+      toast('Student-কে 30s Cool-down দেওয়া হয়েছে!');
+    });
+    $('lcStuBody').querySelectorAll('.lc-swarn').forEach(b=>b.onclick=()=>{
+      const msg=prompt('Warning message লেখো:','মনোযোগ দিয়ে পরীক্ষা দাও — নিয়ম ভঙ্গ করো না!');
+      if(msg===null)return;
+      const curW=+b.dataset.w||0;
+      db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}`).update({warnCount:curW+1,warnMsg:{msg:msg.trim()||'নিয়ম ভঙ্গ করো না!',ts:Date.now()}});
+      toast('Warning পাঠানো হয়েছে!');
     });
     $('lcStuBody').querySelectorAll('.lc-sded').forEach(b=>b.onclick=()=>{
       const cur=+b.dataset.ded||0;
@@ -3686,6 +3814,7 @@ function pushYtSync(playing,rateOverride,force){
   if(!lcYtPlayer||typeof lcYtPlayer.getCurrentTime!=='function')return;
   const rate=rateOverride||(lcYtPlayer.getPlaybackRate?lcYtPlayer.getPlaybackRate():1)||1;
   db().ref('rooms/'+lcRoomId+'/ytSync').set({playing,time:lcYtPlayer.getCurrentTime()||0,rate,force:!!force,ts:Date.now()});
+  if(playing)db().ref('rooms/'+lcRoomId+'/listenVideoStarted').set(true);
 }
 function seekLcYt(sec){
   try{
