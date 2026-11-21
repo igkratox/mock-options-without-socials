@@ -2675,11 +2675,18 @@ function triggerAutoLock(reason){
   db().ref(`rooms/${liveRoomId}/alerts`).push({type:'lock',stuName:cfg?.name||'Student',reason,ts:Date.now()});
   setPaused(true,true);
 }
+let lastSsAt=0;
 function handlePrintScreenAttempt(){
+  if(Date.now()-lastSsAt<1500)return;
+  lastSsAt=Date.now();
   $('qpane').style.filter='blur(14px)';
   setTimeout(()=>{if(!coolUntilMs||Date.now()>=coolUntilMs)$('qpane').style.filter=''},1500);
   db().ref(`rooms/${liveRoomId}/students/${liveStuId}/ssAttempts`).transaction(v=>(v||0)+1,(err,ok,snap)=>{
-    if(ok&&snap&&snap.val()>=3)triggerAutoLock('3x Screenshot Attempt');
+    if(ok&&snap){
+      const cnt=snap.val();
+      db().ref(`rooms/${liveRoomId}/alerts`).push({type:'ss',stuName:cfg?.name||'Student',count:cnt,ts:Date.now()});
+      if(cnt>=3)triggerAutoLock('3x Screenshot Attempt');
+    }
   });
 }
 document.addEventListener('keydown',e=>{
@@ -3641,14 +3648,17 @@ function openLiveControl(rid){
     const newestAlert=alertList[0];
     if(newestAlert&&newestAlert.ts>lastLcAlertTs){
       lastLcAlertTs=newestAlert.ts;
-      const msg=newestAlert.type==='lock'?`🔒 ${newestAlert.stuName} Auto-Locked (${newestAlert.reason})`:`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`;
+      const msg=newestAlert.type==='lock'?`🔒 ${newestAlert.stuName} Auto-Locked (${newestAlert.reason})`
+        :(newestAlert.type==='ss'?`📸 ${newestAlert.stuName} Screenshot চেষ্টা করেছে (${newestAlert.count||1}x)`
+        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`);
       toast(msg);
-      playBeep(newestAlert.type==='lock'?2:1);
+      playBeep((newestAlert.type==='lock'||newestAlert.type==='ss')?2:1);
     }
     $('lcNotifBody').innerHTML=alertList.length?alertList.slice(0,20).map(a=>{
       const tStr=a.ts?new Date(a.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
       const txt=a.type==='lock'?`🔒 <b>${esc(a.stuName)}</b>-এর Exam Auto-Lock হয়েছে (${esc(a.reason||'')})`
-        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`;
+        :(a.type==='ss'?`📸 <b>${esc(a.stuName)}</b> Screenshot নেওয়ার চেষ্টা করেছে (${a.count||1}x)`
+        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`);
       return `<div style="padding:5px 0;border-bottom:1px dashed var(--bd);display:flex;justify-content:space-between;gap:8px"><span>${txt}</span><span class="mu" style="font-size:11px;white-space:nowrap">${tStr}</span></div>`;
     }).join(''):'<div class="mu">কোনো notification নেই।</div>';
     $('lcClearNotifsBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/alerts').remove()};
