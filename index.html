@@ -29,14 +29,14 @@ button:active{transform:scale(.97)}
 .mu{color:var(--mu);font-size:13px}
 .hide{display:none!important}
 /* exam */
-#exam{display:flex;flex-direction:column;height:100dvh}
+#exam{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
 .top{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--bd);position:relative}
 .top .t{font-variant-numeric:tabular-nums;font-size:21px;font-weight:800;margin-left:auto;padding:2px 8px;border-radius:8px;background:var(--bg)}
 .top .t.low{color:var(--bad);background:rgba(220,38,38,.1)}
 .pbar{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--bd)}
 .pbar>i{display:block;height:100%;width:0;background:var(--ac);transition:width .2s}
 .main{flex:1;min-height:0;display:flex;position:relative}
-.qpane{flex:1;overflow:auto;padding:4px!important;touch-action:pan-x pan-y}
+.qpane{flex:1;min-height:0;overflow:auto;padding:4px!important;touch-action:pan-x pan-y}
 html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 #pages{width:100%}
 .qpane canvas{display:block;width:100%;height:auto;margin:0 0 6px;background:#fff;border-radius:4px}
@@ -70,12 +70,12 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 .lmode-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 12px;background:var(--card);border-bottom:1px solid var(--bd)}
 .lmode-bar span{font-size:13px;font-weight:600;color:var(--mu)}
 .lmode-bar select{width:auto;padding:6px 10px;font-size:13px;font-weight:700;border-radius:8px}
-.listen-pad{max-width:560px;margin:0 auto;padding:18vh 8px 8px;height:100%;display:flex;flex-direction:column;gap:8px}
+.listen-pad{max-width:560px;margin:0 auto;padding:clamp(12px,8vh,64px) 8px 8px;height:100%;display:flex;flex-direction:column;gap:8px}
 .listen-pad.has-yt{padding:6px 8px 8px;gap:6px}
-.yt-box{flex:none;width:100%;aspect-ratio:16/9;max-height:36dvh;background:#000;border-radius:12px;overflow:hidden;box-shadow:var(--sh)}
+.yt-box{flex:none;width:100%;aspect-ratio:16/9;max-height:36vh;max-height:36dvh;background:#000;border-radius:12px;overflow:hidden;box-shadow:var(--sh)}
 .yt-box iframe,.yt-box>div{width:100%;height:100%;border:0;display:block}
 .yt-top{flex:none;width:100%;max-width:560px;margin:0 auto;padding:6px 8px 0}
-.yt-top .yt-box{max-height:28dvh}
+.yt-top .yt-box{max-height:28vh;max-height:28dvh}
 .l-head{flex:none;text-align:center;font-size:17px;font-weight:800;color:var(--ac);background:var(--ac-soft);padding:8px;border-radius:12px}
 .listen-pad.has-yt .l-head{padding:5px 8px;font-size:14px;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:6px}
 .yt-seek{border:1px solid rgba(37,99,235,.25);background:var(--card);color:var(--ac);font-size:12px;font-weight:700;padding:4px 9px;border-radius:8px;line-height:1.2}
@@ -369,7 +369,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div class="yt-top hide" id="ytTopWrap"></div>
   <div id="stuNoticeBanner" class="hide" style="padding:7px 12px;background:#fef3c7;color:#92400e;font-size:13px;font-weight:700;border-bottom:1px solid #f59e0b;text-align:center"></div>
   <div class="main">
-    <div class="qpane" id="qpane"><div id="pages"></div><div id="driveWrap" class="hide" style="width:100%;height:100%"></div><div id="wmOverlay" class="wm-ov hide"></div></div>
+    <div class="qpane" id="qpane"><div id="pages"></div><div id="driveWrap" class="hide" style="width:100%;height:100%;display:flex;flex-direction:column"></div><div id="wmOverlay" class="wm-ov hide"></div></div>
     <div class="zoom"><button id="zIn">+</button><button id="zOut">−</button><button id="zFit" style="font-size:14px">Fit</button></div>
   </div>
   <div class="dock">
@@ -1127,7 +1127,7 @@ async function startPart(i,auto,resumeSec){
     $('driveWrap').classList.remove('hide');
     let hint=$('driveWrap').querySelector('.drv-hint');
     if(!hint){
-      $('driveWrap').innerHTML=`<div class="drv-hint hide" style="padding:6px 10px;background:var(--ac-soft);color:var(--ac);font-size:12px;font-weight:700;border-bottom:1px solid var(--bd)"></div><div id="driveScroll" style="width:100%;height:100%;overflow:auto;-webkit-overflow-scrolling:touch"><iframe id="driveFrame" src="https://drive.google.com/file/d/${cfg.driveId}/preview" style="width:100%;height:100%;border:0;background:#fff;display:block" allow="autoplay"></iframe></div>`;
+      $('driveWrap').innerHTML=`<div class="drv-hint hide" style="flex:none;padding:6px 10px;background:var(--ac-soft);color:var(--ac);font-size:12px;font-weight:700;border-bottom:1px solid var(--bd)"></div><div id="driveScroll" style="flex:1;min-height:0;width:100%;overflow:auto;-webkit-overflow-scrolling:touch"><iframe id="driveFrame" src="https://drive.google.com/file/d/${cfg.driveId}/preview" style="width:100%;height:100%;border:0;background:#fff;display:block" allow="autoplay"></iframe></div>`;
       hint=$('driveWrap').querySelector('.drv-hint');
     }
     if(P.pageRange){hint.textContent=`${P.label}: শুধুমাত্র Pages ${P.pageRange} দেখো`;hint.classList.remove('hide')}
