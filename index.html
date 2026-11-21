@@ -729,16 +729,23 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <div class="mu" id="lcWaitCount">Waiting for Listening: 0</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="lcLMode" style="width:auto;padding:7px 10px;font-size:13px">
-          <option value="instant">Mode: Answer Instant</option>
-          <option value="later">Mode: Answer Later</option>
-        </select>
-        <select id="lcAudioCtrl" style="width:auto;padding:7px 10px;font-size:13px">
-          <option value="0">Audio: Sensei Sync</option>
-          <option value="1">Audio: Self-Control</option>
-        </select>
-        <button type="button" class="btn" id="lcStartListenBtn" style="width:auto;margin:0;padding:9px 14px">Start Listening for All</button>
+        <span id="lcListenControlsWrap" style="display:contents">
+          <select id="lcLMode" style="width:auto;padding:7px 10px;font-size:13px">
+            <option value="instant">Mode: Answer Instant</option>
+            <option value="later">Mode: Answer Later</option>
+          </select>
+          <select id="lcAudioCtrl" style="width:auto;padding:7px 10px;font-size:13px">
+            <option value="0">Audio: Sensei Sync</option>
+            <option value="1">Audio: Self-Control</option>
+          </select>
+          <button type="button" class="btn" id="lcStartListenBtn" style="width:auto;margin:0;padding:9px 14px">Start Listening for All</button>
+        </span>
+        <button type="button" class="btn sec" id="lcListenToggleBtn" style="width:auto;margin:0;padding:8px 12px;color:var(--bad)">Listening Off</button>
       </div>
+    </div>
+    <div id="lcYtLinkRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
+      <input id="lcYtInput" type="url" placeholder="YouTube link দাও / পরিবর্তন করো (youtu.be/... বা watch?v=...)" style="flex:1;min-width:200px;padding:7px 10px;font-size:13px">
+      <button type="button" class="btn sec" id="lcYtSaveBtn" style="width:auto;margin:0;padding:8px 12px">Add Link</button>
     </div>
     <div id="lcYtWrap" class="hide" style="margin-top:12px">
       <div class="yt-box" id="lcYtBox" style="max-width:480px"></div>
@@ -2759,6 +2766,32 @@ async function checkHashLive(){
       else if(!me.locked&&examinerLocked){examinerLocked=false;setPaused(false,true);toast('Examiner তোমার exam আবার চালু করেছেন!')}
     }
     if(me)liveDeduct=+(me.deduct||0);
+    if(!r.onlyListen&&cfg&&cfg.parts){
+      const hasLInCfg=cfg.parts.some(p=>p.listen);
+      if(!r.hasListen&&hasLInCfg){
+        cfg.parts=cfg.parts.filter(p=>!p.listen);
+        if(!$('liveWaitView').classList.contains('hide')&&me&&me.status==='waiting_listen'){
+          clearActiveExam();
+          setLiveWait('finished','Exam শেষ হয়েছে!','Sensei Listening বন্ধ করেছেন—তোমার উত্তর auto-submit হয়েছে। Result publish হলে এখানেই দেখাবে।','Auto-Submitted');
+          return;
+        }else if(!$('exam').classList.contains('hide')&&part>=cfg.parts.length){
+          stopYt();clearInterval(tick);clearActiveExam();
+          setLiveWait('finished','Exam শেষ হয়েছে!','Sensei Listening বন্ধ করেছেন—তোমার উত্তর auto-submit হয়েছে। Result publish হলে এখানেই দেখাবে।','Auto-Submitted');
+          return;
+        }else if(!$('exam').classList.contains('hide')){
+          $('nextBtn').textContent=part<cfg.parts.length-1?cfg.parts[part+1].label+' ▸':'Submit ✓';
+          toast('Sensei এই Exam-এর Listening বন্ধ করেছেন।');
+        }
+      }else if(r.hasListen&&!hasLInCfg){
+        const p3p=r.pdfPages&&r.p3pages?parsePages(r.p3pages,999):[];
+        cfg.parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:r.p3pages||'',q:LISTEN_TOTAL,m:r.lm||30});
+        while(ans.length<cfg.parts.length){ans.push(Array(LISTEN_TOTAL).fill(0));marks.push(Array(LISTEN_TOTAL).fill(null));flags.push([]);used.push(0)}
+        if(!$('exam').classList.contains('hide')&&part===cfg.parts.length-2){
+          $('nextBtn').textContent=cfg.parts[part+1].label+' ▸';
+        }
+        toast('Sensei এই Exam-এ Listening চালু করেছেন!');
+      }
+    }
     const newLMode=r.lMode||'instant';
     if($('listenMode').value!==newLMode){
       $('listenMode').value=newLMode;
@@ -2783,16 +2816,21 @@ async function checkHashLive(){
     }
     if(!$('exam').classList.contains('hide')&&cfg?.parts?.[part]?.listen){
       const selfCtrl=!!r.listenSelfCtrl;
-      if(lastSelfCtrl!==null&&lastSelfCtrl!==selfCtrl){
+      const newYtId=r.ytId||'';
+      const ytChanged=(cfg.ytId||'')!==newYtId;
+      cfg.ytId=newYtId;
+      if(ytChanged||(lastSelfCtrl!==null&&lastSelfCtrl!==selfCtrl)){
         const remNow=paused?pausedRem:Math.max(0,(endAt-Date.now())/1000);
         const prevCur=cur;
-        startPart(part,false,remNow).then(()=>{cur=prevCur;refresh()});
-        toast(selfCtrl?'এখন তুমি নিজেই Listening Audio/Video control করতে পারবে!':'Sensei Listening Sync চালু করেছেন!');
+        startPart(part,false,remNow).then(()=>{cur=prevCur;refresh();if(examinerLocked)setPaused(true,true)});
+        if(ytChanged)toast(newYtId?'Sensei Listening YouTube Link পরিবর্তন করেছেন!':'Sensei Listening YouTube Link সরিয়েছেন!');
+        else toast(selfCtrl?'এখন তুমি নিজেই Listening Audio/Video control করতে পারবে!':'Sensei Listening Sync চালু করেছেন!');
       }else if(!selfCtrl){
         applyYtSync();
       }
       lastSelfCtrl=selfCtrl;
     }else{
+      if(cfg)cfg.ytId=r.ytId||'';
       lastSelfCtrl=!!r.listenSelfCtrl;
     }
   });
@@ -3283,7 +3321,7 @@ function openLiveControl(rid){
   if(lcRoomRef)lcRoomRef.off();
   if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
   if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
-  let ytMounted=false;
+  let mountedYtId='';
   lcRoomRef=db().ref('rooms/'+rid);
   lcRoomRef.on('value',async snap=>{
     const r=snap.val();
@@ -3302,9 +3340,16 @@ function openLiveControl(rid){
     $('lcEndBtn').disabled=r.status==='ended';
     $('lcLinkLockBtn').textContent=r.linkLocked?'Unlock Link':'Lock Link';
     $('lcLinkLockBtn').style.color=r.linkLocked?'var(--ok)':'var(--bad)';
-    $('lcListenCard').classList.toggle('hide',!r.hasListen&&!r.onlyListen);
+    const listenOn=!!(r.hasListen||r.onlyListen);
+    $('lcListenCard').classList.remove('hide');
+    $('lcListenControlsWrap').classList.toggle('hide',!listenOn);
+    $('lcYtLinkRow').classList.toggle('hide',!listenOn);
+    $('lcListenToggleBtn').classList.toggle('hide',!!r.onlyListen);
+    $('lcListenToggleBtn').textContent=r.hasListen?'Listening Off':'Listening On করো';
+    $('lcListenToggleBtn').style.color=r.hasListen?'var(--bad)':'var(--ok)';
+    $('lcListenToggleBtn').disabled=(r.status==='ended');
     $('lcStartListenBtn').classList.toggle('hide',!!r.onlyListen);
-    $('lcKey3Wrap').classList.toggle('hide',!r.hasListen&&!r.onlyListen);
+    $('lcKey3Wrap').classList.toggle('hide',!listenOn);
     $('lcKey1').classList.toggle('hide',!!r.onlyListen);
     if($('lcKey1').previousElementSibling)$('lcKey1').previousElementSibling.classList.toggle('hide',!!r.onlyListen);
     $('lcKey2').classList.toggle('hide',!!(r.onePart||r.onlyListen));
@@ -3314,26 +3359,47 @@ function openLiveControl(rid){
       if(!$('lcKey2').value&&r.keys.k2)$('lcKey2').value=r.keys.k2;
       if(!$('lcKey3').value&&r.keys.k3)$('lcKey3').value=r.keys.k3;
     }
-    if(r.hasListen||r.onlyListen){
+    if(listenOn){
       $('lcLMode').value=r.lMode||'instant';
       $('lcLMode').disabled=(r.status==='ended');
       $('lcAudioCtrl').value=r.listenSelfCtrl?'1':'0';
       $('lcAudioCtrl').disabled=(r.status==='ended');
       $('lcStartListenBtn').textContent=r.listenStarted?'Listening Started ✓':'Start Listening for All';
       $('lcStartListenBtn').disabled=!!r.listenStarted;
+      if(document.activeElement!==$('lcYtInput'))$('lcYtInput').value=r.ytId?'https://youtu.be/'+r.ytId:'';
+      $('lcYtInput').disabled=(r.status==='ended');
+      $('lcYtSaveBtn').textContent=r.ytId?'Change Link':'Add Link';
+      $('lcYtSaveBtn').disabled=(r.status==='ended');
       $('lcYtWrap').classList.toggle('hide',!(r.ytId&&!r.listenSelfCtrl));
-      if(r.ytId&&!r.listenSelfCtrl&&!ytMounted){
-        ytMounted=true;
-        loadYtApi().then(()=>{
-          $('lcYtBox').innerHTML='<div id="lcYtTarget"></div>';
-          const pv={playsinline:1,rel:0,modestbranding:1};
-          if(location.protocol.startsWith('http'))pv.origin=location.origin;
-          lcYtPlayer=new YT.Player('lcYtTarget',{width:'100%',height:'100%',videoId:r.ytId,playerVars:pv,events:{
-            onStateChange:e=>{if(e.data===1||e.data===2)pushYtSync(e.data===1,null,true)}
-          }});
-          lcYtTimer=setInterval(()=>{try{if(lcYtPlayer&&lcYtPlayer.getPlayerState&&lcYtPlayer.getPlayerState()===1)pushYtSync(true)}catch(e){}},5000);
-        }).catch(()=>{});
+      if(r.ytId&&!r.listenSelfCtrl){
+        if(mountedYtId!==r.ytId){
+          mountedYtId=r.ytId;
+          if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
+          if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
+          const targetId=r.ytId;
+          loadYtApi().then(()=>{
+            if(mountedYtId!==targetId)return;
+            $('lcYtBox').innerHTML='<div id="lcYtTarget"></div>';
+            const pv={playsinline:1,rel:0,modestbranding:1};
+            if(location.protocol.startsWith('http'))pv.origin=location.origin;
+            lcYtPlayer=new YT.Player('lcYtTarget',{width:'100%',height:'100%',videoId:targetId,playerVars:pv,events:{
+              onStateChange:e=>{if(e.data===1||e.data===2)pushYtSync(e.data===1,null,true)}
+            }});
+            lcYtTimer=setInterval(()=>{try{if(lcYtPlayer&&lcYtPlayer.getPlayerState&&lcYtPlayer.getPlayerState()===1)pushYtSync(true)}catch(e){}},5000);
+          }).catch(()=>{});
+        }
+      }else{
+        mountedYtId='';
+        if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
+        if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
+        $('lcYtBox').innerHTML='';
       }
+    }else{
+      mountedYtId='';
+      if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
+      if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
+      $('lcYtBox').innerHTML='';
+      $('lcYtWrap').classList.add('hide');
     }
     const stus=r.students?Object.entries(r.students):[];
     const disp=buildStuDisp(stus.map(([,s])=>s));
@@ -3359,7 +3425,7 @@ function openLiveControl(rid){
           <button type="button" class="btn sec lc-skick" data-s="${esc(sid)}" data-kk="${s.kicked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.kicked?'var(--ok)':'var(--bad)'}">${s.kicked?'Unban':'Kick'}</button>
       </div></td></tr>`;
     }).join(''):'<tr><td colspan="4" class="mu">এখনো কোনো student join করেনি।</td></tr>';
-    $('lcWaitCount').textContent='Waiting for Listening: '+waitCnt;
+    $('lcWaitCount').textContent=(r.hasListen||r.onlyListen)?('Waiting for Listening: '+waitCnt):'Listening বর্তমানে Off আছে';
     $('lcStuBody').querySelectorAll('.lc-stime').forEach(b=>b.onclick=()=>{
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}`).update({deltaSec:+b.dataset.d,deltaTs:Date.now()});
     });
@@ -3505,6 +3571,23 @@ $('lcAudioCtrl').onchange=()=>{
   const selfCtrl=$('lcAudioCtrl').value==='1';
   db().ref('rooms/'+lcRoomId+'/listenSelfCtrl').set(selfCtrl);
   toast(selfCtrl?'Self-Control চালু: Students নিজেরাই Audio/Video control করবে!':'Sensei Sync চালু: Teacher Audio/Video control করবে!');
+};
+$('lcYtSaveBtn').onclick=async()=>{
+  if(!lcRoomId||!lcRoomData)return;
+  const raw=$('lcYtInput').value.trim();
+  const id=ytIdOf(raw)||(/^[a-zA-Z0-9_-]{11}$/.test(raw)?raw:'');
+  if(!id){toast('সঠিক YouTube link বা Video ID দাও!');return}
+  await db().ref('rooms/'+lcRoomId).update({ytId:id,ytSync:null});
+  toast(lcRoomData.ytId?'YouTube Link পরিবর্তন হয়েছে!':'YouTube Link যোগ হয়েছে!');
+};
+$('lcListenToggleBtn').onclick=async()=>{
+  if(!lcRoomId||!lcRoomData||lcRoomData.onlyListen)return;
+  const turnOn=!lcRoomData.hasListen;
+  if(!turnOn&&!confirm('এই Exam-এর Listening বন্ধ করে দেবে?'))return;
+  const upd={hasListen:turnOn};
+  if(!turnOn){upd.ytId='';upd.listenStarted=false;upd.ytSync=null}
+  await db().ref('rooms/'+lcRoomId).update(upd);
+  toast(turnOn?'Listening চালু হয়েছে!':'Listening বন্ধ করা হয়েছে!');
 };
 function pushYtSync(playing,rateOverride,force){
   if(!lcYtPlayer||typeof lcYtPlayer.getCurrentTime!=='function')return;
