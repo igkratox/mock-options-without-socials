@@ -474,6 +474,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <input id="lwNameIn" placeholder="Student Name">
       <div id="lwErr" class="mu" style="color:var(--bad);margin-top:6px"></div>
       <button type="button" class="btn" id="lwJoinBtn" style="margin-top:12px">Join Live Exam</button>
+      <div id="lwLoginHint" class="mu hide" style="font-size:12px;margin-top:10px">Account থাকলে <a href="#" id="lwLoginLink" style="color:var(--ac);font-weight:700">Login করো</a> (Result account-এ save হবে), নাহলে শুধু নাম দিয়েই exam দিতে পারবে।</div>
     </div>
     <div id="lwSpinBox" class="hide" style="margin-top:18px">
       <div class="badge pend" style="font-size:13px;padding:6px 14px" id="lwStatusPill">অপেক্ষা করো…</div>
@@ -694,12 +695,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       </div>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--bd)">
-      <strong>Global Deduct (Marks / Answers)</strong>
+      <strong>Global Mark Deduct</strong>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button type="button" class="btn sec lc-gded" data-d="1">−1 Mark</button>
         <button type="button" class="btn sec lc-gded" data-d="2">−2 Marks</button>
-        <button type="button" class="btn sec lc-gansded" data-d="1">−1 Ans</button>
-        <button type="button" class="btn sec lc-gansded" data-d="2">−2 Ans</button>
         <button type="button" class="btn sec lc-gded" data-d="0" style="color:var(--ok)">Reset 0</button>
       </div>
     </div>
@@ -2666,7 +2665,7 @@ function resumeLiveStudentFromRecord(r,me,stuId){
   examinerLocked=!!me.locked;
   liveDeduct=+(me.deduct||0);
   currentExamId='live_'+liveRoomId;
-  cfg={name:me.name||curStudent.name,driveId:r.driveId||'',examName:r.examName||'',ytId:r.ytId||'',style:$('style').value,parts};
+  cfg={name:me.name||(curStudent&&curStudent.name)||'Student',driveId:r.driveId||'',examName:r.examName||'',ytId:r.ytId||'',style:$('style').value,parts};
   ans=parts.map((pt,i)=>unpackAns((me.ans&&me.ans[i])||'',pt.q));
   marks=parts.map((pt,i)=>unpackMarks((me.marks&&me.marks[i])||'',pt.q));
   flags=parts.map(()=>[]);
@@ -2698,23 +2697,15 @@ async function checkHashLive(){
   if(!location.hash.startsWith('#live='))return;
   const rid=location.hash.slice(6).trim();
   if(!rid)return;
-  if(!curStudent){
-    pendingLiveRoomId=rid;
-    showGate();
-    $('stuAuthErr').textContent='Live Exam-এ join করতে তোমার Approved Student ID দিয়ে Login করো।';
-    return;
+  if(curStudent){
+    try{
+      const sSnap=await db().ref('students/'+curStudent.username).once('value');
+      const sVal=sSnap.val();
+      if(!sVal||sVal.disabled){
+        curStudent=null;try{localStorage.removeItem(STU_SESS_KEY)}catch(e){}
+      }
+    }catch(e){}
   }
-  try{
-    const sSnap=await db().ref('students/'+curStudent.username).once('value');
-    const sVal=sSnap.val();
-    if(!sVal||sVal.disabled){
-      pendingLiveRoomId=rid;
-      curStudent=null;try{localStorage.removeItem(STU_SESS_KEY)}catch(e){}
-      showGate();
-      $('stuAuthErr').textContent=!sVal?'Student Account পাওয়া যায়নি, আবার Login করো।':'তোমার Account-টি Admin / Examiner বন্ধ করে দিয়েছে।';
-      return;
-    }
-  }catch(e){}
   liveRoomId=rid;
   hideAllViews();
   $('liveWaitView').classList.remove('hide');
@@ -2733,8 +2724,8 @@ async function checkHashLive(){
       $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
       return;
     }
-    const expectedStuId='u_'+curStudent.username;
-    const existing=r.students&&r.students[expectedStuId];
+    const expectedStuId=curStudent?('u_'+curStudent.username):null;
+    const existing=expectedStuId&&r.students?r.students[expectedStuId]:null;
     if(!liveStuId){
       if(existing&&existing.kicked){
         liveStuId=expectedStuId;
@@ -2765,8 +2756,16 @@ async function checkHashLive(){
         :(r.onePart
           ?`Examiner: ${r.examinerName||'Sensei'} · ${r.p1q}q, ${r.p1m}m`+(r.hasListen?` · Listening (${r.lm||30}m)`:'')+` · Total: ${(r.oneTotal||100)+(r.hasListen?60:0)} marks`
           :`Examiner: ${r.examinerName||'Sensei'} · Part 1 (${r.p1q}q, ${r.p1m}m) · Part 2 (${r.p2q}q, ${r.p2m}m)`+(r.hasListen?` · Listening (${r.lm}m)`:''));
-      $('lwNameIn').value=curStudent.name||'';
-      $('lwNameIn').readOnly=true;
+      if(curStudent){
+        $('lwNameIn').value=curStudent.name||'';
+        $('lwNameIn').readOnly=true;
+        $('lwLoginHint').classList.add('hide');
+      }else{
+        $('lwNameIn').value=loadProfile().name||'';
+        $('lwNameIn').readOnly=false;
+        $('lwLoginHint').classList.remove('hide');
+        $('lwLoginLink').onclick=e=>{e.preventDefault();pendingLiveRoomId=rid;showGate()};
+      }
       $('lwJoinBox').classList.remove('hide');
       $('lwJoinBtn').onclick=()=>startLiveStudent(r);
       return;
@@ -3521,9 +3520,9 @@ function openLiveControl(rid){
       if(s.status==='waiting_listen'&&!s.kicked)waitCnt++;
       const stTxt=s.kicked?'🚫 Kicked':s.locked?'🔒 Locked':s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
-      const ded=+(s.deduct||0),aded=+(s.ansDeduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0);
+      const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0);
       return `<tr class="stu-main">
-        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${aded?`<div class="mu" style="color:var(--bad);font-size:11px">Ans Deduct: −${aded} Q</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
+        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(s.rem||0)}</td>
@@ -3533,7 +3532,6 @@ function openLiveControl(rid){
           <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="60" style="padding:4px 8px;font-size:11px">+1m</button>
           <button type="button" class="btn sec lc-slock" data-s="${esc(sid)}" data-lk="${s.locked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.locked?'var(--ok)':'var(--bad)'}">${s.locked?'On':'Off'}</button>
           <button type="button" class="btn sec lc-sded" data-s="${esc(sid)}" data-ded="${ded}" style="padding:4px 8px;font-size:11px">−Mark</button>
-          <button type="button" class="btn sec lc-sansded" data-s="${esc(sid)}" data-aded="${aded}" style="padding:4px 8px;font-size:11px">−Ans</button>
           <button type="button" class="btn sec lc-skick" data-s="${esc(sid)}" data-kk="${s.kicked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.kicked?'var(--ok)':'var(--bad)'}">${s.kicked?'Unban':'Kick'}</button>
       </div></td></tr>`;
     }).join(''):'<tr><td colspan="4" class="mu">এখনো কোনো student join করেনি।</td></tr>';
@@ -3550,13 +3548,6 @@ function openLiveControl(rid){
       if(v===null)return;
       const num=Math.max(0,parseFloat(v)||0);
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/deduct`).set(num);
-    });
-    $('lcStuBody').querySelectorAll('.lc-sansded').forEach(b=>b.onclick=()=>{
-      const cur=+b.dataset.aded||0;
-      const v=prompt('কয়টি Answer (সবচেয়ে কম নম্বরের প্রশ্ন ধরে) deduct করবে? (0 দিলে reset)',String(cur+1));
-      if(v===null)return;
-      const num=Math.max(0,parseInt(v,10)||0);
-      db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/ansDeduct`).set(num);
     });
     $('lcStuBody').querySelectorAll('.lc-skick').forEach(b=>b.onclick=()=>{
       const sid=b.dataset.s,s=lcRoomData?.students?.[sid];if(!s)return;
@@ -3654,22 +3645,12 @@ document.querySelectorAll('.lc-gded').forEach(b=>b.onclick=async()=>{
   Object.entries(lcRoomData.students).forEach(([sid,s])=>{
     if(d===0){
       upd[`rooms/${lcRoomId}/students/${sid}/deduct`]=0;
-      upd[`rooms/${lcRoomId}/students/${sid}/ansDeduct`]=0;
     }else{
       upd[`rooms/${lcRoomId}/students/${sid}/deduct`]=(+(s.deduct||0))+d;
     }
   });
   await db().ref().update(upd);
   toast(d===0?'সবার সব Deduct reset হয়েছে!':`সবার থেকে ${d} নম্বর deduct হয়েছে!`);
-});
-document.querySelectorAll('.lc-gansded').forEach(b=>b.onclick=async()=>{
-  if(!lcRoomData||!lcRoomData.students)return;
-  const d=+b.dataset.d,upd={};
-  Object.entries(lcRoomData.students).forEach(([sid,s])=>{
-    upd[`rooms/${lcRoomId}/students/${sid}/ansDeduct`]=(+(s.ansDeduct||0))+d;
-  });
-  await db().ref().update(upd);
-  toast(`সবার থেকে ${d}টি Answer (lowest mark) deduct হয়েছে!`);
 });
 $('lcStartListenBtn').onclick=()=>db().ref('rooms/'+lcRoomId+'/listenStarted').set(true);
 $('lcLMode').onchange=()=>{
@@ -4155,11 +4136,7 @@ function calcStuSummary(r,s){
   const maxTot=onlyL?lTot:(one?(p1Tot+(hasL?60:0)):(hasL?180:120));
   const passTot=r.passTotal||((onlyL||one)?Math.round(maxTot*0.48):(hasL?80:58));
   const rawTot=Math.round((s1+s2+s3)*10)/10;
-  const allPts=qPts.flat().filter(v=>typeof v==='number'&&v>0);
-  const minQPt=allPts.length?Math.round(Math.min(...allPts)*10)/10:Math.round(((onlyL?lTot:p1Tot)/Math.max(1,r.p1q||lTotQ,r.p2q||1))*10)/10;
-  const markDed=+(s.deduct||0),ansDed=+(s.ansDeduct||0);
-  const ansDedMarks=Math.round(ansDed*minQPt*10)/10;
-  const ded=Math.round((markDed+ansDedMarks)*10)/10;
+  const ded=Math.round((+(s.deduct||0))*10)/10;
   const finalTot=Math.max(0,Math.round((rawTot-ded)*10)/10);
   const p12Tot=Math.round((s1+s2)*10)/10;
   const numPass=(onlyL||one)?(finalTot>=passTot):(p12Tot>=38&&(!hasL||s3>=19)&&finalTot>=passTot);
@@ -4200,7 +4177,7 @@ function renderLiveSummary(r,stus){
     const minPt=allP.length?Math.round(Math.min(...allP)*10)/10:0;
     const wrongByQ=(pi,qNum)=>stus.filter(([,s])=>((s.marks&&s.marks[pi])||'')[qNum-1]!=='o').map(([,s])=>disp(s));
     const isIrt=(r.gradeMode||'irt')==='irt';
-    $('lcQStatsBody').innerHTML=(isIrt?`<div class="mu" style="margin-bottom:6px">IRT (JLPT Style) Mode: answering pattern ও প্রশ্নের কঠিনতা অনুযায়ী 0–60 scale-এ নম্বর হিসাব হচ্ছে।</div>`:(minPt?`<div class="mu" style="margin-bottom:6px">সবচেয়ে কম নম্বরের প্রশ্ন: <b>${minPt}m</b> (−Ans দিলে প্রতি প্রশ্নে ${minPt}m করে কাটা যাবে)</div>`:''))+r.qStats.map((arr,pi)=>{
+    $('lcQStatsBody').innerHTML=(isIrt?`<div class="mu" style="margin-bottom:6px">IRT (JLPT Style) Mode: answering pattern ও প্রশ্নের কঠিনতা অনুযায়ী 0–60 scale-এ নম্বর হিসাব হচ্ছে।</div>`:'')+r.qStats.map((arr,pi)=>{
       const missed=[...arr].filter(q=>q.errPct>0).sort((a,b)=>b.errPct-a.errPct);
       if(!missed.length)return `<div style="margin-top:8px"><b>${labels[pi]||('Part '+(pi+1))}:</b> <span class="mu">সবাই সব প্রশ্ন পেরেছে!</span></div>`;
       return `<div style="margin-top:10px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(বেশি ভুল হওয়া প্রশ্ন = বেশি কঠিন · 👁 চাপলে কারা পারেনি দেখবে)</span>
