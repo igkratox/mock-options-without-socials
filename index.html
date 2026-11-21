@@ -604,7 +604,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <div id="exListenFields">
           <div class="row" style="margin-top:8px">
             <div><div class="mu">Listening Time (min)</div><input id="exLm" type="number" min="1" value="30"></div>
-            <div><div class="mu">Listening Mode</div><select id="exLMode"><option value="instant">Answer Instant</option><option value="later">Answer Later</option></select></div>
+            <div><div class="mu">Listening Mode</div><select id="exLMode"><option value="later" selected>Answer Later</option><option value="instant">Answer Instant</option></select></div>
           </div>
           <div style="margin-top:8px"><div class="mu">Listening Audio/Video Control</div><select id="exLSelfCtrl"><option value="0">Sensei Sync (Teacher control করবে)</option><option value="1">Self-Control (Student নিজে control করবে)</option></select></div>
           <div style="margin-top:8px"><div class="mu">Listening Pages (optional)</div><input id="exP3pages" placeholder="খালি রাখলে Listening Pad দেখাবে"></div>
@@ -731,8 +731,8 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span id="lcListenControlsWrap" style="display:contents">
           <select id="lcLMode" style="width:auto;padding:7px 10px;font-size:13px">
-            <option value="instant">Mode: Answer Instant</option>
             <option value="later">Mode: Answer Later</option>
+            <option value="instant">Mode: Answer Instant</option>
           </select>
           <select id="lcAudioCtrl" style="width:auto;padding:7px 10px;font-size:13px">
             <option value="0">Audio: Sensei Sync</option>
@@ -746,6 +746,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div id="lcYtLinkRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
       <input id="lcYtInput" type="url" placeholder="YouTube link দাও / পরিবর্তন করো (youtu.be/... বা watch?v=...)" style="flex:1;min-width:200px;padding:7px 10px;font-size:13px">
       <button type="button" class="btn sec" id="lcYtSaveBtn" style="width:auto;margin:0;padding:8px 12px">Add Link</button>
+    </div>
+    <div id="lcMondaiRow" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+      <span class="mu" style="font-size:12px;font-weight:700">Mondai Qs:</span>
+      <div id="lcMondaiCtrls" style="display:flex;gap:6px;flex-wrap:wrap"></div>
     </div>
     <div id="lcYtWrap" class="hide" style="margin-top:12px">
       <div class="yt-box" id="lcYtBox" style="max-width:480px"></div>
@@ -825,6 +829,13 @@ const LISTEN_MONDAI=[{m:1,q:7,opts:4},{m:2,q:6,opts:4},{m:3,q:5,opts:3},{m:4,q:6
 const LISTEN_TOTAL=LISTEN_MONDAI.reduce((s,x)=>s+x.q,0);
 const cloneMondai=()=>LISTEN_MONDAI.map(x=>({...x}));
 const partMondai=P=>(P&&Array.isArray(P.mondai)&&P.mondai.length===4)?P.mondai:LISTEN_MONDAI;
+function roomMondai(r){
+  const arr=(r&&Array.isArray(r.lMondai)&&r.lMondai.length===4)?r.lMondai:null;
+  return LISTEN_MONDAI.map((md,i)=>({...md,q:arr?Math.max(1,Math.min(30,+arr[i]||md.q)):md.q}));
+}
+function roomListenTotal(r){
+  return roomMondai(r).reduce((s,x)=>s+x.q,0);
+}
 function listenInfo(q,P){
   const list=partMondai(P||cfg?.parts?.[part]);
   let off=0;
@@ -1666,14 +1677,15 @@ function showReport(keepTime){
     const meSm=meRow;
     lastLiveCertMeta={meSm,rType,totRows:stRows.length,keyForPart};
     const rModeLbl=liveRoom.onlyListen?`Only Listening (${meSm.maxTot} Marks)`:(liveRoom.onePart?`${meSm.maxTot} Marks`:'Scaled 60/Part');
+    const lTotQ=roomListenTotal(liveRoom);
     const meStatsHtml=liveRoom.onlyListen
-      ?`<div class="stat" style="margin-top:8px"><span>Listening (${meSm.p3}/${LISTEN_TOTAL} টি সঠিক)</span><b>${meSm.s3} / ${meSm.maxTot}</b></div>`
+      ?`<div class="stat" style="margin-top:8px"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক)</span><b>${meSm.s3} / ${meSm.maxTot}</b></div>`
       :(liveRoom.onePart
         ?`<div class="stat" style="margin-top:8px"><span>Part 1 (${meSm.p1}/${liveRoom.p1q} টি সঠিক)</span><b>${meSm.s1} / ${meSm.p1Tot}</b></div>
-          ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${LISTEN_TOTAL} টি সঠিক)</span><b>${meSm.s3} / 60</b></div>`:''}`
+          ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক)</span><b>${meSm.s3} / 60</b></div>`:''}`
         :`<div class="stat" style="margin-top:8px"><span>Part 1 (${meSm.p1}/${liveRoom.p1q} টি সঠিক · Min 19)</span><b>${meSm.s1} / 60 <span style="color:${meSm.s1>=19?'var(--ok)':'var(--bad)'}">${meSm.s1>=19?'✓':'✕'}</span></b></div>
           <div class="stat"><span>Part 2 (${meSm.p2}/${liveRoom.p2q} টি সঠিক · Min 19)</span><b>${meSm.s2} / 60 <span style="color:${meSm.s2>=19?'var(--ok)':'var(--bad)'}">${meSm.s2>=19?'✓':'✕'}</span></b></div>
-          ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${LISTEN_TOTAL} টি সঠিক · Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}`);
+          ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক · Min 19)</span><b>${meSm.s3} / 60 <span style="color:${meSm.s3>=19?'var(--ok)':'var(--bad)'}">${meSm.s3>=19?'✓':'✕'}</span></b></div>`:''}`);
     const lbHeadHtml=liveRoom.onlyListen?'':(liveRoom.onePart?(liveRoom.hasListen?'<th>P1</th><th>List.</th>':''):`<th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}`);
     const circleCls=meSm.tierCls||(meSm.pass?'':'fail-c');
     const rankLine=meSm.rank?`${meSm.medal} Rank #${meSm.rank}`:(meSm.pass?'PASS':'FAIL');
@@ -1873,9 +1885,10 @@ function saveReportImage(mode='sheet'){
     ctx.fillStyle=sm.pass?'#16a34a':'#dc2626';ctx.font='bold 15px system-ui,sans-serif';
     ctx.fillText(`${sm.statusLabel}  ·  Pass Mark: ${sm.passTot}`,W/2,circY+98);
     ctx.fillStyle='#6b7280';ctx.font='14px system-ui,sans-serif';
-    const partLine=liveRoom?.onlyListen?`Listening: ${sm.s3}/${sm.maxTot} (${sm.p3}/${LISTEN_TOTAL} Qs)`
-      :(liveRoom?.onePart?`Part 1: ${sm.s1}/${sm.p1Tot} (${sm.p1}/${liveRoom.p1q})`+(liveRoom.hasListen?`  ·  Listening: ${sm.s3}/60 (${sm.p3}/${LISTEN_TOTAL})`:'')
-      :`Part 1: ${sm.s1}/60 (${sm.p1}/${liveRoom?.p1q||0})  ·  Part 2: ${sm.s2}/60 (${sm.p2}/${liveRoom?.p2q||0})`+(liveRoom?.hasListen?`  ·  Listening: ${sm.s3}/60 (${sm.p3}/${LISTEN_TOTAL})`:''));
+    const lTotQ=roomListenTotal(liveRoom);
+    const partLine=liveRoom?.onlyListen?`Listening: ${sm.s3}/${sm.maxTot} (${sm.p3}/${lTotQ} Qs)`
+      :(liveRoom?.onePart?`Part 1: ${sm.s1}/${sm.p1Tot} (${sm.p1}/${liveRoom.p1q})`+(liveRoom.hasListen?`  ·  Listening: ${sm.s3}/60 (${sm.p3}/${lTotQ})`:'')
+      :`Part 1: ${sm.s1}/60 (${sm.p1}/${liveRoom?.p1q||0})  ·  Part 2: ${sm.s2}/60 (${sm.p2}/${liveRoom?.p2q||0})`+(liveRoom?.hasListen?`  ·  Listening: ${sm.s3}/60 (${sm.p3}/${lTotQ})`:''));
     ctx.fillText(partLine,W/2,circY+124);
     ctx.textAlign='left';
   }
@@ -2535,7 +2548,7 @@ async function loadStuLiveHistory(){
         {label:'Part 1',listen:false,pages:[],q:r.p1q,m:r.p1m},
         {label:'Part 2',listen:false,pages:[],q:r.p2q,m:r.p2m}
       ];
-      if(r.hasListen)parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:r.lm||30});
+      if(r.hasListen)parts.push({label:'Listening',listen:true,mondai:roomMondai(r),pages:[],q:roomListenTotal(r),m:r.lm||30});
       cfg={name:s.name||curStudent.name,driveId:r.driveId||'',examName:r.examName||'',ytId:'',style:$('style').value,parts};
       ans=parts.map((pt,i)=>unpackAns((s.ans&&s.ans[i])||'',pt.q));
       marks=parts.map((pt,i)=>unpackMarks((s.marks&&s.marks[i])||'',pt.q));
@@ -2548,14 +2561,15 @@ function buildLiveParts(r){
   const p1p=r.pdfPages&&r.p1pages?parsePages(r.p1pages,999):[];
   const p2p=r.pdfPages&&r.p2pages?parsePages(r.p2pages,999):[];
   const p3p=r.pdfPages&&r.p3pages?parsePages(r.p3pages,999):(r.onlyListen&&r.pdfPages?Object.keys(r.pdfPages).map(Number).sort((a,b)=>a-b):[]);
-  if(r.onlyListen)return[{label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:r.p3pages||'',q:LISTEN_TOTAL,m:r.lm||30}];
+  const lMds=roomMondai(r),lTotQ=lMds.reduce((s,x)=>s+x.q,0);
+  if(r.onlyListen)return[{label:'Listening',listen:true,mondai:lMds,pages:p3p,pageRange:r.p3pages||'',q:lTotQ,m:r.lm||30}];
   const parts=r.onePart
     ?[{label:'Exam',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m}]
     :[
       {label:'Part 1',listen:false,pages:p1p,pageRange:r.p1pages||'',q:r.p1q,m:r.p1m},
       {label:'Part 2',listen:false,pages:p2p,pageRange:r.p2pages||'',q:r.p2q,m:r.p2m}
     ];
-  if(r.hasListen)parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:r.p3pages||'',q:LISTEN_TOTAL,m:r.lm||30});
+  if(r.hasListen)parts.push({label:'Listening',listen:true,mondai:lMds,pages:p3p,pageRange:r.p3pages||'',q:lTotQ,m:r.lm||30});
   return parts;
 }
 function startLiveStudent(room){
@@ -2565,7 +2579,7 @@ function startLiveStudent(room){
   liveStuId=curStudent?('u_'+curStudent.username):('s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5));
   if(curStudent&&liveRoomId)db().ref('studentRooms/'+curStudent.username+'/'+liveRoomId).set(true);
   const parts=buildLiveParts(room);
-  $('listenMode').value=room.lMode||'instant';
+  $('listenMode').value=room.lMode||'later';
   lastGlobalDeltaTs=room.globalDeltaTs||0;
   lastStuDeltaTs=0;examinerLocked=false;liveDeduct=0;
   beginExam(stuName,room.driveId||'',parts,room.examName||'',room.ytId||'');
@@ -2601,7 +2615,7 @@ window.addEventListener('blur',()=>recordTabSwitch());
 function resumeLiveStudentFromRecord(r,me,stuId){
   liveStuId=stuId;
   const parts=buildLiveParts(r);
-  $('listenMode').value=r.lMode||'instant';
+  $('listenMode').value=r.lMode||'later';
   lastGlobalDeltaTs=r.globalDeltaTs||0;
   lastStuDeltaTs=me.deltaTs||0;
   lastStuResumeTs=me.resumeTs||0;
@@ -2703,7 +2717,7 @@ async function checkHashLive(){
       }
       $('lwTitle').textContent=r.examName||'Live Exam';
       $('lwSub').textContent=r.onlyListen
-        ?`Examiner: ${r.examinerName||'Sensei'} · Only Listening (${LISTEN_TOTAL}q, ${r.lm||30}m) · Total: ${r.oneTotal||60} marks`
+        ?`Examiner: ${r.examinerName||'Sensei'} · Only Listening (${roomListenTotal(r)}q, ${r.lm||30}m) · Total: ${r.oneTotal||60} marks`
         :(r.onePart
           ?`Examiner: ${r.examinerName||'Sensei'} · ${r.p1q}q, ${r.p1m}m`+(r.hasListen?` · Listening (${r.lm||30}m)`:'')+` · Total: ${(r.oneTotal||100)+(r.hasListen?60:0)} marks`
           :`Examiner: ${r.examinerName||'Sensei'} · Part 1 (${r.p1q}q, ${r.p1m}m) · Part 2 (${r.p2q}q, ${r.p2m}m)`+(r.hasListen?` · Listening (${r.lm}m)`:''));
@@ -2784,15 +2798,44 @@ async function checkHashLive(){
         }
       }else if(r.hasListen&&!hasLInCfg){
         const p3p=r.pdfPages&&r.p3pages?parsePages(r.p3pages,999):[];
-        cfg.parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:p3p,pageRange:r.p3pages||'',q:LISTEN_TOTAL,m:r.lm||30});
-        while(ans.length<cfg.parts.length){ans.push(Array(LISTEN_TOTAL).fill(0));marks.push(Array(LISTEN_TOTAL).fill(null));flags.push([]);used.push(0)}
+        const lMds=roomMondai(r),lTotQ=lMds.reduce((s,x)=>s+x.q,0);
+        cfg.parts.push({label:'Listening',listen:true,mondai:lMds,pages:p3p,pageRange:r.p3pages||'',q:lTotQ,m:r.lm||30});
+        while(ans.length<cfg.parts.length){ans.push(Array(lTotQ).fill(0));marks.push(Array(lTotQ).fill(null));flags.push([]);used.push(0)}
         if(!$('exam').classList.contains('hide')&&part===cfg.parts.length-2){
           $('nextBtn').textContent=cfg.parts[part+1].label+' ▸';
         }
         toast('Sensei এই Exam-এ Listening চালু করেছেন!');
       }
     }
-    const newLMode=r.lMode||'instant';
+    if(cfg&&cfg.parts){
+      const lIdx=cfg.parts.findIndex(p=>p.listen);
+      if(lIdx>=0){
+        const lPart=cfg.parts[lIdx];
+        const oldMds=partMondai(lPart),newMds=roomMondai(r);
+        if(oldMds.map(x=>x.q).join(',')!==newMds.map(x=>x.q).join(',')){
+          const newTotQ=newMds.reduce((s,x)=>s+x.q,0);
+          const oldA=ans[lIdx]||[],oldM=marks[lIdx]||[],oldF=flags[lIdx]||[];
+          const newA=Array(newTotQ+1).fill(0),newM=Array(newTotQ+1).fill(null),newF=[];
+          let oOff=0,nOff=0;
+          for(let i=0;i<4;i++){
+            const keep=Math.min(oldMds[i].q,newMds[i].q);
+            for(let j=1;j<=keep;j++){
+              newA[nOff+j]=oldA[oOff+j]||0;
+              newM[nOff+j]=oldM[oOff+j]||null;
+              if(oldF[oOff+j])newF[nOff+j]=true;
+            }
+            oOff+=oldMds[i].q;nOff+=newMds[i].q;
+          }
+          lPart.mondai=newMds;lPart.q=newTotQ;
+          ans[lIdx]=newA;marks[lIdx]=newM;flags[lIdx]=newF;
+          if(!$('exam').classList.contains('hide')&&part===lIdx){
+            buildSheet(Math.min(cur,newTotQ));
+            toast('Sensei Listening-এর প্রশ্ন সংখ্যা পরিবর্তন করেছেন!');
+          }
+        }
+      }
+    }
+    const newLMode=r.lMode||'later';
     if($('listenMode').value!==newLMode){
       $('listenMode').value=newLMode;
       if(!$('exam').classList.contains('hide')&&cfg?.parts?.[part]?.listen){
@@ -3113,7 +3156,7 @@ async function loadExaminerHistory(){
       dateStr:new Date().toLocaleString(),createdAt:Date.now(),status:'live',
       driveId:src.driveId||'',onePart:!!src.onePart,onlyListen:false,oneTotal:src.oneTotal||100,
       p1q:src.p1q,p1m:src.p1m,p1pages:src.p1pages||'',p2q:src.p2q||0,p2m:src.p2m||0,p2pages:src.p2pages||'',
-      hasListen:!!src.hasListen,lm:src.lm||30,lMode:src.lMode||'instant',listenSelfCtrl:!!src.listenSelfCtrl,p3pages:src.p3pages||'',ytId:src.ytId||'',
+      hasListen:!!src.hasListen,lm:src.lm||30,lMode:src.lMode||'later',lMondai:src.lMondai?[...src.lMondai]:null,listenSelfCtrl:!!src.listenSelfCtrl,p3pages:src.p3pages||'',ytId:src.ytId||'',
       passTotal:src.passTotal||58,listenStarted:false,published:false,linkLocked:false
     };
     if(src.keys)newRoom.keys=src.keys;
@@ -3344,12 +3387,15 @@ function openLiveControl(rid){
     $('lcListenCard').classList.remove('hide');
     $('lcListenControlsWrap').classList.toggle('hide',!listenOn);
     $('lcYtLinkRow').classList.toggle('hide',!listenOn);
+    $('lcMondaiRow').classList.toggle('hide',!listenOn);
     $('lcListenToggleBtn').classList.toggle('hide',!!r.onlyListen);
     $('lcListenToggleBtn').textContent=r.hasListen?'Listening Off':'Listening On করো';
     $('lcListenToggleBtn').style.color=r.hasListen?'var(--bad)':'var(--ok)';
     $('lcListenToggleBtn').disabled=(r.status==='ended');
     $('lcStartListenBtn').classList.toggle('hide',!!r.onlyListen);
     $('lcKey3Wrap').classList.toggle('hide',!listenOn);
+    const lTotQ=roomListenTotal(r);
+    $('lcKey3Lbl').textContent=`Listening Answer Key (${lTotQ}টি)`;
     $('lcKey1').classList.toggle('hide',!!r.onlyListen);
     if($('lcKey1').previousElementSibling)$('lcKey1').previousElementSibling.classList.toggle('hide',!!r.onlyListen);
     $('lcKey2').classList.toggle('hide',!!(r.onePart||r.onlyListen));
@@ -3360,7 +3406,22 @@ function openLiveControl(rid){
       if(!$('lcKey3').value&&r.keys.k3)$('lcKey3').value=r.keys.k3;
     }
     if(listenOn){
-      $('lcLMode').value=r.lMode||'instant';
+      const mds=roomMondai(r);
+      $('lcMondaiCtrls').innerHTML=mds.map((md,idx)=>`<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 6px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);font-size:12px">
+        <span style="font-weight:700">M${md.m}</span>
+        <button type="button" class="btn sec lc-md-btn" data-i="${idx}" data-d="-1" style="width:auto;margin:0;padding:2px 7px;font-size:12px;line-height:1.2" ${(r.status==='ended'||md.q<=1)?'disabled':''}>−</button>
+        <b style="min-width:16px;text-align:center">${md.q}</b>
+        <button type="button" class="btn sec lc-md-btn" data-i="${idx}" data-d="1" style="width:auto;margin:0;padding:2px 7px;font-size:12px;line-height:1.2" ${(r.status==='ended'||md.q>=30)?'disabled':''}>+</button>
+      </div>`).join('');
+      $('lcMondaiCtrls').querySelectorAll('.lc-md-btn').forEach(b=>b.onclick=async()=>{
+        if(!lcRoomId||!lcRoomData)return;
+        const idx=+b.dataset.i,d=+b.dataset.d;
+        const curArr=roomMondai(lcRoomData).map(x=>x.q);
+        curArr[idx]=Math.max(1,Math.min(30,curArr[idx]+d));
+        await db().ref(`rooms/${lcRoomId}/lMondai`).set(curArr);
+        toast(`Mondai ${idx+1}: ${curArr[idx]}টি প্রশ্ন করা হয়েছে`);
+      });
+      $('lcLMode').value=r.lMode||'later';
       $('lcLMode').disabled=(r.status==='ended');
       $('lcAudioCtrl').value=r.listenSelfCtrl?'1':'0';
       $('lcAudioCtrl').disabled=(r.status==='ended');
@@ -3673,18 +3734,19 @@ $('lcPublishBtn').onclick=async()=>{
         newMarks[1]=packArr(M2,rm.p2q,'.');
       }
       if(hasL&&k3.length){
-        const AL=unpackAns(aArr[lIdx]||'',LISTEN_TOTAL),ML=unpackMarks(mArr[lIdx]||'',LISTEN_TOTAL);
+        const rmLTot=roomListenTotal(rm);
+        const AL=unpackAns(aArr[lIdx]||'',rmLTot),ML=unpackMarks(mArr[lIdx]||'',rmLTot);
         if(rm.lMode==='instant'){
           if(isCur){
             const caught=[];
-            for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++){
+            for(let q=1;q<=Math.min(rmLTot,k3.length);q++){
               if(ML[q]==='ok'&&AL[q]!==k3[q-1])caught.push(q);
             }
             if(caught.length)chors.push({name:s.name,qs:caught});
           }
         }else{
-          for(let q=1;q<=Math.min(LISTEN_TOTAL,k3.length);q++)ML[q]=AL[q]===k3[q-1]?'ok':'bad';
-          newMarks[lIdx]=packArr(ML,LISTEN_TOTAL,'.');
+          for(let q=1;q<=Math.min(rmLTot,k3.length);q++)ML[q]=AL[q]===k3[q-1]?'ok':'bad';
+          newMarks[lIdx]=packArr(ML,rmLTot,'.');
         }
       }
       if(!rm.onlyListen)mList0.push(newMarks[0]||'');
@@ -3694,8 +3756,9 @@ $('lcPublishBtn').onclick=async()=>{
     });
   });
   let qPts=[],qStats=[];
+  const rLTot=roomListenTotal(r);
   if(r.onlyListen){
-    const wL=computePartWeights(mListL,LISTEN_TOTAL,r.oneTotal||60);
+    const wL=computePartWeights(mListL,rLTot,r.oneTotal||60);
     qPts=[wL.pts];qStats=[wL.stats];
   }else{
     const p1Tot=r.onePart?(r.oneTotal||100):60;
@@ -3706,7 +3769,7 @@ $('lcPublishBtn').onclick=async()=>{
       qPts.push(w1.pts);qStats.push(w1.stats);
     }
     if(hasL){
-      const wL=computePartWeights(mListL,LISTEN_TOTAL,60);
+      const wL=computePartWeights(mListL,rLTot,60);
       qPts.push(wL.pts);qStats.push(wL.stats);
     }
   }
@@ -3784,16 +3847,17 @@ function calcStuSummary(r,s){
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
   const p1Tot=onlyL?0:(one?(r.oneTotal||100):60);
   const lTot=onlyL?(r.oneTotal||60):60;
+  const lTotQ=roomListenTotal(r);
   const lIdx=onlyL?0:(one?1:2);
   const p1Res=onlyL?{ok:0,scaled:0}:scorePartFromMarks(mArr[0],r.p1q,qPts[0],p1Tot);
   const p2Res=(onlyL||one)?{ok:0,scaled:0}:scorePartFromMarks(mArr[1],r.p2q,qPts[1],60);
-  const p3Res=hasL?scorePartFromMarks(mArr[lIdx],LISTEN_TOTAL,qPts[lIdx],lTot):{ok:0,scaled:0};
+  const p3Res=hasL?scorePartFromMarks(mArr[lIdx],lTotQ,qPts[lIdx],lTot):{ok:0,scaled:0};
   const s1=p1Res.scaled,s2=p2Res.scaled,s3=p3Res.scaled;
   const maxTot=onlyL?lTot:(one?(p1Tot+(hasL?60:0)):(hasL?180:120));
   const passTot=r.passTotal||((onlyL||one)?Math.round(maxTot*0.48):(hasL?90:58));
   const rawTot=Math.round((s1+s2+s3)*10)/10;
   const allPts=qPts.flat().filter(v=>typeof v==='number'&&v>0);
-  const minQPt=allPts.length?Math.round(Math.min(...allPts)*10)/10:Math.round(((onlyL?lTot:p1Tot)/Math.max(1,r.p1q||LISTEN_TOTAL,r.p2q||1))*10)/10;
+  const minQPt=allPts.length?Math.round(Math.min(...allPts)*10)/10:Math.round(((onlyL?lTot:p1Tot)/Math.max(1,r.p1q||lTotQ,r.p2q||1))*10)/10;
   const markDed=+(s.deduct||0),ansDed=+(s.ansDeduct||0);
   const ansDedMarks=Math.round(ansDed*minQPt*10)/10;
   const ded=Math.round((markDed+ansDedMarks)*10)/10;
@@ -3804,7 +3868,7 @@ function calcStuSummary(r,s){
   const sn=r.examinerName||'Sensei';
   const statusLabel=senseiFailed?(numPass?`Pass by Number · Failed by ${sn}`:`Failed by ${sn}`):(pass?'PASS ✓':'FAIL ✕');
   const shortStatus=senseiFailed?(numPass?`Pass by # · Failed by ${sn}`:`Failed by ${sn}`):(pass?'PASS':'FAIL');
-  const totQ=(onlyL?0:r.p1q)+(onlyL||one?0:r.p2q)+(hasL?LISTEN_TOTAL:0);
+  const totQ=(onlyL?0:r.p1q)+(onlyL||one?0:r.p2q)+(hasL?lTotQ:0);
   const totOk=p1Res.ok+p2Res.ok+p3Res.ok;
   return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,s1,s2,s3,p1Tot,lTot,t1:onlyL?0:(uArr[0]||0),t2:(onlyL||one)?0:(uArr[1]||0),t3:hasL?(uArr[lIdx]||0):0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
 }
@@ -3855,16 +3919,16 @@ function renderLiveSummary(r,stus){
   if(!stus.length){$('lcSumBody').innerHTML='<div class="mu">কোনো data নেই।</div>';return}
   const rows=rankStudents(stus.map(([sid,s])=>({rmId:lcRoomId,sid,...calcStuSummary(r,s),dName:disp(s)})));
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
-  const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
+  const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL),lTotQ=roomListenTotal(r);
   const thCols=onlyL?`<th>Listening (Time)</th>`:(one?`<th>Part 1 (Time)</th>${hasL?'<th>Listening</th>':''}`:`<th>Part 1</th><th>Part 2</th>${hasL?'<th>Listening</th>':''}`);
   const renderRowsHtml=rowList=>rowList.map(x=>{
     const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
     const rDisp=x.rank?(x.medal?`${x.medal} ${x.rank}`:x.rank):'—';
     const tdCols=onlyL
-      ?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL} · ${fmt(x.t3)})</span></td>`
+      ?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${lTotQ} · ${fmt(x.t3)})</span></td>`
       :(one
-        ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`
-        :`<td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td><td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${LISTEN_TOTAL})</span></td>`:''}`);
+        ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`
+        :`<td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td><td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`);
     return `<tr>
       <td><b>${rDisp}</b></td>
       <td><b>${esc(x.dName)}</b></td>
@@ -3965,7 +4029,7 @@ function exportSummaryPng(r,rows,titleSuffix,fileSuffix){
     }else if(one){
       ctx.fillText(`${x.s1}/${x.p1Tot} (${fmt(x.t1)})`,cols[1],y+22);
       if(hasL){
-        ctx.fillText(`${x.s3}/60 (${x.p3}/${LISTEN_TOTAL})`,cols[2],y+22);
+        ctx.fillText(`${x.s3}/60 (${x.p3}/${roomListenTotal(r)})`,cols[2],y+22);
         ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
         ctx.fillText(totTxt,cols[3],y+22);
         ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
@@ -3980,7 +4044,7 @@ function exportSummaryPng(r,rows,titleSuffix,fileSuffix){
       ctx.fillText(`${x.s1}/60 (${fmt(x.t1)})`,cols[1],y+22);
       ctx.fillText(`${x.s2}/60 (${fmt(x.t2)})`,cols[2],y+22);
       if(hasL){
-        ctx.fillText(`${x.s3}/60 (${x.p3}/${LISTEN_TOTAL})`,cols[3],y+22);
+        ctx.fillText(`${x.s3}/60 (${x.p3}/${roomListenTotal(r)})`,cols[3],y+22);
         ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
         ctx.fillText(totTxt,cols[4],y+22);
         ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
