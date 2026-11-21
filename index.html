@@ -746,6 +746,26 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
   </div>
 
+  <div class="card hide" id="lcPageCtrlCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div>
+        <h3 style="margin:0">📄 Part 1 & Part 2 Page Control</h3>
+        <div class="mu" id="lcPageAvail" style="margin-top:2px;font-size:12px"></div>
+      </div>
+      <button type="button" class="btn" id="lcSavePagesBtn" style="width:auto;margin:0;padding:8px 14px">Save Pages</button>
+    </div>
+    <div id="lcP1PageRow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <span style="min-width:155px;font-size:13px;font-weight:700">Part 1 <span class="mu" id="lcP1Cur" style="font-weight:400"></span></span>
+      <input id="lcP1Pages" placeholder="e.g. 1-5" style="flex:1;min-width:120px;padding:7px 10px;font-size:13px">
+      <button type="button" class="btn sec" id="lcP1PovBtn" style="width:auto;margin:0;padding:8px 12px">👁 Student POV</button>
+    </div>
+    <div id="lcP2PageRow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <span style="min-width:155px;font-size:13px;font-weight:700">Part 2 <span class="mu" id="lcP2Cur" style="font-weight:400"></span></span>
+      <input id="lcP2Pages" placeholder="e.g. 6-12" style="flex:1;min-width:120px;padding:7px 10px;font-size:13px">
+      <button type="button" class="btn sec" id="lcP2PovBtn" style="width:auto;margin:0;padding:8px 12px">👁 Student POV</button>
+    </div>
+  </div>
+
   <div class="card hide" id="lcListenCard">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <div>
@@ -884,6 +904,17 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div class="card hide" id="lcQStatsCard">
     <h3>Question-by-Question Marks & Error % (কঠিন প্রশ্নে বেশি নম্বর)</h3>
     <div id="lcQStatsBody" style="overflow:auto;margin-top:6px"></div>
+  </div>
+</div>
+
+<div id="lcPovModal" class="modal hide">
+  <div class="modal-card" style="max-width:720px;width:95vw;max-height:88vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+      <h3 id="lcPovTitle" style="margin:0">Student POV</h3>
+      <button type="button" class="btn sec" id="lcPovCloseBtn" style="width:auto;margin:0;padding:6px 12px">✕ Close</button>
+    </div>
+    <div id="lcPovSub" class="mu" style="margin-bottom:8px;font-size:12px"></div>
+    <div id="lcPovBody" style="flex:1;min-height:0;overflow:auto;background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:8px"></div>
   </div>
 </div>
 
@@ -2955,6 +2986,29 @@ async function checkHashLive(){
           }
         }
       }
+      if(!r.onlyListen){
+        const syncPartPages=(idx,newRange,lbl)=>{
+          const P=cfg.parts[idx];
+          if(!P||P.listen||(P.pageRange||'')===(newRange||''))return;
+          P.pageRange=newRange||'';
+          P.pages=r.pdfPages&&newRange?parsePages(newRange,999):[];
+          if(!$('exam').classList.contains('hide')&&part===idx){
+            if(cfg.driveId){
+              const hint=$('driveWrap').querySelector('.drv-hint');
+              if(hint){
+                if(P.pageRange){hint.textContent=`${P.label}: শুধুমাত্র Pages ${P.pageRange} দেখো`;hint.classList.remove('hide')}
+                else hint.classList.add('hide');
+              }
+            }else{
+              partPages=P.pages;
+              renderPages(partPages);
+            }
+            toast(`Sensei ${lbl}-এর Pages পরিবর্তন করেছেন!`);
+          }
+        };
+        syncPartPages(0,r.p1pages,'Part 1');
+        if(!r.onePart)syncPartPages(1,r.p2pages,'Part 2');
+      }
     }
     const newLMode=r.lMode||'later';
     if($('listenMode').value!==newLMode){
@@ -3588,6 +3642,8 @@ async function refreshBatchRooms(r,rid){
 function openLiveControl(rid){
   lcRoomId=rid;lcBatchRooms=[];
   $('lcKey1').value='';$('lcKey2').value='';$('lcKey3').value='';
+  $('lcP1Pages').value='';$('lcP2Pages').value='';
+  let lcPagesInit=false;
   if(curAdmin)savePortalSess({role:'admin',lcRoomId:rid});
   else if(curExaminer)savePortalSess({role:'examiner',examiner:curExaminer,lcRoomId:rid});
   hideAllViews();$('liveControl').classList.remove('hide');
@@ -3613,6 +3669,24 @@ function openLiveControl(rid){
     $('lcEndBtn').disabled=r.status==='ended';
     $('lcLinkLockBtn').textContent=r.linkLocked?'Unlock Link':'Lock Link';
     $('lcLinkLockBtn').style.color=r.linkLocked?'var(--ok)':'var(--bad)';
+    const showPageCtrl=!r.onlyListen&&(r.driveId||r.pdfPages);
+    $('lcPageCtrlCard').classList.toggle('hide',!showPageCtrl);
+    if(showPageCtrl){
+      $('lcP2PageRow').classList.toggle('hide',!!r.onePart);
+      $('lcP1Cur').textContent=r.p1pages?`(বর্তমান: ${r.p1pages})`:'(নেই)';
+      $('lcP2Cur').textContent=r.p2pages?`(বর্তমান: ${r.p2pages})`:'(নেই)';
+      if(!lcPagesInit){
+        $('lcP1Pages').value=r.p1pages||'';
+        $('lcP2Pages').value=r.p2pages||'';
+        lcPagesInit=true;
+      }
+      if(r.pdfPages){
+        const ks=Object.keys(r.pdfPages).map(Number).sort((a,b)=>a-b);
+        $('lcPageAvail').textContent=`Uploaded PDF Pages: ${ks.join(', ')}`+(exPdf?` · Local PDF: 1–${exPdf.numPages}`:'');
+      }else{
+        $('lcPageAvail').textContent='Google Drive Mode — যেকোনো page range দিতে পারো';
+      }
+    }
     const listenOn=!!(r.hasListen||r.onlyListen);
     $('lcListenCard').classList.remove('hide');
     $('lcListenControlsWrap').classList.toggle('hide',!listenOn);
@@ -3941,6 +4015,73 @@ $('lcNoticeBtn').onclick=async()=>{
   await db().ref('rooms/'+lcRoomId+'/notice').set({msg,ts:Date.now()});
   $('lcNoticeIn').value='';
   toast('Notice সবার কাছে পাঠানো হয়েছে!');
+};
+function openStuPovModal(partNum){
+  if(!lcRoomData)return;
+  const r=lcRoomData;
+  const raw=(partNum===1?$('lcP1Pages').value:$('lcP2Pages').value).trim()||(partNum===1?r.p1pages:r.p2pages)||'';
+  const lbl=partNum===1?(r.onePart?'Exam':'Part 1'):'Part 2';
+  $('lcPovTitle').textContent=`👁 Student POV — ${lbl}`;
+  $('lcPovSub').textContent=raw?`Student-রা যে Pages দেখবে: ${raw}`:'কোনো page range দেওয়া হয়নি।';
+  const body=$('lcPovBody');
+  if(!raw){body.innerHTML='<div class="mu" style="padding:12px">Page range লিখো।</div>';$('lcPovModal').classList.remove('hide');return}
+  if(r.pdfPages){
+    const list=parsePages(raw,999);
+    if(!list.length){body.innerHTML='<div class="mu" style="padding:12px;color:var(--bad)">সঠিক page range লিখো (যেমন: 1-5)।</div>';$('lcPovModal').classList.remove('hide');return}
+    body.innerHTML=list.map(n=>{
+      const src=r.pdfPages[n];
+      if(src)return `<div style="margin-bottom:10px"><div class="mu" style="font-size:11px;font-weight:700;margin-bottom:3px">Page ${n}</div><img src="${src}" style="width:100%;display:block;border-radius:6px;border:1px solid var(--bd)"></div>`;
+      return `<div style="padding:12px;margin-bottom:8px;border:1px dashed var(--bad);border-radius:8px;color:var(--bad);font-size:13px">⚠️ Page ${n} এখনো Firebase-এ upload করা নেই${exPdf&&n<=exPdf.numPages?' (Save Pages চাপলে upload হবে)':' (শুধু uploaded pages দেখানো যাবে)'}।</div>`;
+    }).join('');
+  }else if(r.driveId){
+    body.innerHTML=`<div style="padding:8px 10px;background:var(--ac-soft);color:var(--ac);font-size:12px;font-weight:700;border-radius:8px;margin-bottom:8px">${esc(lbl)}: শুধুমাত্র Pages ${esc(raw)} দেখো</div><iframe src="https://drive.google.com/file/d/${esc(r.driveId)}/preview" style="width:100%;height:60vh;border:0;border-radius:8px;background:#fff"></iframe>`;
+  }else{
+    body.innerHTML='<div class="mu" style="padding:12px">কোনো PDF বা Drive link নেই।</div>';
+  }
+  $('lcPovModal').classList.remove('hide');
+}
+$('lcP1PovBtn').onclick=()=>openStuPovModal(1);
+$('lcP2PovBtn').onclick=()=>openStuPovModal(2);
+$('lcPovCloseBtn').onclick=()=>{$('lcPovModal').classList.add('hide');$('lcPovBody').innerHTML=''};
+$('lcSavePagesBtn').onclick=async()=>{
+  if(!lcRoomId||!lcRoomData)return;
+  const r=lcRoomData;
+  const p1raw=$('lcP1Pages').value.trim();
+  const p2raw=r.onePart?'':$('lcP2Pages').value.trim();
+  const maxP=exPdf?exPdf.numPages:999;
+  const p1list=parsePages(p1raw,maxP);
+  const p2list=r.onePart?[]:parsePages(p2raw,maxP);
+  if(!p1list.length||(!r.onePart&&!p2list.length)){toast('সঠিক page range দাও (যেমন: 1-5)।');return}
+  const upd={p1pages:p1raw};
+  if(!r.onePart)upd.p2pages=p2raw;
+  if(r.pdfPages){
+    const merged={...r.pdfPages};
+    const need=[...new Set([...p1list,...p2list])].filter(n=>!merged[n]);
+    if(need.length){
+      if(exPdf&&need.every(n=>n<=exPdf.numPages)){
+        const btn=$('lcSavePagesBtn');btn.disabled=true;btn.textContent='Uploading…';
+        try{
+          for(const n of need){
+            const pg=await exPdf.getPage(n),v=pg.getViewport({scale:1.45});
+            const c=document.createElement('canvas');c.width=Math.round(v.width);c.height=Math.round(v.height);
+            await pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;
+            merged[n]=c.toDataURL('image/jpeg',0.72);
+          }
+          upd.pdfPages=merged;
+        }catch(e){
+          toast('PDF page upload ব্যর্থ হয়েছে!');
+          btn.disabled=false;btn.textContent='Save Pages';return;
+        }
+        btn.disabled=false;btn.textContent='Save Pages';
+      }else{
+        const avail=Object.keys(r.pdfPages).map(Number).sort((a,b)=>a-b).join(', ');
+        toast(`Page ${need.join(', ')} upload করা নেই! Available: ${avail}`);
+        return;
+      }
+    }
+  }
+  await db().ref('rooms/'+lcRoomId).update(upd);
+  toast('Pages আপডেট হয়েছে — Student-দের প্যানেলেও আপডেট হয়ে যাবে!');
 };
 function computePartWeights(stuMarkStrs,qCount,partTotal){
   const targetTot=partTotal||60;
