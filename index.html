@@ -576,6 +576,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
     <button type="button" class="btn sec" id="exLogoutBtn">Logout</button>
   </div>
+  <div id="exLiveBanner" class="hide"></div>
   <div class="card">
     <h3>Create New Live Exam</h3>
     <label>Exam Name</label>
@@ -739,7 +740,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <h3>Live Students (<span id="lcStuCount">0</span>)</h3>
     <div style="overflow:auto">
       <table class="tbl" id="lcStuTable">
-        <thead><tr><th>Name</th><th>Status</th><th>Q#</th><th>Time</th></tr></thead>
+        <thead><tr><th>Name</th><th>Status</th><th>Q#</th><th>Elapsed</th></tr></thead>
         <tbody id="lcStuBody"></tbody>
       </table>
     </div>
@@ -2668,13 +2669,6 @@ function startLiveStudent(room){
 }
 function isProtectedPart(){return !!(liveRoomId&&!$('exam').classList.contains('hide')&&cfg?.parts?.[part]&&!cfg.parts[part].listen)}
 ['contextmenu','copy','cut','dragstart'].forEach(ev=>document.addEventListener(ev,e=>{if(isProtectedPart())e.preventDefault()}));
-function triggerAutoLock(reason){
-  if(!liveRoomId||!liveStuId||examinerLocked)return;
-  examinerLocked=true;
-  db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update({locked:true,lockReason:reason});
-  db().ref(`rooms/${liveRoomId}/alerts`).push({type:'lock',stuName:cfg?.name||'Student',reason,ts:Date.now()});
-  setPaused(true,true);
-}
 let lastSsAt=0;
 function handlePrintScreenAttempt(){
   if(Date.now()-lastSsAt<1500)return;
@@ -2685,7 +2679,6 @@ function handlePrintScreenAttempt(){
     if(ok&&snap){
       const cnt=snap.val();
       db().ref(`rooms/${liveRoomId}/alerts`).push({type:'ss',stuName:cfg?.name||'Student',count:cnt,ts:Date.now()});
-      if(cnt>=3)triggerAutoLock('3x Screenshot Attempt');
     }
   });
 }
@@ -2714,11 +2707,15 @@ function recordTabSwitch(){
   if(Date.now()-lastTabSwitchAt<1500)return;
   lastTabSwitchAt=Date.now();
   db().ref(`rooms/${liveRoomId}/students/${liveStuId}/tabSwitches`).transaction(v=>(v||0)+1,(err,ok,snap)=>{
-    if(ok&&snap&&snap.val()>=3)triggerAutoLock('3x Tab Switch');
+    if(ok&&snap){
+      const cnt=snap.val();
+      if(cnt>0&&cnt%3===0){
+        db().ref(`rooms/${liveRoomId}/alerts`).push({type:'tab',stuName:cfg?.name||'Student',count:cnt,ts:Date.now()});
+      }
+    }
   });
 }
 document.addEventListener('visibilitychange',()=>{if(document.hidden)recordTabSwitch()});
-window.addEventListener('blur',()=>recordTabSwitch());
 function resumeLiveStudentFromRecord(r,me,stuId){
   liveStuId=stuId;
   const parts=buildLiveParts(r);
@@ -3022,6 +3019,54 @@ async function checkHashLive(){
     }
   });
 }
+async function checkHashLiveReport(){
+  if(!location.hash.startsWith('#report='))return;
+  const raw=location.hash.slice(8).trim();
+  const sep=raw.indexOf(':');
+  if(sep<=0)return;
+  const rid=decodeURIComponent(raw.slice(0,sep));
+  const sid=decodeURIComponent(raw.slice(sep+1));
+  if(!rid||!sid)return;
+  hideAllViews();
+  $('liveWaitView').classList.remove('hide');
+  $('lwTitle').textContent='Report Card';
+  $('lwSub').textContent='Report Card লোড হচ্ছে…';
+  $('lwJoinBox').classList.add('hide');
+  $('lwSpinBox').classList.add('hide');
+  try{
+    const snap=await db().ref('rooms/'+rid).once('value');
+    const r=snap.val();
+    if(!r||!r.students||!r.students[sid]){
+      $('lwTitle').textContent='Report Card পাওয়া যায়নি';
+      $('lwSub').textContent='এই লিংকটি সঠিক নয় অথবা Exam delete করা হয়েছে।';
+      return;
+    }
+    if(!r.published){
+      $('lwTitle').textContent=r.examName||'Report Card';
+      $('lwSub').textContent='এই Exam-এর Result এখনো Publish হয়নি।';
+      return;
+    }
+    const refTs=r.publishedAt||r.createdAt||0;
+    if(refTs&&(Date.now()-refTs>BATCH_TTL_MS)){
+      $('lwTitle').textContent='Link মেয়াদোত্তীর্ণ';
+      $('lwSub').textContent='⏰ এই Report Card Link-টির মেয়াদ (২৪ ঘণ্টা) শেষ হয়ে গেছে।';
+      return;
+    }
+    liveRoomId=rid;liveStuId=sid;liveRoom=r;
+    const s=r.students[sid];
+    liveDeduct=+(s.deduct||0);
+    repTime=r.dateStr||'';
+    const parts=buildLiveParts(r);
+    cfg={name:s.name||'Student',driveId:r.driveId||'',examName:r.examName||'',ytId:'',style:$('style').value,parts};
+    ans=parts.map((pt,i)=>unpackAns((s.ans&&s.ans[i])||'',pt.q));
+    marks=parts.map((pt,i)=>unpackMarks((s.marks&&s.marks[i])||'',pt.q));
+    used=Array.isArray(s.used)?s.used.slice():parts.map(()=>0);
+    await loadPublishedLiveReport();
+  }catch(e){
+    $('lwTitle').textContent='লোড করা যায়নি';
+    $('lwSub').textContent='নেটওয়ার্ক সমস্যা হয়েছে, আবার চেষ্টা করো।';
+  }
+}
 $('lwHomeBtn').onclick=()=>goHome();
 
 /* Portal Auth (Examiner & Admin) */
@@ -3264,6 +3309,46 @@ async function loadExaminerHistory(){
     }
   });
   renderExaminerRanking(rms);
+  const liveRooms=Object.entries(rms).filter(([,r])=>r.status!=='ended').sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  const bannerEl=$('exLiveBanner');
+  if(liveRooms.length){
+    bannerEl.classList.remove('hide');
+    bannerEl.innerHTML=liveRooms.map(([rid,r])=>{
+      const stus=r.students?Object.values(r.students):[];
+      const activeCnt=stus.filter(s=>s&&s.status!=='finished').length;
+      return `<div class="card" style="border-color:var(--ok);background:var(--ac-soft)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:700;font-size:15px">🟢 Live Exam চলছে: ${esc(r.examName||'Live Exam')} <span class="pill live">LIVE</span></div>
+            <div class="mu" style="margin-top:3px">${esc(r.dateStr||'')} · Total Joined: ${stus.length} · Active Now: <b>${activeCnt}</b></div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn ex-live-cont" data-id="${esc(rid)}" style="width:auto;margin:0;padding:9px 14px">Continue to Control</button>
+            <button type="button" class="btn sec ex-live-end" data-id="${esc(rid)}" style="width:auto;margin:0;padding:9px 14px;color:var(--bad);border-color:var(--bad)">End Exam</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    bannerEl.querySelectorAll('.ex-live-cont').forEach(b=>b.onclick=()=>{
+      lcReturnView='examinerDash';
+      openLiveControl(b.dataset.id);
+    });
+    bannerEl.querySelectorAll('.ex-live-end').forEach(b=>b.onclick=async()=>{
+      const rid=b.dataset.id,r=rms[rid];
+      if(!r)return;
+      const activeCnt=r.students?Object.values(r.students).filter(s=>s&&s.status!=='finished').length:0;
+      const msg=activeCnt>0
+        ?`⚠️ সতর্কতা: এই Live Exam-এ এখন ${activeCnt} জন student পরীক্ষা দিচ্ছে!\n\nEnd Exam দিলে সবার পরীক্ষা এখনই বন্ধ (auto-submit) হয়ে যাবে এবং PDF pages delete হয়ে যাবে।\n\nনিশ্চিতভাবে "${r.examName||'Live Exam'}" শেষ করবে?`
+        :`⚠️ "${r.examName||'Live Exam'}" বন্ধ করে দেবে?\n\nPDF pages Firebase থেকে delete হয়ে যাবে, result থাকবে।`;
+      if(!confirm(msg))return;
+      await db().ref('rooms/'+rid).update({status:'ended',pdfPages:null});
+      toast('Exam বন্ধ করা হয়েছে!');
+      loadExaminerHistory();
+    });
+  }else{
+    bannerEl.classList.add('hide');
+    bannerEl.innerHTML='';
+  }
   const flt=$('exHistFilter')?$('exHistFilter').value:'all';
   const list=Object.entries(rms).filter(([,r])=>{
     if(flt==='live')return r.status!=='ended';
@@ -3502,6 +3587,7 @@ async function refreshBatchRooms(r,rid){
 }
 function openLiveControl(rid){
   lcRoomId=rid;lcBatchRooms=[];
+  $('lcKey1').value='';$('lcKey2').value='';$('lcKey3').value='';
   if(curAdmin)savePortalSess({role:'admin',lcRoomId:rid});
   else if(curExaminer)savePortalSess({role:'examiner',examiner:curExaminer,lcRoomId:rid});
   hideAllViews();$('liveControl').classList.remove('hide');
@@ -3623,11 +3709,14 @@ function openLiveControl(rid){
       const stTxt=s.kicked?'🚫 Kicked':s.locked?('🔒 Locked'+(s.lockReason?' ('+s.lockReason+')':'')):s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
       const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0),wrn=+(s.warnCount||0);
+      const pIdx=s.part||0;
+      const partMin=r.onlyListen?(r.lm||30):(r.onePart?(pIdx===0?(r.p1m||20):(r.lm||30)):(pIdx===0?(r.p1m||20):(pIdx===1?(r.p2m||40):(r.lm||30))));
+      const elapsedSec=Math.max(0,(partMin*60)-(s.rem||0));
       return `<tr class="stu-main">
         <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
-        <td>${(s.status==='finished'||s.kicked)?'—':fmt(s.rem||0)}</td>
+        <td>${(s.status==='finished'||s.kicked)?'—':fmt(elapsedSec)}</td>
       </tr>
       <tr class="stu-act"><td colspan="4"><div class="stu-acts">
           <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="-60" style="padding:4px 8px;font-size:11px">−1m</button>
@@ -3650,15 +3739,17 @@ function openLiveControl(rid){
       lastLcAlertTs=newestAlert.ts;
       const msg=newestAlert.type==='lock'?`🔒 ${newestAlert.stuName} Auto-Locked (${newestAlert.reason})`
         :(newestAlert.type==='ss'?`📸 ${newestAlert.stuName} Screenshot চেষ্টা করেছে (${newestAlert.count||1}x)`
-        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`);
+        :(newestAlert.type==='tab'?`⚠ ${newestAlert.stuName} ${newestAlert.count||3}x Page/Tab পরিবর্তন করেছে`
+        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`));
       toast(msg);
-      playBeep((newestAlert.type==='lock'||newestAlert.type==='ss')?2:1);
+      playBeep((newestAlert.type==='lock'||newestAlert.type==='ss'||newestAlert.type==='tab')?2:1);
     }
     $('lcNotifBody').innerHTML=alertList.length?alertList.slice(0,20).map(a=>{
       const tStr=a.ts?new Date(a.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
       const txt=a.type==='lock'?`🔒 <b>${esc(a.stuName)}</b>-এর Exam Auto-Lock হয়েছে (${esc(a.reason||'')})`
         :(a.type==='ss'?`📸 <b>${esc(a.stuName)}</b> Screenshot নেওয়ার চেষ্টা করেছে (${a.count||1}x)`
-        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`);
+        :(a.type==='tab'?`⚠ <b>${esc(a.stuName)}</b> ${a.count||3}x Page/Tab পরিবর্তন করেছে`
+        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`));
       return `<div style="padding:5px 0;border-bottom:1px dashed var(--bd);display:flex;justify-content:space-between;gap:8px"><span>${txt}</span><span class="mu" style="font-size:11px;white-space:nowrap">${tStr}</span></div>`;
     }).join(''):'<div class="mu">কোনো notification নেই।</div>';
     $('lcClearNotifsBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/alerts').remove()};
@@ -4211,10 +4302,13 @@ async function setRoomsPublishState(pub,rType,pubRank){
     if(lcBatchRooms.length)targetRooms=lcBatchRooms;
   }
   const upd={};
-  targetRooms.forEach(([rmId])=>{
+  targetRooms.forEach(([rmId,rm])=>{
     upd[`rooms/${rmId}/resultType`]=rType;
     upd[`rooms/${rmId}/publicRanking`]=pubRank;
-    if(pub)upd[`rooms/${rmId}/published`]=true;
+    if(pub){
+      upd[`rooms/${rmId}/published`]=true;
+      if(!rm.publishedAt)upd[`rooms/${rmId}/publishedAt`]=Date.now();
+    }
   });
   await db().ref().update(upd);
 }
@@ -4338,6 +4432,7 @@ function renderLiveSummary(r,stus){
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL),lTotQ=roomListenTotal(r);
   const thCols=onlyL?`<th>Listening (Time)</th>`:(one?`<th>Part 1 (Time)</th>${hasL?'<th>Listening</th>':''}`:`<th>Part 1</th><th>Part 2</th>${hasL?'<th>Listening</th>':''}`);
+  const canShareLink=!!(r.published&&(Date.now()-(r.publishedAt||r.createdAt||0)<=BATCH_TTL_MS));
   const renderRowsHtml=rowList=>rowList.map(x=>{
     const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
     const rDisp=x.rank?(x.medal?`${x.medal} ${x.rank}`:x.rank):'—';
@@ -4346,13 +4441,14 @@ function renderLiveSummary(r,stus){
       :(one
         ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`
         :`<td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td><td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`);
+    const linkBtn=canShareLink?` <button type="button" class="btn sec lc-rep-link" data-rm="${esc(x.rmId)}" data-s="${esc(x.sid)}" data-n="${esc(x.dName)}" style="padding:4px 8px;font-size:11px;color:var(--ac)" title="24 ঘণ্টার মধ্যে Student-কে তার Report Card Link দাও">🔗 Link</button>`:'';
     return `<tr>
       <td><b>${rDisp}</b></td>
       <td><b>${esc(x.dName)}</b></td>
       ${tdCols}
       <td>${totStr}</td>
       <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
-      <td>${x.rmId===lcRoomId?`<button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button>`:`<span class="mu">B${x.bNum||1}</span>`}</td>
+      <td>${x.rmId===lcRoomId?`<button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button>`:`<span class="mu">B${x.bNum||1}</span>`}${linkBtn}</td>
     </tr>`;
   }).join('');
   let combHtml='';
@@ -4388,6 +4484,14 @@ function renderLiveSummary(r,stus){
   </table>`+combHtml;
   $('lcSumBody').querySelectorAll('.lc-fail-him').forEach(b=>b.onclick=()=>{
     db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/senseiFailed`).set(b.dataset.f!=='1');
+  });
+  $('lcSumBody').querySelectorAll('.lc-rep-link').forEach(b=>b.onclick=()=>{
+    const url=location.origin+location.pathname+'#report='+encodeURIComponent(b.dataset.rm)+':'+encodeURIComponent(b.dataset.s);
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(()=>toast(`${b.dataset.n}-এর Report Card Link কপি হয়েছে! (24 ঘণ্টা valid)`)).catch(()=>prompt('Report Card Link (24h valid):',url));
+    }else{
+      prompt('Report Card Link (24h valid):',url);
+    }
   });
   if($('lcCombPngBtn')){
     $('lcCombPngBtn').onclick=()=>{
@@ -4497,14 +4601,15 @@ $('lcSumPngBtn').onclick=()=>{
       renderHistory();checkHashReview();
     }else if(location.hash.startsWith('#live=')){
       checkHashLive();
+    }else if(location.hash.startsWith('#report=')){
+      checkHashLiveReport();
     }else if(pSess&&pSess.role==='admin'){
       curAdmin=true;
       if(pSess.lcRoomId){lcReturnView='adminDash';openLiveControl(pSess.lcRoomId)}
       else openAdminDash();
     }else if(pSess&&pSess.role==='examiner'&&pSess.examiner){
       curExaminer=pSess.examiner;
-      if(pSess.lcRoomId){lcReturnView='examinerDash';openLiveControl(pSess.lcRoomId)}
-      else openExaminerDash();
+      openExaminerDash();
     }else if(curStudent){
       enterNormalMode();
     }else{
@@ -4514,7 +4619,7 @@ $('lcSumPngBtn').onclick=()=>{
     clearPortalSess();
     showGate();
   }
-  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive()});
+  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive();checkHashLiveReport()});
 })();
 </script>
 </body>
