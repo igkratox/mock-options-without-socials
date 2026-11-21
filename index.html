@@ -782,9 +782,14 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <input id="lcKey3" placeholder="Answer Later হলে mandatory; Instant হলে দিলে Chor ধরবে">
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
-      <label style="margin:0;font-size:13px">Minimum Total Passing Score:</label>
-      <input id="lcPassTotal" type="number" min="1" style="width:90px;padding:6px 8px;font-size:13px">
-      <button type="button" class="btn sec" id="lcSavePassBtn" style="width:auto;margin:0;padding:7px 12px;font-size:12px">Update Pass Mark</button>
+      <label style="margin:0;font-size:13px">Grading:</label>
+      <select id="lcGradeMode" style="width:auto;padding:6px 10px;font-size:13px">
+        <option value="irt" selected>IRT (JLPT Style)</option>
+        <option value="weighted">Weighted (Old)</option>
+      </select>
+      <label style="margin:0;font-size:13px;margin-left:4px">Min Total Pass:</label>
+      <input id="lcPassTotal" type="number" min="1" style="width:82px;padding:6px 8px;font-size:13px">
+      <button type="button" class="btn sec" id="lcSavePassBtn" style="width:auto;margin:0;padding:7px 12px;font-size:12px">Update</button>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
       <button type="button" class="btn sec" id="lcSaveKeyBtn" style="flex:1;min-width:140px">Save Answer Key</button>
@@ -3413,6 +3418,7 @@ function openLiveControl(rid){
     }
     const defPass=(r.onlyListen||r.onePart)?Math.round((r.onlyListen?(r.oneTotal||60):((r.oneTotal||100)+(r.hasListen?60:0)))*0.48):(r.hasListen?80:58);
     if(document.activeElement!==$('lcPassTotal'))$('lcPassTotal').value=r.passTotal||defPass;
+    $('lcGradeMode').value=r.gradeMode||'irt';
     if(listenOn){
       const mds=roomMondai(r);
       $('lcMondaiCtrls').innerHTML=mds.map((md,idx)=>`<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 6px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);font-size:12px">
@@ -3704,6 +3710,87 @@ function computePartWeights(stuMarkStrs,qCount,partTotal){
   stats.forEach((st,i)=>st.pts=pts[i]);
   return{pts,stats};
 }
+function computePartIRT(stuMarkStrs,qCount,partTotal){
+  const targetTot=partTotal||60,S=stuMarkStrs.length;
+  if(!S||!qCount)return{scores:Array(S).fill(0)};
+  const okQ=Array(qCount).fill(0),rawS=Array(S).fill(0);
+  for(let s=0;s<S;s++){
+    const ms=stuMarkStrs[s]||'';
+    for(let q=0;q<qCount;q++)if(ms[q]==='o'){okQ[q]++;rawS[s]++}
+  }
+  const b=okQ.map(ok=>{
+    const p=(ok+0.5)/(S+1);
+    return Math.max(-4,Math.min(4,-Math.log(p/(1-p))));
+  });
+  const meanB=b.reduce((a,x)=>a+x,0)/qCount;
+  for(let q=0;q<qCount;q++)b[q]-=meanB;
+  const theta=Array(S).fill(0);
+  const solveThetas=()=>{
+    for(let s=0;s<S;s++){
+      const r=rawS[s];
+      if(r<=0){theta[s]=-10;continue}
+      if(r>=qCount){theta[s]=10;continue}
+      let th=Math.log(r/(qCount-r));
+      for(let it=0;it<12;it++){
+        let sumP=0,info=0;
+        for(let q=0;q<qCount;q++){
+          const p=1/(1+Math.exp(-(th-b[q])));
+          sumP+=p;info+=p*(1-p);
+        }
+        const step=(r-sumP)/Math.max(info,0.01);
+        th=Math.max(-5,Math.min(5,th+step));
+        if(Math.abs(step)<1e-4)break;
+      }
+      theta[s]=th;
+    }
+  };
+  solveThetas();
+  if(S>=3){
+    for(let pass=0;pass<5;pass++){
+      for(let q=0;q<qCount;q++){
+        let bj=b[q];
+        for(let it=0;it<3;it++){
+          let sumP=0,info=0;
+          for(let s=0;s<S;s++){
+            if(rawS[s]<=0||rawS[s]>=qCount)continue;
+            const p=1/(1+Math.exp(-(theta[s]-bj)));
+            sumP+=p;info+=p*(1-p);
+          }
+          const targetOk=okQ[q];
+          let nonExtOk=0;
+          for(let s=0;s<S;s++)if(rawS[s]>0&&rawS[s]<qCount&&(stuMarkStrs[s]||'')[q]==='o')nonExtOk++;
+          if(info<0.05)break;
+          const step=(sumP-nonExtOk-0.1*bj)/Math.max(info+0.1,0.05);
+          bj=Math.max(-4,Math.min(4,bj+step));
+        }
+        b[q]=bj;
+      }
+      const mb=b.reduce((a,x)=>a+x,0)/qCount;
+      for(let q=0;q<qCount;q++)b[q]-=mb;
+      solveThetas();
+    }
+  }
+  const scores=rawS.map((r,s)=>{
+    if(r<=0)return 0;
+    if(r>=qCount)return targetTot;
+    const pMean=1/(1+Math.exp(-theta[s]));
+    return Math.round(pMean*targetTot*10)/10;
+  });
+  return{scores};
+}
+$('lcGradeMode').onchange=async()=>{
+  if(!lcRoomId||!lcRoomData)return;
+  const gm=$('lcGradeMode').value==='weighted'?'weighted':'irt';
+  const upd={};
+  let targetRooms=[[lcRoomId,lcRoomData]];
+  if(!lcRoomData.onlyListen&&lcRoomData.examinerId){
+    await refreshBatchRooms(lcRoomData,lcRoomId);
+    if(lcBatchRooms.length)targetRooms=lcBatchRooms;
+  }
+  targetRooms.forEach(([rmId])=>{upd[`rooms/${rmId}/gradeMode`]=gm});
+  await db().ref().update(upd);
+  toast('Grading System: '+(gm==='irt'?'IRT (JLPT Style)':'Weighted (Old)'));
+};
 $('lcSavePassBtn').onclick=async()=>{
   if(!lcRoomId||!lcRoomData)return;
   const val=Math.max(1,+$('lcPassTotal').value||80);
@@ -3730,7 +3817,7 @@ $('lcPublishBtn').onclick=async()=>{
   if(hasL&&r.lMode==='later'&&!k3.length){toast('Answer Later mode-এ Listening-এর Answer Key দাও।');return}
   const keysObj={k1:$('lcKey1').value.trim(),k2:$('lcKey2').value.trim(),k3:$('lcKey3').value.trim()};
   const upd={};
-  const chors=[],mList0=[],mList1=[],mListL=[];
+  const chors=[],mList0=[],mList1=[],mListL=[],stuRefs=[];
   const lIdx=r.onlyListen?0:(r.onePart?1:2);
   let targetRooms=[[lcRoomId,r]];
   if(!r.onlyListen&&r.examinerId){
@@ -3773,31 +3860,41 @@ $('lcPublishBtn').onclick=async()=>{
       if(!rm.onlyListen)mList0.push(newMarks[0]||'');
       if(!rm.onlyListen&&!rm.onePart)mList1.push(newMarks[1]||'');
       if(hasL)mListL.push(newMarks[lIdx]||'');
+      stuRefs.push([rmId,sid]);
       upd[`rooms/${rmId}/students/${sid}/marks`]=newMarks;
     });
   });
-  let qPts=[],qStats=[];
+  let qPts=[],qStats=[],irtCols=[];
   const rLTot=roomListenTotal(r);
   if(r.onlyListen){
     const wL=computePartWeights(mListL,rLTot,r.oneTotal||60);
     qPts=[wL.pts];qStats=[wL.stats];
+    irtCols=[computePartIRT(mListL,rLTot,r.oneTotal||60).scores];
   }else{
     const p1Tot=r.onePart?(r.oneTotal||100):60;
     const w0=computePartWeights(mList0,r.p1q,p1Tot);
     qPts=[w0.pts];qStats=[w0.stats];
+    irtCols=[computePartIRT(mList0,r.p1q,p1Tot).scores];
     if(!r.onePart){
       const w1=computePartWeights(mList1,r.p2q,60);
       qPts.push(w1.pts);qStats.push(w1.stats);
+      irtCols.push(computePartIRT(mList1,r.p2q,60).scores);
     }
     if(hasL){
       const wL=computePartWeights(mListL,rLTot,60);
       qPts.push(wL.pts);qStats.push(wL.stats);
+      irtCols.push(computePartIRT(mListL,rLTot,60).scores);
     }
   }
+  stuRefs.forEach(([rmId,sid],idx)=>{
+    upd[`rooms/${rmId}/students/${sid}/irtScores`]=irtCols.map(col=>col[idx]||0);
+  });
+  const curGradeMode=$('lcGradeMode').value==='weighted'?'weighted':'irt';
   targetRooms.forEach(([rmId])=>{
     upd[`rooms/${rmId}/keys`]=keysObj;
     upd[`rooms/${rmId}/qPts`]=qPts;
     upd[`rooms/${rmId}/qStats`]=qStats;
+    upd[`rooms/${rmId}/gradeMode`]=curGradeMode;
     upd[`rooms/${rmId}/graded`]=true;
     if(!r.onlyListen)upd[`rooms/${rmId}/batchGroupId`]=gid;
   });
@@ -3873,7 +3970,10 @@ function calcStuSummary(r,s){
   const p1Res=onlyL?{ok:0,scaled:0}:scorePartFromMarks(mArr[0],r.p1q,qPts[0],p1Tot);
   const p2Res=(onlyL||one)?{ok:0,scaled:0}:scorePartFromMarks(mArr[1],r.p2q,qPts[1],60);
   const p3Res=hasL?scorePartFromMarks(mArr[lIdx],lTotQ,qPts[lIdx],lTot):{ok:0,scaled:0};
-  const s1=p1Res.scaled,s2=p2Res.scaled,s3=p3Res.scaled;
+  const useIrt=(r.gradeMode||'irt')==='irt'&&Array.isArray(s.irtScores);
+  const s1=onlyL?0:(useIrt?(+(s.irtScores[0]||0)):p1Res.scaled);
+  const s2=(onlyL||one)?0:(useIrt?(+(s.irtScores[1]||0)):p2Res.scaled);
+  const s3=hasL?(useIrt?(+(s.irtScores[lIdx]||0)):p3Res.scaled):0;
   const maxTot=onlyL?lTot:(one?(p1Tot+(hasL?60:0)):(hasL?180:120));
   const passTot=r.passTotal||((onlyL||one)?Math.round(maxTot*0.48):(hasL?80:58));
   const rawTot=Math.round((s1+s2+s3)*10)/10;
@@ -3921,14 +4021,15 @@ function renderLiveSummary(r,stus){
     const allP=(r.qPts||[]).flat().filter(v=>typeof v==='number'&&v>0);
     const minPt=allP.length?Math.round(Math.min(...allP)*10)/10:0;
     const wrongByQ=(pi,qNum)=>stus.filter(([,s])=>((s.marks&&s.marks[pi])||'')[qNum-1]!=='o').map(([,s])=>disp(s));
-    $('lcQStatsBody').innerHTML=(minPt?`<div class="mu" style="margin-bottom:6px">সবচেয়ে কম নম্বরের প্রশ্ন: <b>${minPt}m</b> (−Ans দিলে প্রতি প্রশ্নে ${minPt}m করে কাটা যাবে)</div>`:'')+r.qStats.map((arr,pi)=>{
+    const isIrt=(r.gradeMode||'irt')==='irt';
+    $('lcQStatsBody').innerHTML=(isIrt?`<div class="mu" style="margin-bottom:6px">IRT (JLPT Style) Mode: answering pattern ও প্রশ্নের কঠিনতা অনুযায়ী 0–60 scale-এ নম্বর হিসাব হচ্ছে।</div>`:(minPt?`<div class="mu" style="margin-bottom:6px">সবচেয়ে কম নম্বরের প্রশ্ন: <b>${minPt}m</b> (−Ans দিলে প্রতি প্রশ্নে ${minPt}m করে কাটা যাবে)</div>`:''))+r.qStats.map((arr,pi)=>{
       const missed=[...arr].filter(q=>q.errPct>0).sort((a,b)=>b.errPct-a.errPct);
       if(!missed.length)return `<div style="margin-top:8px"><b>${labels[pi]||('Part '+(pi+1))}:</b> <span class="mu">সবাই সব প্রশ্ন পেরেছে!</span></div>`;
-      return `<div style="margin-top:10px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(বেশি ভুল হওয়া প্রশ্নে নম্বর বেশি · 👁 চাপলে কারা পারেনি দেখবে)</span>
+      return `<div style="margin-top:10px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(বেশি ভুল হওয়া প্রশ্ন = বেশি কঠিন · 👁 চাপলে কারা পারেনি দেখবে)</span>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${missed.map(q=>{
           const wNames=wrongByQ(pi,q.q);
           return `<span class="badge" style="background:rgba(220,38,38,.12);color:var(--bad);display:inline-flex;align-items:center;gap:5px;padding:4px 8px">
-            <span>Q${q.q}: <b>${q.pts}m</b> (${wNames.length}/${stus.length} ভুল · ${q.errPct}%)</span>
+            <span>Q${q.q}:${isIrt?'':` <b>${q.pts}m</b>`} (${wNames.length}/${stus.length} ভুল · ${q.errPct}%)</span>
             <button type="button" class="q-eye" data-msg="${esc(labels[pi]+' Q'+q.q+' ('+wNames.length+'/'+stus.length+' জন পারেনি · '+q.errPct+'%) — '+wNames.join(', '))}" style="border:0;background:transparent;cursor:pointer;padding:0;font-size:13px" title="কারা ভুল করেছে দেখো">👁</button>
           </span>`;
         }).join('')}</div>
