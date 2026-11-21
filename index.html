@@ -773,14 +773,31 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div class="card">
     <h3>Official Answer Key & Publish Results</h3>
     <div class="mu">Exam চলাকালীন অথবা শেষে Answer Key দিয়ে <b>Publish Results</b> চাপো।</div>
-    <label>Part 1 Answer Key</label>
-    <input id="lcKey1" placeholder="e.g. 1 3 2 4 ... বা ABCD...">
-    <label>Part 2 Answer Key</label>
-    <input id="lcKey2" placeholder="e.g. 2 1 4 3 ...">
+    <div id="lcKey1Wrap">
+      <label id="lcKey1Lbl">Part 1 Answer Key</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="lcKey1" placeholder="e.g. 1 3 2 4 ... বা ABCD..." style="flex:1;min-width:160px">
+        <button type="button" class="btn sec" id="lcKey1TplBtn" style="width:auto;margin:0;padding:8px 10px;font-size:12px;white-space:nowrap">1. 2. 3...</button>
+      </div>
+      <div id="lcKey1Hint" class="mu" style="font-size:11px;margin-top:3px"></div>
+    </div>
+    <div id="lcKey2Wrap">
+      <label id="lcKey2Lbl">Part 2 Answer Key</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="lcKey2" placeholder="e.g. 2 1 4 3 ..." style="flex:1;min-width:160px">
+        <button type="button" class="btn sec" id="lcKey2TplBtn" style="width:auto;margin:0;padding:8px 10px;font-size:12px;white-space:nowrap">1. 2. 3...</button>
+      </div>
+      <div id="lcKey2Hint" class="mu" style="font-size:11px;margin-top:3px"></div>
+    </div>
     <div id="lcKey3Wrap">
       <label id="lcKey3Lbl">Listening Answer Key (24টি)</label>
-      <input id="lcKey3" placeholder="Answer Later হলে mandatory; Instant হলে দিলে Chor ধরবে">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="lcKey3" placeholder="Answer Later হলে mandatory; Instant হলে দিলে Chor ধরবে" style="flex:1;min-width:160px">
+        <button type="button" class="btn sec" id="lcKey3TplBtn" style="width:auto;margin:0;padding:8px 10px;font-size:12px;white-space:nowrap">1. 2. 3...</button>
+      </div>
+      <div id="lcKey3Hint" class="mu" style="font-size:11px;margin-top:3px"></div>
     </div>
+    <div id="lcKeyErr" class="mu" style="color:var(--bad);font-size:12px;font-weight:700;margin-top:8px"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
       <label style="margin:0;font-size:13px">Grading:</label>
       <select id="lcGradeMode" style="width:auto;padding:6px 10px;font-size:13px">
@@ -796,6 +813,22 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <button type="button" class="btn" id="lcPublishBtn" style="flex:2;margin-top:0;min-width:180px">Grade & Preview (Only Sensei)</button>
     </div>
   </div>
+
+<div id="keyGridModal" class="modal-bg hide">
+  <div class="modal" style="max-width:480px;max-height:88vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <h3 id="kgTitle" style="margin:0">Answer Key</h3>
+      <span id="kgCount" class="mu" style="font-size:12px;font-weight:700">0 / 0</span>
+    </div>
+    <div class="mu" style="font-size:12px;margin-top:4px">1–4 বা A–D টাইপ করলে auto পরের ঘরে চলে যাবে (Backspace দিলে আগের ঘরে)।</div>
+    <div id="kgGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px;margin-top:12px;overflow:auto;padding:2px"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button type="button" class="btn sec" id="kgClearBtn" style="flex:1">Clear</button>
+      <button type="button" class="btn sec" id="kgCancelBtn" style="flex:1">Cancel</button>
+      <button type="button" class="btn" id="kgApplyBtn" style="flex:2;margin-top:0">Apply ✓</button>
+    </div>
+  </div>
+</div>
 
   <div class="card chor-card hide" id="lcChorCard">
     <h3 style="color:var(--bad)">Chor Panel (ভুল উত্তর দিয়েও ✓ দিয়েছে)</h3>
@@ -3406,16 +3439,17 @@ function openLiveControl(rid){
     $('lcStartListenBtn').classList.toggle('hide',!!r.onlyListen);
     $('lcKey3Wrap').classList.toggle('hide',!listenOn);
     const lTotQ=roomListenTotal(r);
+    $('lcKey1Lbl').textContent=`Part 1 Answer Key (${r.p1q||0}টি)`;
+    $('lcKey2Lbl').textContent=`Part 2 Answer Key (${r.p2q||0}টি)`;
     $('lcKey3Lbl').textContent=`Listening Answer Key (${lTotQ}টি)`;
-    $('lcKey1').classList.toggle('hide',!!r.onlyListen);
-    if($('lcKey1').previousElementSibling)$('lcKey1').previousElementSibling.classList.toggle('hide',!!r.onlyListen);
-    $('lcKey2').classList.toggle('hide',!!(r.onePart||r.onlyListen));
-    if($('lcKey2').previousElementSibling)$('lcKey2').previousElementSibling.classList.toggle('hide',!!(r.onePart||r.onlyListen));
+    $('lcKey1Wrap').classList.toggle('hide',!!r.onlyListen);
+    $('lcKey2Wrap').classList.toggle('hide',!!(r.onePart||r.onlyListen));
     if(r.keys){
       if(!$('lcKey1').value&&r.keys.k1)$('lcKey1').value=r.keys.k1;
       if(!$('lcKey2').value&&r.keys.k2)$('lcKey2').value=r.keys.k2;
       if(!$('lcKey3').value&&r.keys.k3)$('lcKey3').value=r.keys.k3;
     }
+    updateLcKeyHints();
     const defPass=(r.onlyListen||r.onePart)?Math.round((r.onlyListen?(r.oneTotal||60):((r.oneTotal||100)+(r.hasListen?60:0)))*0.48):(r.hasListen?80:58);
     if(document.activeElement!==$('lcPassTotal'))$('lcPassTotal').value=r.passTotal||defPass;
     $('lcGradeMode').value=r.gradeMode||'irt';
@@ -3433,7 +3467,10 @@ function openLiveControl(rid){
         const curArr=roomMondai(lcRoomData).map(x=>x.q);
         curArr[idx]=Math.max(1,Math.min(30,curArr[idx]+d));
         await db().ref(`rooms/${lcRoomId}/lMondai`).set(curArr);
-        toast(`Mondai ${idx+1}: ${curArr[idx]}টি প্রশ্ন করা হয়েছে`);
+        const newTot=curArr.reduce((a,x)=>a+x,0);
+        const k3Len=parseKeyTokens($('lcKey3').value).length;
+        if(k3Len>0&&k3Len!==newTot)toast(`Mondai ${idx+1}: ${curArr[idx]}টি করা হয়েছে — Listening Answer Key (${newTot}টি) আবার আপডেট করো!`);
+        else toast(`Mondai ${idx+1}: ${curArr[idx]}টি প্রশ্ন করা হয়েছে`);
       });
       $('lcLMode').value=r.lMode||'later';
       $('lcLMode').disabled=(r.status==='ended');
@@ -3804,17 +3841,158 @@ $('lcSavePassBtn').onclick=async()=>{
   await db().ref().update(upd);
   toast(`Minimum Passing Score ${val} করা হয়েছে!`);
 };
+function keyCountMsg(label,tokLen,exp,required){
+  if(!tokLen)return required?`${label}-এ ${exp}টি Answer Key দাও।`:'';
+  if(tokLen<exp)return `${label}-এ ${exp}টি লাগবে, দিয়েছো ${tokLen}টি (${exp-tokLen}টি কম আছে)!`;
+  if(tokLen>exp)return `${label}-এ ${exp}টি লাগবে, দিয়েছো ${tokLen}টি (${tokLen-exp}টি বেশি দিয়েছো)!`;
+  return '';
+}
+function updateLcKeyHints(){
+  const r=lcRoomData;if(!r)return;
+  const updHint=(inpId,hintId,exp)=>{
+    const h=$(hintId);if(!h)return;
+    const len=parseKeyTokens($(inpId).value).length;
+    if(!len){h.textContent='';h.style.color='';return}
+    if(len===exp){h.textContent=`${len} / ${exp}টি ✓`;h.style.color='var(--ok)'}
+    else if(len<exp){h.textContent=`${len} / ${exp}টি দেওয়া হয়েছে — ${exp-len}টি কম আছে`;h.style.color='var(--bad)'}
+    else{h.textContent=`${len} / ${exp}টি দেওয়া হয়েছে — ${len-exp}টি বেশি দিয়েছো`;h.style.color='var(--bad)'}
+  };
+  if(!r.onlyListen)updHint('lcKey1','lcKey1Hint',r.p1q||0);
+  if(!r.onlyListen&&!r.onePart)updHint('lcKey2','lcKey2Hint',r.p2q||0);
+  if(r.hasListen||r.onlyListen)updHint('lcKey3','lcKey3Hint',roomListenTotal(r));
+  $('lcKeyErr').textContent='';
+}
+['lcKey1','lcKey2','lcKey3'].forEach(id=>$(id).addEventListener('input',updateLcKeyHints));
+let kgTargetInpId=null;
+function openKeyGridModal(inpId,title,count){
+  if(!count||count<1)return;
+  kgTargetInpId=inpId;
+  $('kgTitle').textContent=title;
+  const existing=parseKeyTokens($(inpId).value);
+  const grid=$('kgGrid');
+  grid.innerHTML=Array.from({length:count},(_,i)=>{
+    const v=existing[i]?String(existing[i]):'';
+    return `<div style="display:flex;align-items:center;gap:4px;border:1px solid var(--bd);border-radius:8px;padding:4px 6px;background:var(--bg)">
+      <span class="mu" style="font-size:12px;font-weight:700;min-width:22px">${i+1}.</span>
+      <input type="text" class="kg-in" data-i="${i}" value="${v}" maxlength="1" style="width:100%;padding:4px;text-align:center;font-weight:700;font-size:14px;border:0;background:transparent;outline:none">
+    </div>`;
+  }).join('');
+  const inputs=[...grid.querySelectorAll('.kg-in')];
+  const updCount=()=>{
+    const filled=inputs.filter(x=>/^[1-4A-D]$/i.test(x.value.trim())).length;
+    $('kgCount').textContent=`${filled} / ${count}টি`;
+    $('kgCount').style.color=filled===count?'var(--ok)':'';
+  };
+  inputs.forEach((el,idx)=>{
+    el.onfocus=()=>el.select();
+    el.oninput=()=>{
+      const raw=el.value.trim().toUpperCase();
+      if(raw.length>1){
+        const toks=parseKeyTokens(raw);
+        toks.forEach((t,k)=>{if(inputs[idx+k])inputs[idx+k].value=String(t)});
+        const nextIdx=Math.min(inputs.length-1,idx+toks.length);
+        inputs[nextIdx]?.focus();
+        updCount();
+        return;
+      }
+      if(/^[1-4]$/.test(raw)){
+        el.value=raw;
+        updCount();
+        if(idx+1<inputs.length)inputs[idx+1].focus();
+      }else if(/^[A-D]$/.test(raw)){
+        el.value=String(raw.charCodeAt(0)-64);
+        updCount();
+        if(idx+1<inputs.length)inputs[idx+1].focus();
+      }else{
+        el.value='';
+        updCount();
+      }
+    };
+    el.onkeydown=e=>{
+      if(e.key==='Backspace'&&!el.value&&idx>0){
+        e.preventDefault();
+        inputs[idx-1].focus();
+      }else if(e.key==='Enter'){
+        e.preventDefault();
+        $('kgApplyBtn').click();
+      }
+    };
+    el.onpaste=e=>{
+      const txt=(e.clipboardData||window.clipboardData)?.getData('text')||'';
+      const toks=parseKeyTokens(txt);
+      if(toks.length>1){
+        e.preventDefault();
+        toks.forEach((t,k)=>{if(inputs[idx+k])inputs[idx+k].value=String(t)});
+        inputs[Math.min(inputs.length-1,idx+toks.length)]?.focus();
+        updCount();
+      }
+    };
+  });
+  updCount();
+  $('keyGridModal').classList.remove('hide');
+  inputs[Math.min(existing.length,inputs.length-1)]?.focus();
+}
+$('kgClearBtn').onclick=()=>{
+  $('kgGrid').querySelectorAll('.kg-in').forEach(x=>x.value='');
+  $('kgCount').textContent=`0 / ${$('kgGrid').querySelectorAll('.kg-in').length}টি`;
+  $('kgCount').style.color='';
+  $('kgGrid').querySelector('.kg-in')?.focus();
+};
+$('kgCancelBtn').onclick=()=>$('keyGridModal').classList.add('hide');
+$('kgApplyBtn').onclick=()=>{
+  if(!kgTargetInpId)return;
+  const inputs=[...$('kgGrid').querySelectorAll('.kg-in')];
+  const parts=[];
+  inputs.forEach((el,i)=>{
+    const v=el.value.trim();
+    parts.push(`${i+1}.${v||''}`);
+  });
+  $(kgTargetInpId).value=parts.join(' ');
+  $('keyGridModal').classList.add('hide');
+  updateLcKeyHints();
+};
+$('lcKey1TplBtn').onclick=()=>{if(lcRoomData)openKeyGridModal('lcKey1',`Part 1 Answer Key (${lcRoomData.p1q||0}টি)`,lcRoomData.p1q||0)};
+$('lcKey2TplBtn').onclick=()=>{if(lcRoomData)openKeyGridModal('lcKey2',`Part 2 Answer Key (${lcRoomData.p2q||0}টি)`,lcRoomData.p2q||0)};
+$('lcKey3TplBtn').onclick=()=>{if(lcRoomData){const n=roomListenTotal(lcRoomData);openKeyGridModal('lcKey3',`Listening Answer Key (${n}টি)`,n)}};
+function validateLcKeys(forPublish){
+  const r=lcRoomData;if(!r)return null;
+  const k1=parseKeyTokens($('lcKey1').value),k2=parseKeyTokens($('lcKey2').value),k3=parseKeyTokens($('lcKey3').value);
+  const hasL=!!(r.hasListen||r.onlyListen);
+  const errs=[];
+  if(!r.onlyListen){
+    const e1=keyCountMsg('Part 1',k1.length,r.p1q||0,forPublish);
+    if(e1)errs.push(e1);
+    if(!r.onePart){
+      const e2=keyCountMsg('Part 2',k2.length,r.p2q||0,forPublish);
+      if(e2)errs.push(e2);
+    }
+  }
+  if(hasL){
+    const lReq=forPublish&&(r.lMode||'later')!=='instant';
+    const e3=keyCountMsg('Listening',k3.length,roomListenTotal(r),lReq);
+    if(e3)errs.push(e3);
+  }
+  if(errs.length){
+    $('lcKeyErr').textContent=errs[0];
+    toast(errs[0]);
+    return null;
+  }
+  $('lcKeyErr').textContent='';
+  return{k1,k2,k3};
+}
 $('lcSaveKeyBtn').onclick=async()=>{
-  if(!lcRoomId)return;
+  if(!lcRoomId||!lcRoomData)return;
+  if(!validateLcKeys(false))return;
   const keysObj={k1:$('lcKey1').value.trim(),k2:$('lcKey2').value.trim(),k3:$('lcKey3').value.trim()};
   await db().ref('rooms/'+lcRoomId+'/keys').set(keysObj);
   toast('Answer Key save হয়েছে (এখনো Publish হয়নি)!');
 };
 $('lcPublishBtn').onclick=async()=>{
   if(!lcRoomData)return;
-  const r=lcRoomData,k1=parseKeyTokens($('lcKey1').value),k2=parseKeyTokens($('lcKey2').value),k3=parseKeyTokens($('lcKey3').value);
+  const parsed=validateLcKeys(true);
+  if(!parsed)return;
+  const r=lcRoomData,{k1,k2,k3}=parsed;
   const hasL=!!(r.hasListen||r.onlyListen);
-  if(hasL&&r.lMode==='later'&&!k3.length){toast('Answer Later mode-এ Listening-এর Answer Key দাও।');return}
   const keysObj={k1:$('lcKey1').value.trim(),k2:$('lcKey2').value.trim(),k3:$('lcKey3').value.trim()};
   const upd={};
   const chors=[],mList0=[],mList1=[],mListL=[],stuRefs=[];
