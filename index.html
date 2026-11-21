@@ -2690,8 +2690,30 @@ function startLiveStudent(room){
   const stuName=(curStudent&&curStudent.name)||$('lwNameIn').value.trim();
   if(!stuName){$('lwErr').textContent='নাম লেখো।';return}
   saveProfileName(stuName);
-  liveStuId=curStudent?('u_'+curStudent.username):('s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5));
-  if(curStudent&&liveRoomId)db().ref('studentRooms/'+curStudent.username+'/'+liveRoomId).set(true);
+  if(curStudent){
+    liveStuId='u_'+curStudent.username;
+    if(liveRoomId)db().ref('studentRooms/'+curStudent.username+'/'+liveRoomId).set(true);
+  }else{
+    let savedId=null;
+    try{savedId=liveRoomId?localStorage.getItem('guest_live_stu_'+liveRoomId):null}catch(e){}
+    if(savedId&&room.students&&room.students[savedId]){
+      const ex=room.students[savedId];
+      if(ex.kicked){$('lwErr').textContent='Examiner তোমাকে এই exam থেকে বের করে দিয়েছেন।';return}
+      resumeLiveStudentFromRecord(room,ex,savedId);
+      return;
+    }
+    const normName=stuName.toLowerCase();
+    const matchEntry=room.students?Object.entries(room.students).find(([sid,s])=>sid.startsWith('s_')&&(s.name||'').trim().toLowerCase()===normName):null;
+    if(matchEntry){
+      const [mSid,mStu]=matchEntry;
+      if(mStu.kicked){$('lwErr').textContent='Examiner তোমাকে এই exam থেকে বের করে দিয়েছেন।';return}
+      try{if(liveRoomId)localStorage.setItem('guest_live_stu_'+liveRoomId,mSid)}catch(e){}
+      resumeLiveStudentFromRecord(room,mStu,mSid);
+      return;
+    }
+    liveStuId='s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
+    try{if(liveRoomId)localStorage.setItem('guest_live_stu_'+liveRoomId,liveStuId)}catch(e){}
+  }
   const parts=buildLiveParts(room);
   $('listenMode').value=room.lMode||'later';
   lastGlobalDeltaTs=room.globalDeltaTs||0;
@@ -2817,7 +2839,9 @@ async function checkHashLive(){
       $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
       return;
     }
-    const expectedStuId=curStudent?('u_'+curStudent.username):null;
+    let guestSavedId=null;
+    if(!curStudent){try{guestSavedId=localStorage.getItem('guest_live_stu_'+rid)}catch(e){}}
+    const expectedStuId=curStudent?('u_'+curStudent.username):guestSavedId;
     const existing=expectedStuId&&r.students?r.students[expectedStuId]:null;
     if(!liveStuId){
       if(existing&&existing.kicked){
