@@ -515,6 +515,18 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   </div>
 </div>
 
+<!-- Live Result Intro Video View -->
+<div id="liveResultVideoView" class="wrap hide" style="padding-top:28px;max-width:640px">
+  <div class="card" style="text-align:center;padding:20px">
+    <h2 style="margin:0 0 6px">Result Published! 🎉</h2>
+    <div class="mu" style="font-size:13px;margin-bottom:14px">তোমার রেজাল্ট দেখার আগে এই ভিডিওটি দেখো…</div>
+    <video id="lrvPlayer" controls autoplay playsinline preload="auto" style="width:100%;max-height:68vh;border-radius:12px;background:#000;display:block"></video>
+    <div id="lrvSoundHint" class="mu hide" style="margin-top:8px;font-size:12px">🔇 Autoplay-এর জন্য sound mute করা আছে — ভিডিওতে tap করে unmute করতে পারো।</div>
+    <div id="lrvCountdown" class="mu" style="margin-top:12px;font-size:13px;font-weight:700"></div>
+    <button type="button" class="btn hide" id="lrvResultBtn" style="margin-top:14px">View Result Card →</button>
+  </div>
+</div>
+
 <!-- Portal Login (Examiner / Admin) -->
 <div id="portalAuth" class="wrap hide">
   <div class="home-hd">
@@ -2521,7 +2533,8 @@ let curAdmin=false,curExaminer=null,lcRoomId='',lcRoomRef=null,lcRoomData=null,l
 let gateMode='login',pendingLiveRoomId='';
 
 function hideAllViews(){
-  ['gateView','setup','exam','askListenPage','report','listenReview','liveWaitView','portalAuth','adminDash','examinerDash','liveControl','liveSummaryView'].forEach(id=>$(id).classList.add('hide'));
+  stopLiveResultVideo();
+  ['gateView','setup','exam','askListenPage','report','listenReview','liveWaitView','liveResultVideoView','portalAuth','adminDash','examinerDash','liveControl','liveSummaryView'].forEach(id=>$(id).classList.add('hide'));
 }
 const origGoHome=goHome;
 goHome=function(){
@@ -2673,7 +2686,81 @@ $('ytMuteBtn').onclick=()=>{
   $('ytMuteBtn').textContent=ytMuted?'🔇 Muted':'🔊 Sound On';
   try{if(ytPlayer){if(ytMuted)ytPlayer.mute();else ytPlayer.unMute()}}catch(e){}
 };
-async function loadPublishedLiveReport(){
+let lrvTimer=null;
+function stopLiveResultVideo(){
+  if(lrvTimer){clearInterval(lrvTimer);lrvTimer=null}
+  const v=$('lrvPlayer');
+  if(v){try{v.pause();v.removeAttribute('src');v.load()}catch(e){}}
+}
+function pickResultVideo(r,s){
+  const sm=calcStuSummary(r,s);
+  const eq=(sm.maxTot===180)?sm.finalTot:(sm.maxTot>0?(sm.finalTot/sm.maxTot)*180:0);
+  let file='';
+  if(eq>=80&&!sm.pass){
+    file='80_or_80_plus_but_fail.mp4';
+  }else if(eq<46){
+    file='1_to_45.mp4';
+  }else if(eq<51){
+    file='46_to_50.mp4';
+  }else if(eq<66){
+    file='51_to_65.mp4';
+  }else if(eq<76){
+    file='65_to_75.mp4';
+  }else if(eq<79){
+    file='76_to_78.mp4';
+  }else if(eq<80){
+    file='79.mp4';
+  }else if(eq<90){
+    file='80_to_89_pass.mp4';
+  }else if(eq<111){
+    file='90_to_110_pass.mp4';
+  }else if(eq<121){
+    file='111_to_120_pass.mp4';
+  }else if(eq<131){
+    file='121_to_130_pass.mp4';
+  }else if(eq<141){
+    file='131_to_140_pass.mp4';
+  }else{
+    file='141_to_180_pass.mp4';
+  }
+  return 'videos/'+file;
+}
+function showLiveResultVideo(r,s){
+  stopYt();
+  hideAllViews();
+  $('liveResultVideoView').classList.remove('hide');
+  const v=$('lrvPlayer');
+  const btn=$('lrvResultBtn');
+  const cd=$('lrvCountdown');
+  const sh=$('lrvSoundHint');
+  btn.classList.add('hide');
+  sh.classList.add('hide');
+  v.muted=false;
+  v.src=pickResultVideo(r,s);
+  v.play().catch(()=>{
+    v.muted=true;
+    sh.classList.remove('hide');
+    v.play().catch(()=>{});
+  });
+  let sec=7;
+  cd.textContent=`${sec}s পর Result বাটন আসবে…`;
+  lrvTimer=setInterval(()=>{
+    sec--;
+    if(sec>0){
+      cd.textContent=`${sec}s পর Result বাটন আসবে…`;
+    }else{
+      clearInterval(lrvTimer);lrvTimer=null;
+      cd.textContent='এখন নিচের বাটনে ক্লিক করে তোমার Result দেখো ✓';
+      btn.classList.remove('hide');
+    }
+  },1000);
+  btn.onclick=()=>{
+    try{localStorage.setItem('liveVidSeen_'+liveRoomId+'_'+liveStuId,'1')}catch(e){}
+    stopLiveResultVideo();
+    showReport();
+  };
+}
+async function loadPublishedLiveReport(skipVideo){
   if(!liveRoom||!liveRoom.students||!liveRoom.students[liveStuId])return;
   const st=liveRoom.students[liveStuId];
   liveDeduct=+(st.deduct||0);
@@ -2686,6 +2773,12 @@ async function loadPublishedLiveReport(){
       const bs=await db().ref('rooms').orderByChild('batchGroupId').equalTo(liveRoom.batchGroupId).once('value');
       liveBatchRooms=Object.entries(bs.val()||{}).sort((a,b)=>(a[1].batchNum||1)-(b[1].batchNum||1));
     }catch(e){}
+  }
+  let seen=false;
+  try{seen=localStorage.getItem('liveVidSeen_'+liveRoomId+'_'+liveStuId)==='1'}catch(e){}
+  if(!skipVideo&&!seen){
+    showLiveResultVideo(liveRoom,st);
+    return;
   }
   showReport();
 }
@@ -3138,7 +3231,7 @@ async function checkHashLive(){
         loadPublishedLiveReport();
       }
     }else if(!$('report').classList.contains('hide')&&r.published){
-      loadPublishedLiveReport();
+      loadPublishedLiveReport(true);
     }
     if(!$('exam').classList.contains('hide')&&cfg?.parts?.[part]?.listen){
       if(r.listenVideoStarted&&paused&&!examinerLocked){
@@ -3210,7 +3303,7 @@ async function checkHashLiveReport(){
     ans=parts.map((pt,i)=>unpackAns((s.ans&&s.ans[i])||'',pt.q));
     marks=parts.map((pt,i)=>unpackMarks((s.marks&&s.marks[i])||'',pt.q));
     used=Array.isArray(s.used)?s.used.slice():parts.map(()=>0);
-    await loadPublishedLiveReport();
+    await loadPublishedLiveReport(true);
   }catch(e){
     $('lwTitle').textContent='লোড করা যায়নি';
     $('lwSub').textContent='নেটওয়ার্ক সমস্যা হয়েছে, আবার চেষ্টা করো।';
