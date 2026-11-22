@@ -914,6 +914,41 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   </div>
 </div>
 
+<!-- Live Exam Summary Panel -->
+<div id="liveSummaryView" class="wrap hide" style="max-width:920px">
+  <div class="home-hd" style="flex-wrap:wrap">
+    <div>
+      <h1 id="lsTitle">Exam Summary</h1>
+      <div class="mu" id="lsSub"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn sec" id="lsOpenCtrlBtn">Control Panel</button>
+      <button type="button" class="btn sec" id="lsBackBtn">Back</button>
+    </div>
+  </div>
+
+  <div class="card chor-card hide" id="lsChorCard">
+    <h3 style="color:var(--bad)">Chor Panel (ভুল উত্তর দিয়েও ✓ দিয়েছে)</h3>
+    <div id="lsChorBody"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:8px">
+        <h3 style="margin:0">Exam Result Summary</h3>
+        <span class="pill live hide" id="lsPubBadge">PUBLISHED ✓</span>
+      </div>
+      <button type="button" class="btn sec" id="lsSumPngBtn">Download Summary PNG</button>
+    </div>
+    <div id="lsSumBody" style="overflow:auto;margin-top:8px"></div>
+  </div>
+
+  <div class="card hide" id="lsQStatsCard">
+    <h3>Question-by-Question Marks & Error % (কঠিন প্রশ্নে বেশি নম্বর)</h3>
+    <div id="lsQStatsBody" style="overflow:auto;margin-top:6px"></div>
+  </div>
+</div>
+
 <div id="lcPovModal" class="modal hide">
   <div class="modal-card" style="max-width:720px;width:95vw;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
@@ -1831,7 +1866,6 @@ function showReport(keepTime){
         <div style="font-size:26px;font-weight:800;line-height:1.1;margin:2px 0">${meSm.finalTot}<span style="font-size:14px;font-weight:600;color:var(--mu)">/${meSm.maxTot}</span></div>
         <div style="font-size:12px;color:var(--mu)">${meSm.totOk}/${meSm.totQ} Qs</div>
       </div>
-      ${meSm.ded>0?`<div class="mu" style="color:var(--bad);margin-bottom:6px">Raw: ${meSm.rawTot} − Deduct: ${meSm.ded} = <b>${meSm.finalTot}</b></div>`:''}
       <div style="margin-bottom:8px"><span class="pill ${meSm.pass?'live':'end'}" style="font-size:13px;padding:4px 12px">${esc(meSm.statusLabel)}</span></div>
       <div style="text-align:left;border-top:1px solid var(--bd);padding-top:8px">${meStatsHtml}</div>
       <div class="stat" style="margin-top:4px;border-top:1px solid var(--bd);padding-top:6px"><span>Total (Pass: ${meSm.passTot})</span><b>${meSm.finalTot} / ${meSm.maxTot}</b></div>
@@ -1853,7 +1887,7 @@ function showReport(keepTime){
             <td><b>${rDisp}</b></td>
             <td><b>${esc(x.dName)}</b></td>
             ${lbCells}
-            <td><b>${x.ded>0?`${x.rawTot}−${x.ded}=`:''}${x.finalTot}/${x.maxTot}</b></td>
+            <td><b>${x.finalTot}/${x.maxTot}</b></td>
             <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
           </tr>`;
           }).join('')}</tbody>
@@ -1916,17 +1950,15 @@ function showReport(keepTime){
     }
     html+='</div>';
   });
-  const ded=liveRoomId?(liveDeduct||0):0;
-  const finalOk=Math.max(0,totOk-ded);
-  const hasTot=(totOk+totBad)>0,totPct=hasTot&&totQ?Math.round(finalOk*100/totQ):0;
+  const hasTot=(totOk+totBad)>0,totPct=hasTot&&totQ?Math.round(totOk*100/totQ):0;
   if(showGrid)html+='</div>';
   html+=`<div class="card"><div class="stat"><span>Total answered</span><b>${totAns} / ${totQ}</b></div>`;
   if(hasTot){
-    const scoreStr=ded>0?`<span style="color:var(--ok)">${totOk} − ${ded} = <b>${finalOk}</b></span> / ${totQ} (${totPct}%)`:`<span style="color:var(--ok)">✓ ${totOk}</span> / ${totQ} · <span style="color:var(--bad)">✕ ${totBad}</span> (${totPct}%)`;
+    const scoreStr=`<span style="color:var(--ok)">✓ ${totOk}</span> / ${totQ} · <span style="color:var(--bad)">✕ ${totBad}</span> (${totPct}%)`;
     html+=`<div class="stat"><span>Total score</span><b>${scoreStr}</b></div>`;
   }
   html+=`<div class="stat"><span>Total time</span><b>${fmt(totTime)}</b></div></div>`;
-  txt+=`\nTotal answered: ${totAns}/${totQ}`+(hasTot?`\nTotal score: ${ded>0?`${totOk}-${ded}=${finalOk}`:totOk}/${totQ} (${totPct}%), wrong ${totBad}`:'')+`\nTotal time: ${fmt(totTime)}`;
+  txt+=`\nTotal answered: ${totAns}/${totQ}`+(hasTot?`\nTotal score: ${totOk}/${totQ} (${totPct}%), wrong ${totBad}`:'')+`\nTotal time: ${fmt(totTime)}`;
   reportText=txt;$('repBody').innerHTML=html;
   const seeBtn=$('seeAllResBtn');
   if(seeBtn)seeBtn.onclick=()=>{
@@ -2476,7 +2508,7 @@ let curAdmin=false,curExaminer=null,lcRoomId='',lcRoomRef=null,lcRoomData=null,l
 let gateMode='login',pendingLiveRoomId='';
 
 function hideAllViews(){
-  ['gateView','setup','exam','askListenPage','report','listenReview','liveWaitView','portalAuth','adminDash','examinerDash','liveControl'].forEach(id=>$(id).classList.add('hide'));
+  ['gateView','setup','exam','askListenPage','report','listenReview','liveWaitView','portalAuth','adminDash','examinerDash','liveControl','liveSummaryView'].forEach(id=>$(id).classList.add('hide'));
 }
 const origGoHome=goHome;
 goHome=function(){
@@ -2615,8 +2647,9 @@ function applyYtSync(){
     const elapsed=y.playing?(Date.now()-y.ts)/1000*(y.rate||1):0;
     const target=Math.max(0,(y.time||0)+elapsed);
     const curT=ytPlayer.getCurrentTime?ytPlayer.getCurrentTime():0;
-    if(y.force||Math.abs(curT-target)>2.5)ytPlayer.seekTo(target,true);
-    if(y.playing)ytPlayer.playVideo();else ytPlayer.pauseVideo();
+    const st=ytPlayer.getPlayerState?ytPlayer.getPlayerState():-1;
+    if(y.force||(curT>0&&st!==3&&Math.abs(curT-target)>4))ytPlayer.seekTo(target,true);
+    if(y.playing){if(st!==1)ytPlayer.playVideo()}else{if(st===1)ytPlayer.pauseVideo()}
     if(ytMuted)ytPlayer.mute();else ytPlayer.unMute();
   }catch(e){}
 }
@@ -2659,7 +2692,7 @@ async function loadStuLiveHistory(){
       const s=r.students['u_'+curStudent.username];
       const sm=calcStuSummary(r,s);
       const badge=r.published
-        ?(sm.ded>0?`<span class="badge ok">${sm.totOk}−${sm.ded}=${sm.finalOk}/${sm.totQ} (${sm.pct}%)</span>`:`<span class="badge ok">✓ ${sm.finalOk}/${sm.totQ} (${sm.pct}%)</span>`)
+        ?`<span class="badge ok">✓ ${sm.finalOk}/${sm.maxTot} (${sm.pct}%)</span>`
         :`<span class="badge pend">Pending Result</span>`;
       const drvBtn=r.driveId?`<a href="https://drive.google.com/file/d/${esc(r.driveId)}/view" target="_blank" rel="noopener" class="btn sec" style="padding:7px 9px;font-size:12px;text-decoration:none">Drive</a>`:'';
       return `<div class="hist-item">
@@ -3502,8 +3535,7 @@ async function loadExaminerHistory(){
   });
   $('exHistoryList').querySelectorAll('.ex-sum-rm').forEach(b=>b.onclick=()=>{
     lcReturnView='examinerDash';
-    openLiveControl(b.dataset.id);
-    setTimeout(()=>$('lcSumBody')?.scrollIntoView({behavior:'smooth'}),250);
+    openSummaryPanel(b.dataset.id);
   });
   $('exHistoryList').querySelectorAll('.ex-del-rm').forEach(b=>b.onclick=async()=>{
     if(!confirm('এই Exam-টি permanently delete করবে?'))return;
@@ -3801,9 +3833,9 @@ function openLiveControl(rid){
             const pv={playsinline:1,rel:0,modestbranding:1};
             if(location.protocol.startsWith('http'))pv.origin=location.origin;
             lcYtPlayer=new YT.Player('lcYtTarget',{width:'100%',height:'100%',videoId:targetId,playerVars:pv,events:{
-              onStateChange:e=>{if(e.data===1||e.data===2)pushYtSync(e.data===1,null,true)}
+              onStateChange:e=>{if(e.data===1||e.data===2)pushYtSync(e.data===1,null,false)}
             }});
-            lcYtTimer=setInterval(()=>{try{if(lcYtPlayer&&lcYtPlayer.getPlayerState&&lcYtPlayer.getPlayerState()===1)pushYtSync(true)}catch(e){}},5000);
+            lcYtTimer=setInterval(()=>{try{if(lcYtPlayer&&lcYtPlayer.getPlayerState&&lcYtPlayer.getPlayerState()===1)pushYtSync(true)}catch(e){}},10000);
           }).catch(()=>{});
         }
       }else{
@@ -3971,12 +4003,7 @@ $('lcLinkLockBtn').onclick=()=>{
   if(!lcRoomData)return;
   db().ref('rooms/'+lcRoomId+'/linkLocked').set(!lcRoomData.linkLocked);
 };
-$('lcBackBtn').onclick=()=>{
-  if(lcRoomRef){lcRoomRef.off();lcRoomRef=null}
-  if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
-  if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
-  if(lcReturnView==='adminDash')openAdminDash();else openExaminerDash();
-};
+$('lcBackBtn').onclick=returnFromLivePanel;
 $('lcCopyLinkBtn').onclick=async()=>{
   const url=location.origin+location.pathname+'#live='+lcRoomId;
   try{await navigator.clipboard.writeText(url);$('lcCopyLinkBtn').textContent='Copied ✓';setTimeout(()=>$('lcCopyLinkBtn').textContent='Copy Student Link',2500)}
@@ -4044,8 +4071,8 @@ function seekLcYt(sec){
     pushYtSync(lcYtPlayer.getPlayerState()===1,null,true);
   }catch(e){}
 }
-$('lcYtPlayBtn').onclick=()=>{try{lcYtPlayer.playVideo();pushYtSync(true,null,true)}catch(e){}};
-$('lcYtPauseBtn').onclick=()=>{try{lcYtPlayer.pauseVideo();pushYtSync(false,null,true)}catch(e){}};
+$('lcYtPlayBtn').onclick=()=>{try{lcYtPlayer.playVideo();pushYtSync(true,null,false)}catch(e){}};
+$('lcYtPauseBtn').onclick=()=>{try{lcYtPlayer.pauseVideo();pushYtSync(false,null,false)}catch(e){}};
 $('lcYtBack60').onclick=()=>seekLcYt(-60);
 $('lcYtBack10').onclick=()=>seekLcYt(-10);
 $('lcYtFwd10').onclick=()=>seekLcYt(10);
@@ -4619,6 +4646,52 @@ function buildStuDisp(stuObjs){
     return(cnt[k]>1&&s.username)?`${s.name} (@${s.username})`:(s.name||'Student');
   };
 }
+function detachLiveRoomListener(){
+  if(lcRoomRef){lcRoomRef.off();lcRoomRef=null}
+  if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
+  if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
+}
+function returnFromLivePanel(){
+  detachLiveRoomListener();
+  if(lcReturnView==='adminDash')openAdminDash();else openExaminerDash();
+}
+function openSummaryPanel(rid){
+  lcRoomId=rid;lcBatchRooms=[];
+  if(curAdmin)savePortalSess({role:'admin',lcRoomId:rid});
+  else if(curExaminer)savePortalSess({role:'examiner',examiner:curExaminer});
+  hideAllViews();$('liveSummaryView').classList.remove('hide');
+  detachLiveRoomListener();
+  $('lsSumBody').innerHTML='<div class="mu">Loading…</div>';
+  lcRoomRef=db().ref('rooms/'+rid);
+  lcRoomRef.on('value',async snap=>{
+    const r=snap.val();
+    if(!r){
+      detachLiveRoomListener();
+      toast('এই Live Exam আর পাওয়া যায়নি।');
+      if(curAdmin)openAdminDash();
+      else if(curExaminer)openExaminerDash();
+      else goHome();
+      return;
+    }
+    lcRoomData=r;
+    await refreshBatchRooms(r,rid);
+    $('lsTitle').textContent=(r.examName||'Mock Exam')+' — Summary';
+    $('lsSub').innerHTML=`Teacher: <b>${esc(r.examinerName||'Sensei')}</b> · ${esc(r.dateStr||'')} · <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span>`;
+    $('lsPubBadge').classList.toggle('hide',!r.published);
+    const stus=r.students?Object.entries(r.students):[];
+    renderSummaryInto(r,stus,{
+      sumBodyId:'lsSumBody',
+      qStatsCardId:'lsQStatsCard',
+      qStatsBodyId:'lsQStatsBody',
+      chorCardId:'lsChorCard',
+      chorBodyId:'lsChorBody',
+      combPngBtnId:'lsCombPngBtn'
+    });
+  });
+}
+$('lsBackBtn').onclick=returnFromLivePanel;
+$('lsOpenCtrlBtn').onclick=()=>{if(lcRoomId)openLiveControl(lcRoomId)};
+
 function renderLiveSummary(r,stus){
   const showPubBar=!!(r.graded||r.published);
   $('lcPubBar').classList.toggle('hide',!showPubBar);
@@ -4626,21 +4699,30 @@ function renderLiveSummary(r,stus){
   $('lcResultType').value=String(r.resultType||'3');
   $('lcPublicRank').checked=r.publicRanking!==false;
   $('lcFinalPublishBtn').textContent=r.published?'Update Published Result':'Publish Result to All Students';
+  renderSummaryInto(r,stus,{
+    sumBodyId:'lcSumBody',
+    qStatsCardId:'lcQStatsCard',
+    qStatsBodyId:'lcQStatsBody',
+    chorCardId:'lcChorCard',
+    chorBodyId:'lcChorBody',
+    combPngBtnId:'lcCombPngBtn'
+  });
+}
+function renderSummaryInto(r,stus,opts){
+  const sumBody=$(opts.sumBodyId),qStatsCard=$(opts.qStatsCardId),qStatsBody=$(opts.qStatsBodyId),chorCard=$(opts.chorCardId),chorBody=$(opts.chorBodyId);
   const disp=buildStuDisp(stus.map(([,s])=>s));
   const chors=r.chors||[];
   const tabChors=stus.filter(([,s])=>(s.tabSwitches||0)>0).map(([,s])=>`<div style="padding:3px 0;color:#d97706">⚠ <b>${esc(disp(s))}</b>: ${s.tabSwitches}x Tab/App switch করেছে</div>`);
   const ssChors=stus.filter(([,s])=>(s.ssAttempts||0)>0).map(([,s])=>`<div style="padding:3px 0;color:var(--bad)">📸 <b>${esc(disp(s))}</b>: ${s.ssAttempts}x Screenshot চেষ্টা করেছে</div>`);
-  $('lcChorCard').classList.toggle('hide',!chors.length&&!tabChors.length&&!ssChors.length);
-  $('lcChorBody').innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('')+tabChors.join('')+ssChors.join('');
+  chorCard.classList.toggle('hide',!chors.length&&!tabChors.length&&!ssChors.length);
+  chorBody.innerHTML=chors.map(c=>`<div style="padding:4px 0"><b>${esc(c.name)}</b>: Q${c.qs.join(', Q')} (ভুল উত্তর দিয়েও ✓ দিয়েছে)</div>`).join('')+tabChors.join('')+ssChors.join('');
   if(Array.isArray(r.qStats)&&r.qStats.length){
-    $('lcQStatsCard').classList.remove('hide');
+    qStatsCard.classList.remove('hide');
     const labels=r.onlyListen?['Listening']:(r.onePart?['Part 1','Listening']:['Part 1','Part 2','Listening']);
-    const allP=(r.qPts||[]).flat().filter(v=>typeof v==='number'&&v>0);
-    const minPt=allP.length?Math.round(Math.min(...allP)*10)/10:0;
     const wrongByQ=(pi,qNum)=>stus.filter(([,s])=>((s.marks&&s.marks[pi])||'')[qNum-1]!=='o').map(([,s])=>disp(s));
-    const gm=r.gradeMode||'excel';
-    const gmNote=gm==='irt'?`<div class="mu" style="margin-bottom:6px">IRT (Old) Mode: answering pattern ও প্রশ্নের কঠিনতা অনুযায়ী 0–60 scale-এ নম্বর হিসাব হচ্ছে।</div>`:(gm==='excel'?`<div class="mu" style="margin-bottom:6px">Excel Scaled (JLPT 5-Tier) Mode: 5-tier কঠিনতা অনুযায়ী (1.5 / 1.25 / 1.0 / 0.8 / 0.6) Part 1+2 (120) ও Listening (60) scale-এ নম্বর হিসাব হচ্ছে।</div>`:'');
-    $('lcQStatsBody').innerHTML=gmNote+r.qStats.map((arr,pi)=>{
+    const gm=r.gradeMode||'excel',isIrt=gm==='irt';
+    const gmNote=isIrt?`<div class="mu" style="margin-bottom:6px">IRT (Old) Mode: answering pattern ও প্রশ্নের কঠিনতা অনুযায়ী 0–60 scale-এ নম্বর হিসাব হচ্ছে।</div>`:(gm==='excel'?`<div class="mu" style="margin-bottom:6px">Excel Scaled (JLPT 5-Tier) Mode: 5-tier কঠিনতা অনুযায়ী (1.5 / 1.25 / 1.0 / 0.8 / 0.6) Part 1+2 (120) ও Listening (60) scale-এ নম্বর হিসাব হচ্ছে।</div>`:'');
+    qStatsBody.innerHTML=gmNote+r.qStats.map((arr,pi)=>{
       const missed=[...arr].filter(q=>q.errPct>0).sort((a,b)=>b.errPct-a.errPct);
       if(!missed.length)return `<div style="margin-top:8px"><b>${labels[pi]||('Part '+(pi+1))}:</b> <span class="mu">সবাই সব প্রশ্ন পেরেছে!</span></div>`;
       return `<div style="margin-top:10px"><b>${labels[pi]||('Part '+(pi+1))}</b> <span class="mu">(বেশি ভুল হওয়া প্রশ্ন = বেশি কঠিন · 👁 চাপলে কারা পারেনি দেখবে)</span>
@@ -4652,18 +4734,28 @@ function renderLiveSummary(r,stus){
           </span>`;
         }).join('')}</div>
       </div>`;
-    }).join('')+`<div id="qEyeDetail" class="card hide" style="margin-top:10px;padding:10px 12px;border-color:var(--bad);font-size:13px"></div>`;
-    $('lcQStatsBody').querySelectorAll('.q-eye').forEach(b=>b.onclick=()=>{
-      const box=$('qEyeDetail');box.textContent=b.dataset.msg;box.classList.remove('hide');
+    }).join('')+`<div class="q-eye-detail card hide" style="margin-top:10px;padding:10px 12px;border-color:var(--bad);font-size:13px"></div>`;
+    qStatsBody.querySelectorAll('.q-eye').forEach(b=>b.onclick=()=>{
+      const box=qStatsBody.querySelector('.q-eye-detail');box.textContent=b.dataset.msg;box.classList.remove('hide');
     });
-  }else $('lcQStatsCard').classList.add('hide');
-  if(!stus.length){$('lcSumBody').innerHTML='<div class="mu">কোনো data নেই।</div>';return}
+  }else qStatsCard.classList.add('hide');
+  if(!stus.length){sumBody.innerHTML='<div class="mu">কোনো data নেই।</div>';return}
   const rows=rankStudents(stus.map(([sid,s])=>({rmId:lcRoomId,sid,...calcStuSummary(r,s),dName:disp(s)})));
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL),lTotQ=roomListenTotal(r);
   const thCols=onlyL?`<th>Listening (Time)</th>`:(one?`<th>Part 1 (Time)</th>${hasL?'<th>Listening</th>':''}`:`<th>Part 1</th><th>Part 2</th>${hasL?'<th>Listening</th>':''}`);
-  const canShareLink=!!(r.published&&(Date.now()-(r.publishedAt||r.createdAt||0)<=BATCH_TTL_MS));
-  const renderRowsHtml=rowList=>rowList.map(x=>{
+  const isWithin24h=(Date.now()-(r.publishedAt||r.createdAt||0)<=BATCH_TTL_MS);
+  const canShareLink=!!(r.published&&isWithin24h);
+  const renderCertCell=x=>{
+    if(!r.published)return `<span class="mu" style="font-size:11px">Not Published</span>`;
+    if(!isWithin24h)return `<span class="mu" style="font-size:11px">24h Expired</span>`;
+    const certHash='#report='+encodeURIComponent(x.rmId)+':'+encodeURIComponent(x.sid);
+    return `<div style="display:inline-flex;gap:4px;flex-wrap:wrap">
+      <a class="btn sec" href="${certHash}" target="_blank" style="padding:4px 8px;font-size:11px;text-decoration:none;color:var(--ac)" title="Student-এর Result Certificate দেখো">🏆 Certificate</a>
+      <button type="button" class="btn sec lc-rep-link" data-rm="${esc(x.rmId)}" data-s="${esc(x.sid)}" data-n="${esc(x.dName)}" style="padding:4px 8px;font-size:11px" title="Certificate Link কপি করো (24 ঘণ্টা valid)">🔗 Copy</button>
+    </div>`;
+  };
+  const renderRowsHtml=(rowList,isComb)=>rowList.map(x=>{
     const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
     const rDisp=x.rank?(x.medal?`${x.medal} ${x.rank}`:x.rank):'—';
     const tdCols=onlyL
@@ -4671,14 +4763,17 @@ function renderLiveSummary(r,stus){
       :(one
         ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`
         :`<td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td><td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`);
-    const linkBtn=canShareLink?` <button type="button" class="btn sec lc-rep-link" data-rm="${esc(x.rmId)}" data-s="${esc(x.sid)}" data-n="${esc(x.dName)}" style="padding:4px 8px;font-size:11px;color:var(--ac)" title="24 ঘণ্টার মধ্যে Student-কে তার Report Card Link দাও">🔗 Link</button>`:'';
+    const actCell=isComb
+      ?`<td><span class="mu">B${x.bNum||1}</span></td>`
+      :`<td><button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button></td>`;
     return `<tr>
       <td><b>${rDisp}</b></td>
       <td><b>${esc(x.dName)}</b></td>
       ${tdCols}
       <td>${totStr}</td>
       <td><span class="pill ${x.pass?'live':'end'}">${esc(x.shortStatus)}</span></td>
-      <td>${x.rmId===lcRoomId?`<button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button>`:`<span class="mu">B${x.bNum||1}</span>`}${linkBtn}</td>
+      <td>${renderCertCell(x)}</td>
+      ${actCell}
     </tr>`;
   }).join('');
   let combHtml='';
@@ -4697,34 +4792,34 @@ function renderLiveSummary(r,stus){
       combHtml=`<div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--bd)">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px">
           <b>Combined All-Batches Summary (${lcBatchRooms.length} Batches)</b>
-          <button type="button" class="btn sec" id="lcCombPngBtn">Download Combined PNG</button>
+          <button type="button" class="btn sec" id="${opts.combPngBtnId}">Download Combined PNG</button>
         </div>
         <div class="mu" style="margin-bottom:6px">Total: <b>${cRows.length}</b> · <span style="color:var(--ok)">PASS: <b>${cPass}</b></span> · <span style="color:var(--bad)">FAIL: <b>${cFail}</b></span></div>
         <table class="tbl">
-          <thead><tr><th>#</th><th>Name</th>${thCols}<th>Total (Pass ${cRows[0].passTot})</th><th>Status</th><th>Batch</th></tr></thead>
-          <tbody>${renderRowsHtml(cRows)}</tbody>
+          <thead><tr><th>#</th><th>Name</th>${thCols}<th>Total (Pass ${cRows[0].passTot})</th><th>Status</th><th>Certificate</th><th>Batch</th></tr></thead>
+          <tbody>${renderRowsHtml(cRows,true)}</tbody>
         </table>
       </div>`;
     }
   }
-  $('lcSumBody').innerHTML=`<div class="mu" style="margin-bottom:6px">Total: <b>${rows.length}</b> · <span style="color:var(--ok)">PASS: <b>${passCnt}</b></span> · <span style="color:var(--bad)">FAIL: <b>${failCnt}</b></span></div>
+  sumBody.innerHTML=`<div class="mu" style="margin-bottom:6px">Total: <b>${rows.length}</b> · <span style="color:var(--ok)">PASS: <b>${passCnt}</b></span> · <span style="color:var(--bad)">FAIL: <b>${failCnt}</b></span></div>
   <table class="tbl">
-    <thead><tr><th>#</th><th>Name</th>${thCols}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th><th>Action</th></tr></thead>
-    <tbody>${renderRowsHtml(rows)}</tbody>
+    <thead><tr><th>#</th><th>Name</th>${thCols}<th>Total (Pass ${rows[0].passTot})</th><th>Status</th><th>Certificate</th><th>Action</th></tr></thead>
+    <tbody>${renderRowsHtml(rows,false)}</tbody>
   </table>`+combHtml;
-  $('lcSumBody').querySelectorAll('.lc-fail-him').forEach(b=>b.onclick=()=>{
+  sumBody.querySelectorAll('.lc-fail-him').forEach(b=>b.onclick=()=>{
     db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/senseiFailed`).set(b.dataset.f!=='1');
   });
-  $('lcSumBody').querySelectorAll('.lc-rep-link').forEach(b=>b.onclick=()=>{
+  sumBody.querySelectorAll('.lc-rep-link').forEach(b=>b.onclick=()=>{
     const url=location.origin+location.pathname+'#report='+encodeURIComponent(b.dataset.rm)+':'+encodeURIComponent(b.dataset.s);
     if(navigator.clipboard&&navigator.clipboard.writeText){
-      navigator.clipboard.writeText(url).then(()=>toast(`${b.dataset.n}-এর Report Card Link কপি হয়েছে! (24 ঘণ্টা valid)`)).catch(()=>prompt('Report Card Link (24h valid):',url));
+      navigator.clipboard.writeText(url).then(()=>toast(`${b.dataset.n}-এর Certificate Link কপি হয়েছে! (24 ঘণ্টা valid)`)).catch(()=>prompt('Certificate Link (24h valid):',url));
     }else{
-      prompt('Report Card Link (24h valid):',url);
+      prompt('Certificate Link (24h valid):',url);
     }
   });
-  if($('lcCombPngBtn')){
-    $('lcCombPngBtn').onclick=()=>{
+  if($(opts.combPngBtnId)){
+    $(opts.combPngBtnId).onclick=()=>{
       const combStus=[];
       lcBatchRooms.forEach(([,rm])=>{
         const bNum=rm.batchNum||1;
@@ -4814,13 +4909,15 @@ function exportSummaryPng(r,rows,titleSuffix,fileSuffix){
     a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
   },'image/png');
 }
-$('lcSumPngBtn').onclick=()=>{
+function exportCurrentRoomSummaryPng(){
   if(!lcRoomData)return;
   const r=lcRoomData,stus=r.students?Object.entries(r.students):[];
   const disp=buildStuDisp(stus.map(([,s])=>s));
   const rows=stus.map(([,s])=>({...calcStuSummary(r,s),name:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
   exportSummaryPng(r,rows,' — Result Summary','');
-};
+}
+$('lcSumPngBtn').onclick=exportCurrentRoomSummaryPng;
+$('lsSumPngBtn').onclick=exportCurrentRoomSummaryPng;
 (()=>{
   try{
     applyTheme(localStorage.getItem(THEME_KEY)||'auto');
