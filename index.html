@@ -527,8 +527,8 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
     <h2 style="margin:0 0 6px">Result Published! 🎉</h2>
     <div class="mu" style="font-size:13px;margin-bottom:14px">তোমার রেজাল্ট দেখার আগে এই ভিডিওটি দেখো…</div>
-    <video id="lrvPlayer" controls autoplay playsinline preload="auto" style="width:100%;max-height:68vh;border-radius:12px;background:#000;display:block"></video>
-    <div id="lrvSoundHint" class="mu hide" style="margin-top:8px;font-size:12px">🔇 Autoplay-এর জন্য sound mute করা আছে — ভিডিওতে tap করে unmute করতে পারো।</div>
+    <video id="lrvPlayer" controls autoplay loop playsinline preload="auto" style="width:100%;max-height:68vh;border-radius:12px;background:#000;display:block"></video>
+    <button type="button" class="btn sec hide" id="lrvPlaySoundBtn" style="margin-top:10px">🔊 Tap to Play with Sound</button>
     <div id="lrvCountdown" class="mu" style="margin-top:12px;font-size:13px;font-weight:700"></div>
     <button type="button" class="btn hide" id="lrvResultBtn" style="margin-top:14px">View Result Card →</button>
   </div>
@@ -2732,41 +2732,31 @@ function pickResultVideo(r,s){
   }
   return 'videos/'+file;
 }
-function showLiveResultVideo(r,s){
+function startLiveVideoView(src,showPreviewBar,onResultClick){
   stopYt();
   hideAllViews();
   $('liveResultVideoView').classList.remove('hide');
-  const v=$('lrvPlayer');
-  const btn=$('lrvResultBtn');
-  const cd=$('lrvCountdown');
-  const sh=$('lrvSoundHint');
-  $('lrvPreviewBar').classList.add('hide');
-  btn.classList.add('hide');
-  sh.classList.add('hide');
-  v.muted=false;
-  v.src=pickResultVideo(r,s);
-  v.play().catch(()=>{
-    v.muted=true;
-    sh.classList.remove('hide');
-    v.play().catch(()=>{});
-  });
+  $('lrvPreviewBar').classList.toggle('hide',!showPreviewBar);
+  const v=$('lrvPlayer'),btn=$('lrvResultBtn'),cd=$('lrvCountdown'),pb=$('lrvPlaySoundBtn');
+  btn.classList.add('hide');pb.classList.add('hide');
+  v.loop=true;v.muted=false;v.src=src;
+  pb.onclick=()=>{v.muted=false;v.play().then(()=>pb.classList.add('hide')).catch(()=>{})};
+  v.play().catch(()=>{pb.classList.remove('hide')});
   let sec=7;
   cd.textContent=`${sec}s পর Result বাটন আসবে…`;
   lrvTimer=setInterval(()=>{
     sec--;
-    if(sec>0){
-      cd.textContent=`${sec}s পর Result বাটন আসবে…`;
-    }else{
-      clearInterval(lrvTimer);lrvTimer=null;
-      cd.textContent='এখন নিচের বাটনে ক্লিক করে তোমার Result দেখো ✓';
-      btn.classList.remove('hide');
-    }
+    if(sec>0)cd.textContent=`${sec}s পর Result বাটন আসবে…`;
+    else{clearInterval(lrvTimer);lrvTimer=null;cd.textContent='এখন নিচের বাটনে ক্লিক করে তোমার Result দেখো ✓';btn.classList.remove('hide')}
   },1000);
-  btn.onclick=()=>{
+  btn.onclick=onResultClick;
+}
+function showLiveResultVideo(r,s){
+  startLiveVideoView(pickResultVideo(r,s),false,()=>{
     try{localStorage.setItem('liveVidSeen_'+liveRoomId+'_'+liveStuId,'1')}catch(e){}
     stopLiveResultVideo();
     showReport();
-  };
+  });
 }
 const VIDEO_PREVIEW_CASES=[
   {label:'0–45 (Fail)',file:'videos/1_to_45.mp4',score:30,pass:false},
@@ -2794,22 +2784,7 @@ function openVideoPreview(idx){
   const i=Math.max(0,Math.min(VIDEO_PREVIEW_CASES.length-1,idx||0));
   sel.value=String(i);
   const c=VIDEO_PREVIEW_CASES[i];
-  stopYt();
-  hideAllViews();
-  $('liveResultVideoView').classList.remove('hide');
-  $('lrvPreviewBar').classList.remove('hide');
-  const v=$('lrvPlayer'),btn=$('lrvResultBtn'),cd=$('lrvCountdown'),sh=$('lrvSoundHint');
-  btn.classList.add('hide');sh.classList.add('hide');
-  v.muted=false;v.src=c.file;
-  v.play().catch(()=>{v.muted=true;sh.classList.remove('hide');v.play().catch(()=>{})});
-  let sec=7;
-  cd.textContent=`${sec}s পর Result বাটন আসবে…`;
-  lrvTimer=setInterval(()=>{
-    sec--;
-    if(sec>0)cd.textContent=`${sec}s পর Result বাটন আসবে…`;
-    else{clearInterval(lrvTimer);lrvTimer=null;cd.textContent='এখন নিচের বাটনে ক্লিক করে তোমার Result দেখো ✓';btn.classList.remove('hide')}
-  },1000);
-  btn.onclick=()=>{
+  startLiveVideoView(c.file,true,()=>{
     stopLiveResultVideo();
     liveRoomId='';liveRoom=null;liveStuId='';
     cfg={name:'Preview Student',examName:`Preview (${c.label})`,driveId:'',ytId:'',style:'jlpt',parts:[{lbl:'Part 1',q:30,m:30},{lbl:'Part 2',q:30,m:70},{lbl:'Listening',q:30,m:50,listen:true}]};
@@ -2821,7 +2796,7 @@ function openVideoPreview(idx){
     ];
     ans=marks.map(a=>a.map(()=>1));used=[600,1200,900];
     showReport();
-  };
+  });
 }
 async function loadPublishedLiveReport(skipVideo){
   if(!liveRoom||!liveRoom.students||!liveRoom.students[liveStuId])return;
