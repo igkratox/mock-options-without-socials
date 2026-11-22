@@ -496,6 +496,19 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <div id="lwWaitProgTxt" style="font-weight:700;font-size:14px"></div>
         <button type="button" class="btn sec" id="lwDetailsBtn" style="margin-top:8px;padding:6px 12px;font-size:12px;width:auto">Details</button>
         <div id="lwDetailsBox" class="hide" style="margin-top:10px;text-align:left;border:1px solid var(--bd);border-radius:10px;padding:10px;background:var(--bg);font-size:12px"></div>
+        <div id="lwChatBox" style="margin-top:14px;text-align:left;border:1px solid var(--bd);border-radius:12px;padding:10px;background:var(--bg)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <strong style="font-size:13px">💬 Waiting Lobby Chat</strong>
+            <span class="mu" style="font-size:11px">Listening শুরু হলে auto delete হবে</span>
+          </div>
+          <div id="lwChatList" style="max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:8px;background:var(--card);border:1px solid var(--bd);font-size:13px">
+            <div class="mu" style="font-size:12px;text-align:center;padding:8px 0">এখনো কোনো মেসেজ নেই… কথা বলো!</div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <input id="lwChatIn" maxlength="300" placeholder="মেসেজ লেখো…" style="flex:1;padding:8px 10px;font-size:13px">
+            <button type="button" class="btn" id="lwChatSendBtn" style="width:auto;margin:0;padding:8px 14px;font-size:13px">Send</button>
+          </div>
+        </div>
       </div>
     </div>
     <button type="button" class="btn sec" id="lwHomeBtn" style="margin-top:18px">Back to Home</button>
@@ -3107,8 +3120,9 @@ async function checkHashLive(){
         $('lwDetailsBox').innerHTML=pendStus.length
           ?pendStus.map(s=>`<div style="padding:3px 0;border-bottom:1px dashed var(--bd)"><b>${esc(s.name||'Student')}</b> — ${esc(s.partLabel||'Exam')} · Q${s.cur||1} · <b>${fmt(s.rem||0)}</b> বাকি</div>`).join('')
           :'<div class="mu">সবাই চলে এসেছে! Listening শুরু হচ্ছে…</div>';
+        renderLobbyChat(r);
         if(r.hasListen&&!r.onlyListen&&!r.listenStarted&&activeStus.length>0&&pendStus.length===0){
-          db().ref('rooms/'+rid+'/listenStarted').set(true);
+          db().ref('rooms/'+rid).update({listenStarted:true,lobbyChat:null});
         }
       }
       if(me&&me.status==='waiting_listen'&&r.listenStarted){
@@ -3200,6 +3214,37 @@ async function checkHashLiveReport(){
     $('lwSub').textContent='নেটওয়ার্ক সমস্যা হয়েছে, আবার চেষ্টা করো।';
   }
 }
+let lastLobbyChatSig='';
+function renderLobbyChat(r){
+  const listEl=$('lwChatList');if(!listEl)return;
+  const msgs=r&&r.lobbyChat?Object.values(r.lobbyChat).filter(m=>m&&m.text).sort((a,b)=>(a.ts||0)-(b.ts||0)).slice(-60):[];
+  const sig=liveRoomId+':'+(msgs.length?(msgs.length+':'+(msgs[msgs.length-1].ts||0)):'0');
+  if(sig===lastLobbyChatSig)return;
+  lastLobbyChatSig=sig;
+  if(!msgs.length){
+    listEl.innerHTML='<div class="mu" style="font-size:12px;text-align:center;padding:8px 0">এখনো কোনো মেসেজ নেই… কথা বলো!</div>';
+    return;
+  }
+  listEl.innerHTML=msgs.map(m=>{
+    const isMe=m.sid===liveStuId;
+    const tStr=m.ts?new Date(m.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+    return `<div style="align-self:${isMe?'flex-end':'flex-start'};max-width:85%;padding:6px 10px;border-radius:10px;background:${isMe?'var(--ac-soft)':'var(--bg)'};border:1px solid ${isMe?'var(--ac)':'var(--bd)'}">
+      <div style="font-size:11px;color:var(--mu);margin-bottom:2px"><b>${esc(isMe?'You':(m.name||'Student'))}</b> · ${esc(tStr)}</div>
+      <div style="word-break:break-word;white-space:pre-wrap">${esc(m.text)}</div>
+    </div>`;
+  }).join('');
+  listEl.scrollTop=listEl.scrollHeight;
+}
+function sendLobbyChat(){
+  if(!liveRoomId||!liveStuId)return;
+  const inp=$('lwChatIn'),text=(inp.value||'').trim().slice(0,300);
+  if(!text)return;
+  inp.value='';
+  const name=(liveRoom&&liveRoom.students&&liveRoom.students[liveStuId]&&liveRoom.students[liveStuId].name)||cfg?.name||'Student';
+  db().ref('rooms/'+liveRoomId+'/lobbyChat').push({sid:liveStuId,name,text,ts:Date.now()});
+}
+$('lwChatSendBtn').onclick=sendLobbyChat;
+$('lwChatIn').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();sendLobbyChat()}};
 $('lwHomeBtn').onclick=()=>goHome();
 
 /* Portal Auth (Examiner & Admin) */
@@ -3440,6 +3485,10 @@ async function loadExaminerHistory(){
       db().ref('rooms/'+rid+'/pdfPages').remove();
       delete r.pdfPages;
     }
+    if(r.lobbyChat&&(r.status==='ended'||r.listenStarted||(now-(r.createdAt||0)>BATCH_TTL_MS))){
+      db().ref('rooms/'+rid+'/lobbyChat').remove();
+      delete r.lobbyChat;
+    }
   });
   renderExaminerRanking(rms);
   const liveRooms=Object.entries(rms).filter(([,r])=>r.status!=='ended').sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
@@ -3474,7 +3523,7 @@ async function loadExaminerHistory(){
         ?`⚠️ সতর্কতা: এই Live Exam-এ এখন ${activeCnt} জন student পরীক্ষা দিচ্ছে!\n\nEnd Exam দিলে সবার পরীক্ষা এখনই বন্ধ (auto-submit) হয়ে যাবে এবং PDF pages delete হয়ে যাবে।\n\nনিশ্চিতভাবে "${r.examName||'Live Exam'}" শেষ করবে?`
         :`⚠️ "${r.examName||'Live Exam'}" বন্ধ করে দেবে?\n\nPDF pages Firebase থেকে delete হয়ে যাবে, result থাকবে।`;
       if(!confirm(msg))return;
-      await db().ref('rooms/'+rid).update({status:'ended',pdfPages:null});
+      await db().ref('rooms/'+rid).update({status:'ended',pdfPages:null,lobbyChat:null});
       toast('Exam বন্ধ করা হয়েছে!');
       loadExaminerHistory();
     });
@@ -3883,7 +3932,7 @@ function openLiveControl(rid){
     $('lcWaitCount').textContent=(r.hasListen||r.onlyListen)?(`Waiting for Listening: ${waitCnt} / ${activeCnt}`):'Listening বর্তমানে Off আছে';
     $('lcNotifWaitPill').textContent=(r.hasListen||r.onlyListen)?(`Listening Queue: ${waitCnt} / ${activeCnt}`):'Listening Off';
     if(r.hasListen&&!r.onlyListen&&!r.listenStarted&&activeCnt>0&&waitCnt===activeCnt){
-      db().ref('rooms/'+rid+'/listenStarted').set(true);
+      db().ref('rooms/'+rid).update({listenStarted:true,lobbyChat:null});
     }
     const alertList=r.alerts?Object.values(r.alerts).sort((a,b)=>(b.ts||0)-(a.ts||0)):[];
     const newestAlert=alertList[0];
@@ -4010,7 +4059,7 @@ $('lcCopyLinkBtn').onclick=async()=>{
   catch(e){prompt('Student Link:',url)}
 };
 $('lcEndBtn').onclick=()=>{
-  if(confirm('Exam বন্ধ করে দেবে? (PDF pages-ও Firebase থেকে delete হয়ে যাবে, result থাকবে)'))db().ref('rooms/'+lcRoomId).update({status:'ended',pdfPages:null});
+  if(confirm('Exam বন্ধ করে দেবে? (PDF pages-ও Firebase থেকে delete হয়ে যাবে, result থাকবে)'))db().ref('rooms/'+lcRoomId).update({status:'ended',pdfPages:null,lobbyChat:null});
 };
 document.querySelectorAll('.lc-gtime').forEach(b=>b.onclick=()=>{
   db().ref('rooms/'+lcRoomId).update({globalDeltaSec:+b.dataset.d,globalDeltaTs:Date.now()});
@@ -4028,7 +4077,7 @@ document.querySelectorAll('.lc-gded').forEach(b=>b.onclick=async()=>{
   await db().ref().update(upd);
   toast(d===0?'সবার সব Deduct reset হয়েছে!':`সবার থেকে ${d} নম্বর deduct হয়েছে!`);
 });
-$('lcStartListenBtn').onclick=()=>db().ref('rooms/'+lcRoomId+'/listenStarted').set(true);
+$('lcStartListenBtn').onclick=()=>db().ref('rooms/'+lcRoomId).update({listenStarted:true,lobbyChat:null});
 $('lcLMode').onchange=()=>{
   if(!lcRoomId)return;
   const m=$('lcLMode').value;
