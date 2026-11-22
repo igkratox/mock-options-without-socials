@@ -1364,10 +1364,11 @@ async function getBox(n){
 }
 async function renderPages(list){
   const tok=++renderToken;
-  if(!pdf&&liveRoom&&liveRoom.pdfPages){
+  const rPdf=getRoomPdf(liveRoom,liveRoomId);
+  if(!pdf&&rPdf){
     const els=[];
     for(const n of list){
-      const src=liveRoom.pdfPages[n];
+      const src=rPdf[n];
       if(!src)continue;
       const img=document.createElement('img');
       img.src=src;img.style.width='100%';img.style.display='block';img.style.marginBottom='4px';
@@ -2870,10 +2871,35 @@ async function loadStuLiveHistory(){
     });
   }catch(e){el.innerHTML='<div class="mu">Load করা যায়নি।</div>'}
 }
+const roomPdfCache={};
+function getRoomPdf(r,rid){
+  return (r&&r.pdfPages)||(rid&&roomPdfCache[rid])||null;
+}
+async function ensureRoomPdf(rid,r){
+  if(!rid||!r||r.pdfPages||!r.hasPdf||roomPdfCache[rid]!==undefined)return;
+  roomPdfCache[rid]=null;
+  try{
+    const snap=await db().ref('roomPdfs/'+rid).once('value');
+    const val=snap.val();
+    roomPdfCache[rid]=val||null;
+    if(val&&rid===liveRoomId&&liveRoom&&typeof buildLiveParts==='function'){
+      if(cfg&&cfg.parts){
+        const built=buildLiveParts(liveRoom);
+        cfg.parts.forEach((pt,idx)=>{if(built[idx]&&built[idx].pages&&built[idx].pages.length)pt.pages=built[idx].pages});
+        if(!$('exam').classList.contains('hide')&&cfg.parts[part]&&cfg.parts[part].pages&&cfg.parts[part].pages.length)renderPages(cfg.parts[part].pages);
+      }
+    }
+    if(val&&rid===lcRoomId&&lcRoomData&&!$('liveControl').classList.contains('hide')){
+      const ks=Object.keys(val).map(Number).sort((a,b)=>a-b);
+      if(ks.length&&$('lcPageAvail'))$('lcPageAvail').textContent=`Uploaded PDF Pages: ${ks.join(', ')}`+(exPdf?` · Local PDF: 1–${exPdf.numPages}`:'');
+    }
+  }catch(e){delete roomPdfCache[rid]}
+}
 function buildLiveParts(r){
-  const p1p=r.pdfPages&&r.p1pages?parsePages(r.p1pages,999):[];
-  const p2p=r.pdfPages&&r.p2pages?parsePages(r.p2pages,999):[];
-  const p3p=r.pdfPages&&r.p3pages?parsePages(r.p3pages,999):(r.onlyListen&&r.pdfPages?Object.keys(r.pdfPages).map(Number).sort((a,b)=>a-b):[]);
+  const rPdf=getRoomPdf(r,r===liveRoom?liveRoomId:(r===lcRoomData?lcRoomId:''));
+  const p1p=rPdf&&r.p1pages?parsePages(r.p1pages,999):[];
+  const p2p=rPdf&&r.p2pages?parsePages(r.p2pages,999):[];
+  const p3p=rPdf&&r.p3pages?parsePages(r.p3pages,999):(r.onlyListen&&rPdf?Object.keys(rPdf).map(Number).sort((a,b)=>a-b):[]);
   const lMds=roomMondai(r),lTotQ=lMds.reduce((s,x)=>s+x.q,0);
   if(r.onlyListen)return[{label:'Listening',listen:true,mondai:lMds,pages:p3p,pageRange:r.p3pages||'',q:lTotQ,m:r.lm||30}];
   const parts=r.onePart
@@ -3032,6 +3058,7 @@ async function checkHashLive(){
   liveRoomRef.on('value',snap=>{
     const r=snap.val();
     liveRoom=r;
+    if(r&&r.hasPdf)ensureRoomPdf(rid,r);
     if(!r){
       $('lwTitle').textContent='Exam পাওয়া যায়নি';
       $('lwSub').textContent='এই লিংকটি সঠিক নয়।';
@@ -3173,7 +3200,8 @@ async function checkHashLive(){
           toast('Sensei এই Exam-এর Listening বন্ধ করেছেন।');
         }
       }else if(r.hasListen&&!hasLInCfg){
-        const p3p=r.pdfPages&&r.p3pages?parsePages(r.p3pages,999):[];
+        const rPdf=getRoomPdf(r,rid);
+        const p3p=rPdf&&r.p3pages?parsePages(r.p3pages,999):[];
         const lMds=roomMondai(r),lTotQ=lMds.reduce((s,x)=>s+x.q,0);
         cfg.parts.push({label:'Listening',listen:true,mondai:lMds,pages:p3p,pageRange:r.p3pages||'',q:lTotQ,m:r.lm||30});
         while(ans.length<cfg.parts.length){ans.push(Array(lTotQ).fill(0));marks.push(Array(lTotQ).fill(null));flags.push([]);used.push(0)}
@@ -3215,7 +3243,8 @@ async function checkHashLive(){
           const P=cfg.parts[idx];
           if(!P||P.listen||(P.pageRange||'')===(newRange||''))return;
           P.pageRange=newRange||'';
-          P.pages=r.pdfPages&&newRange?parsePages(newRange,999):[];
+          const rPdf=getRoomPdf(r,rid);
+          P.pages=rPdf&&newRange?parsePages(newRange,999):[];
           if(!$('exam').classList.contains('hide')&&part===idx){
             if(cfg.driveId){
               const hint=$('driveWrap').querySelector('.drv-hint');
@@ -3536,7 +3565,7 @@ $('admClean30Btn').onclick=async()=>{
   const snap=await db().ref('rooms').once('value');
   const rms=snap.val()||{},upd={};
   let cnt=0;
-  Object.entries(rms).forEach(([rid,r])=>{if((r.createdAt||0)<cutoff){upd['rooms/'+rid]=null;cnt++}});
+  Object.entries(rms).forEach(([rid,r])=>{if((r.createdAt||0)<cutoff){upd['rooms/'+rid]=null;upd['roomPdfs/'+rid]=null;cnt++}});
   if(!cnt){toast('৩০ দিনের পুরনো কোনো exam পাওয়া যায়নি।');return}
   await db().ref().update(upd);
   toast(`${cnt}টি পুরনো exam delete হয়েছে!`);
@@ -3653,9 +3682,9 @@ async function loadExaminerHistory(){
   const rms=snap.val()||{};
   const now=Date.now();
   Object.entries(rms).forEach(([rid,r])=>{
-    if(r.pdfPages&&(now-(r.createdAt||0)>BATCH_TTL_MS)){
-      db().ref('rooms/'+rid+'/pdfPages').remove();
-      delete r.pdfPages;
+    if((r.pdfPages||r.hasPdf)&&(now-(r.createdAt||0)>BATCH_TTL_MS)){
+      if(r.pdfPages){db().ref('rooms/'+rid+'/pdfPages').remove();delete r.pdfPages}
+      if(r.hasPdf){db().ref('rooms/'+rid+'/hasPdf').remove();db().ref('roomPdfs/'+rid).remove();delete r.hasPdf}
     }
     if(r.lobbyChat&&(r.status==='ended'||r.listenStarted||(now-(r.createdAt||0)>BATCH_TTL_MS))){
       db().ref('rooms/'+rid+'/lobbyChat').remove();
@@ -3695,7 +3724,8 @@ async function loadExaminerHistory(){
         ?`⚠️ সতর্কতা: এই Live Exam-এ এখন ${activeCnt} জন student পরীক্ষা দিচ্ছে!\n\nEnd Exam দিলে সবার পরীক্ষা এখনই বন্ধ (auto-submit) হয়ে যাবে এবং PDF pages delete হয়ে যাবে।\n\nনিশ্চিতভাবে "${r.examName||'Live Exam'}" শেষ করবে?`
         :`⚠️ "${r.examName||'Live Exam'}" বন্ধ করে দেবে?\n\nPDF pages Firebase থেকে delete হয়ে যাবে, result থাকবে।`;
       if(!confirm(msg))return;
-      await db().ref('rooms/'+rid).update({status:'ended',pdfPages:null,lobbyChat:null});
+      await db().ref('rooms/'+rid).update({status:'ended',pdfPages:null,hasPdf:null,lobbyChat:null});
+      await db().ref('roomPdfs/'+rid).remove();
       toast('Exam বন্ধ করা হয়েছে!');
       loadExaminerHistory();
     });
@@ -3711,7 +3741,7 @@ async function loadExaminerHistory(){
   }).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
   $('exHistoryList').innerHTML=list.length?list.map(([rid,r])=>{
     const sc=r.students?Object.keys(r.students).length:0;
-    const canCopy=!r.onlyListen&&(now-(r.createdAt||0)<=BATCH_TTL_MS)&&(r.driveId||r.pdfPages);
+    const canCopy=!r.onlyListen&&(now-(r.createdAt||0)<=BATCH_TTL_MS)&&(r.driveId||r.hasPdf||r.pdfPages);
     return `<div class="hist-item">
       <div class="hist-info">
         <div class="hist-title">${esc(r.examName||'Live Exam')} <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span></div>
@@ -3743,7 +3773,15 @@ async function loadExaminerHistory(){
       passTotal:src.passTotal||58,listenStarted:false,published:false,linkLocked:false
     };
     if(src.keys)newRoom.keys=src.keys;
-    if(src.pdfPages)newRoom.pdfPages=src.pdfPages;
+    let copyPdf=src.pdfPages||null;
+    if(!copyPdf&&src.hasPdf){
+      copyPdf=(await db().ref('roomPdfs/'+srcId).once('value')).val();
+    }
+    if(copyPdf){
+      newRoom.hasPdf=true;
+      roomPdfCache[newRid]=copyPdf;
+      await db().ref('roomPdfs/'+newRid).set(copyPdf);
+    }
     if(!src.batchGroupId)await db().ref(`rooms/${srcId}/batchGroupId`).set(gid);
     await db().ref('rooms/'+newRid).set(newRoom);
     toast(`Batch ${nextNum} তৈরি হয়েছে!`);
@@ -3761,6 +3799,7 @@ async function loadExaminerHistory(){
   $('exHistoryList').querySelectorAll('.ex-del-rm').forEach(b=>b.onclick=async()=>{
     if(!confirm('এই Exam-টি permanently delete করবে?'))return;
     await db().ref('rooms/'+b.dataset.id).remove();
+    await db().ref('roomPdfs/'+b.dataset.id).remove();
     loadExaminerHistory();
   });
 }
@@ -3921,7 +3960,11 @@ $('ecGoBtn').onclick=async()=>{
     passTotal,listenStarted:onlyListen,published:false
   };
   if(!onlyListen){roomObj.batchGroupId=rid;roomObj.batchNum=1;roomObj.baseExamName=pendingExDraft.examName}
-  if(pdfPages)roomObj.pdfPages=pdfPages;
+  if(pdfPages){
+    roomObj.hasPdf=true;
+    roomPdfCache[rid]=pdfPages;
+    await db().ref('roomPdfs/'+rid).set(pdfPages);
+  }
   await db().ref('rooms/'+rid).set(roomObj);
   lcReturnView='examinerDash';
   openLiveControl(rid);
@@ -3962,13 +4005,15 @@ function openLiveControl(rid){
       return;
     }
     lcRoomData=r;
+    if(r.hasPdf)ensureRoomPdf(rid,r);
     await refreshBatchRooms(r,rid);
     $('lcTitle').textContent=r.examName||'Live Control';
     $('lcSub').innerHTML=`Teacher: <b>${esc(r.examinerName)}</b> · ${esc(r.dateStr||'')} · <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span>`+(r.linkLocked?' <span class="pill end">LINK LOCKED</span>':'');
     $('lcEndBtn').disabled=r.status==='ended';
     $('lcLinkLockBtn').textContent=r.linkLocked?'Unlock Link':'Lock Link';
     $('lcLinkLockBtn').style.color=r.linkLocked?'var(--ok)':'var(--bad)';
-    const showPageCtrl=!r.onlyListen&&(r.driveId||r.pdfPages);
+    const lcPdf=getRoomPdf(r,rid);
+    const showPageCtrl=!r.onlyListen&&(r.driveId||r.hasPdf||lcPdf);
     $('lcPageCtrlCard').classList.toggle('hide',!showPageCtrl);
     if(showPageCtrl){
       $('lcP2PageRow').classList.toggle('hide',!!r.onePart);
@@ -3979,9 +4024,11 @@ function openLiveControl(rid){
         $('lcP2Pages').value=r.p2pages||'';
         lcPagesInit=true;
       }
-      if(r.pdfPages){
-        const ks=Object.keys(r.pdfPages).map(Number).sort((a,b)=>a-b);
+      if(lcPdf){
+        const ks=Object.keys(lcPdf).map(Number).sort((a,b)=>a-b);
         $('lcPageAvail').textContent=`Uploaded PDF Pages: ${ks.join(', ')}`+(exPdf?` · Local PDF: 1–${exPdf.numPages}`:'');
+      }else if(r.hasPdf){
+        $('lcPageAvail').textContent='Uploaded PDF Pages লোড হচ্ছে…';
       }else{
         $('lcPageAvail').textContent='Google Drive Mode — যেকোনো page range দিতে পারো';
       }
@@ -4231,7 +4278,7 @@ $('lcCopyLinkBtn').onclick=async()=>{
   catch(e){prompt('Student Link:',url)}
 };
 $('lcEndBtn').onclick=()=>{
-  if(confirm('Exam বন্ধ করে দেবে? (PDF pages-ও Firebase থেকে delete হয়ে যাবে, result থাকবে)'))db().ref('rooms/'+lcRoomId).update({status:'ended',pdfPages:null,lobbyChat:null});
+  if(confirm('Exam বন্ধ করে দেবে? (PDF pages-ও Firebase থেকে delete হয়ে যাবে, result থাকবে)')){db().ref('rooms/'+lcRoomId).update({status:'ended',pdfPages:null,hasPdf:null,lobbyChat:null});db().ref('roomPdfs/'+lcRoomId).remove();}
 };
 document.querySelectorAll('.lc-gtime').forEach(b=>b.onclick=()=>{
   db().ref('rooms/'+lcRoomId).update({globalDeltaSec:+b.dataset.d,globalDeltaTs:Date.now()});
@@ -4319,11 +4366,12 @@ function openStuPovModal(partNum){
   $('lcPovSub').textContent=raw?`Student-রা যে Pages দেখবে: ${raw}`:'কোনো page range দেওয়া হয়নি।';
   const body=$('lcPovBody');
   if(!raw){body.innerHTML='<div class="mu" style="padding:12px">Page range লিখো।</div>';$('lcPovModal').classList.remove('hide');return}
-  if(r.pdfPages){
+  const lcPdf=getRoomPdf(r,lcRoomId);
+  if(lcPdf){
     const list=parsePages(raw,999);
     if(!list.length){body.innerHTML='<div class="mu" style="padding:12px;color:var(--bad)">সঠিক page range লিখো (যেমন: 1-5)।</div>';$('lcPovModal').classList.remove('hide');return}
     body.innerHTML=list.map(n=>{
-      const src=r.pdfPages[n];
+      const src=lcPdf[n];
       if(src)return `<div style="margin-bottom:10px"><div class="mu" style="font-size:11px;font-weight:700;margin-bottom:3px">Page ${n}</div><img src="${src}" style="width:100%;display:block;border-radius:6px;border:1px solid var(--bd)"></div>`;
       return `<div style="padding:12px;margin-bottom:8px;border:1px dashed var(--bad);border-radius:8px;color:var(--bad);font-size:13px">⚠️ Page ${n} এখনো Firebase-এ upload করা নেই${exPdf&&n<=exPdf.numPages?' (Save Pages চাপলে upload হবে)':' (শুধু uploaded pages দেখানো যাবে)'}।</div>`;
     }).join('');
@@ -4348,8 +4396,9 @@ $('lcSavePagesBtn').onclick=async()=>{
   if(!p1list.length||(!r.onePart&&!p2list.length)){toast('সঠিক page range দাও (যেমন: 1-5)।');return}
   const upd={p1pages:p1raw};
   if(!r.onePart)upd.p2pages=p2raw;
-  if(r.pdfPages){
-    const merged={...r.pdfPages};
+  const lcPdf=getRoomPdf(r,lcRoomId);
+  if(lcPdf){
+    const merged={...lcPdf};
     const need=[...new Set([...p1list,...p2list])].filter(n=>!merged[n]);
     if(need.length){
       if(exPdf&&need.every(n=>n<=exPdf.numPages)){
@@ -4361,14 +4410,18 @@ $('lcSavePagesBtn').onclick=async()=>{
             await pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;
             merged[n]=c.toDataURL('image/jpeg',0.72);
           }
-          upd.pdfPages=merged;
+          if(r.pdfPages)upd.pdfPages=merged;
+          else{
+            roomPdfCache[lcRoomId]=merged;
+            await db().ref('roomPdfs/'+lcRoomId).set(merged);
+          }
         }catch(e){
           toast('PDF page upload ব্যর্থ হয়েছে!');
           btn.disabled=false;btn.textContent='Save Pages';return;
         }
         btn.disabled=false;btn.textContent='Save Pages';
       }else{
-        const avail=Object.keys(r.pdfPages).map(Number).sort((a,b)=>a-b).join(', ');
+        const avail=Object.keys(lcPdf).map(Number).sort((a,b)=>a-b).join(', ');
         toast(`Page ${need.join(', ')} upload করা নেই! Available: ${avail}`);
         return;
       }
@@ -4763,7 +4816,7 @@ async function gradeRoomWithCurrentKeys(silent){
     if(!r.onlyListen)upd[`rooms/${rmId}/batchGroupId`]=gid;
   });
   upd[`rooms/${lcRoomId}/chors`]=chors;
-  if(r.onlyListen)upd[`rooms/${lcRoomId}/pdfPages`]=null;
+  if(r.onlyListen){upd[`rooms/${lcRoomId}/pdfPages`]=null;upd[`rooms/${lcRoomId}/hasPdf`]=null;upd[`roomPdfs/${lcRoomId}`]=null}
   await db().ref().update(upd);
   if(!silent){
     $('lcSumBody')?.scrollIntoView({behavior:'smooth'});
