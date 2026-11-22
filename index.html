@@ -518,6 +518,13 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 <!-- Live Result Intro Video View -->
 <div id="liveResultVideoView" class="wrap hide" style="padding-top:28px;max-width:640px">
   <div class="card" style="text-align:center;padding:20px">
+    <div id="lrvPreviewBar" class="hide" style="margin-bottom:14px;text-align:left;padding:10px;border:1px dashed var(--bd);border-radius:10px;background:var(--bg)">
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px">🎬 Video Preview Mode (13 Ranges)</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="lrvPreviewSel" style="flex:1;font-size:13px;padding:7px 10px"></select>
+        <button type="button" class="btn sec" id="lrvPreviewHome" style="width:auto;margin:0;padding:7px 12px;font-size:12px">Exit</button>
+      </div>
+    </div>
     <h2 style="margin:0 0 6px">Result Published! 🎉</h2>
     <div class="mu" style="font-size:13px;margin-bottom:14px">তোমার রেজাল্ট দেখার আগে এই ভিডিওটি দেখো…</div>
     <video id="lrvPlayer" controls autoplay playsinline preload="auto" style="width:100%;max-height:68vh;border-radius:12px;background:#000;display:block"></video>
@@ -2733,6 +2740,7 @@ function showLiveResultVideo(r,s){
   const btn=$('lrvResultBtn');
   const cd=$('lrvCountdown');
   const sh=$('lrvSoundHint');
+  $('lrvPreviewBar').classList.add('hide');
   btn.classList.add('hide');
   sh.classList.add('hide');
   v.muted=false;
@@ -2757,6 +2765,61 @@ function showLiveResultVideo(r,s){
   btn.onclick=()=>{
     try{localStorage.setItem('liveVidSeen_'+liveRoomId+'_'+liveStuId,'1')}catch(e){}
     stopLiveResultVideo();
+    showReport();
+  };
+}
+const VIDEO_PREVIEW_CASES=[
+  {label:'0–45 (Fail)',file:'videos/1_to_45.mp4',score:30,pass:false},
+  {label:'46–50 (Fail)',file:'videos/46_to_50.mp4',score:48,pass:false},
+  {label:'51–65 (Fail)',file:'videos/51_to_65.mp4',score:58,pass:false},
+  {label:'66–75 (Fail)',file:'videos/65_to_75.mp4',score:70,pass:false},
+  {label:'76–78 (Fail)',file:'videos/76_to_78.mp4',score:77,pass:false},
+  {label:'79 (Fail)',file:'videos/79.mp4',score:79,pass:false},
+  {label:'80+ but Fail',file:'videos/80_or_80_plus_but_fail.mp4',score:85,pass:false},
+  {label:'80–89 (Pass)',file:'videos/80_to_89_pass.mp4',score:85,pass:true},
+  {label:'90–110 (Pass)',file:'videos/90_to_110_pass.mp4',score:100,pass:true},
+  {label:'111–120 (Pass)',file:'videos/111_to_120_pass.mp4',score:115,pass:true},
+  {label:'121–130 (Pass)',file:'videos/121_to_130_pass.mp4',score:125,pass:true},
+  {label:'131–140 (Pass)',file:'videos/131_to_140_pass.mp4',score:135,pass:true},
+  {label:'141–180 (Pass)',file:'videos/141_to_180_pass.mp4',score:160,pass:true}
+];
+function openVideoPreview(idx){
+  if(location.hash!=='#videopreview')return;
+  const sel=$('lrvPreviewSel');
+  if(!sel.options.length){
+    sel.innerHTML=VIDEO_PREVIEW_CASES.map((c,i)=>`<option value="${i}">${c.label}</option>`).join('');
+    sel.onchange=()=>openVideoPreview(+sel.value);
+    $('lrvPreviewHome').onclick=()=>{history.replaceState(null,'',location.pathname);goHome()};
+  }
+  const i=Math.max(0,Math.min(VIDEO_PREVIEW_CASES.length-1,idx||0));
+  sel.value=String(i);
+  const c=VIDEO_PREVIEW_CASES[i];
+  stopYt();
+  hideAllViews();
+  $('liveResultVideoView').classList.remove('hide');
+  $('lrvPreviewBar').classList.remove('hide');
+  const v=$('lrvPlayer'),btn=$('lrvResultBtn'),cd=$('lrvCountdown'),sh=$('lrvSoundHint');
+  btn.classList.add('hide');sh.classList.add('hide');
+  v.muted=false;v.src=c.file;
+  v.play().catch(()=>{v.muted=true;sh.classList.remove('hide');v.play().catch(()=>{})});
+  let sec=7;
+  cd.textContent=`${sec}s পর Result বাটন আসবে…`;
+  lrvTimer=setInterval(()=>{
+    sec--;
+    if(sec>0)cd.textContent=`${sec}s পর Result বাটন আসবে…`;
+    else{clearInterval(lrvTimer);lrvTimer=null;cd.textContent='এখন নিচের বাটনে ক্লিক করে তোমার Result দেখো ✓';btn.classList.remove('hide')}
+  },1000);
+  btn.onclick=()=>{
+    stopLiveResultVideo();
+    liveRoomId='';liveRoom=null;liveStuId='';
+    cfg={name:'Preview Student',examName:`Preview (${c.label})`,driveId:'',ytId:'',style:'jlpt',parts:[{lbl:'Part 1',q:30,m:30},{lbl:'Part 2',q:30,m:70},{lbl:'Listening',q:30,m:50,listen:true}]};
+    const okCnt=Math.min(90,Math.round(c.score/2));
+    marks=[
+      Array.from({length:30},(_,k)=>k<Math.min(30,okCnt)?'ok':'bad'),
+      Array.from({length:30},(_,k)=>k<Math.max(0,Math.min(30,okCnt-30))?'ok':'bad'),
+      Array.from({length:30},(_,k)=>k<Math.max(0,okCnt-60)?'ok':'bad')
+    ];
+    ans=marks.map(a=>a.map(()=>1));used=[600,1200,900];
     showReport();
   };
 }
@@ -5088,6 +5151,8 @@ $('lsSumPngBtn').onclick=exportCurrentRoomSummaryPng;
       checkHashLive();
     }else if(location.hash.startsWith('#report=')){
       checkHashLiveReport();
+    }else if(location.hash==='#videopreview'){
+      openVideoPreview(0);
     }else if(pSess&&pSess.role==='admin'){
       curAdmin=true;
       if(pSess.lcRoomId){lcReturnView='adminDash';openLiveControl(pSess.lcRoomId)}
@@ -5104,7 +5169,7 @@ $('lsSumPngBtn').onclick=exportCurrentRoomSummaryPng;
     clearPortalSess();
     showGate();
   }
-  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive();checkHashLiveReport()});
+  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive();checkHashLiveReport();if(location.hash==='#videopreview')openVideoPreview(0)});
 })();
 </script>
 </body>
