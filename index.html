@@ -4804,7 +4804,7 @@ function renderSummaryInto(r,stus,opts){
   const rows=rankStudents(stus.map(([sid,s])=>({rmId:lcRoomId,sid,...calcStuSummary(r,s),dName:disp(s)})));
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL),lTotQ=roomListenTotal(r);
-  const thCols=(onlyL?`<th>Listening</th>`:(one?`<th>Part 1</th>${hasL?'<th>Listening</th>':''}`:`<th>Part 1+2</th>${hasL?'<th>Listening</th>':''}`))+'<th>Time</th>';
+  const thCols=onlyL?`<th>Listening</th>`:((one?`<th>Part 1</th>${hasL?'<th>Listening</th>':''}`:`<th>Part 1+2</th>${hasL?'<th>Listening</th>':''}`)+'<th>Time</th>');
   const isWithin24h=(Date.now()-(r.publishedAt||r.createdAt||0)<=BATCH_TTL_MS);
   const canShareLink=!!(r.published&&isWithin24h);
   const renderCertCell=x=>{
@@ -4819,13 +4819,12 @@ function renderSummaryInto(r,stus,opts){
   const renderRowsHtml=(rowList,isComb)=>rowList.map(x=>{
     const totStr=x.ded>0?`<span style="color:var(--bad)">${x.rawTot}−${x.ded}=</span><b>${x.finalTot}</b>/${x.maxTot}`:`<b>${x.finalTot}/${x.maxTot}</b>`;
     const rDisp=x.rank?(x.medal?`${x.medal} ${x.rank}`:x.rank):'—';
-    const timeSec=onlyL?x.t3:(one?x.t1:x.t12);
-    const tdCols=(onlyL
+    const tdCols=onlyL
       ?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`
-      :(one
+      :((one
         ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`
-        :`<td><b>${x.p12Tot}/120</b> <span class="mu">(${x.p12}/${x.p12Q})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`))
-      +`<td><span class="mu">${fmt(timeSec)} mins</span></td>`;
+        :`<td><b>${x.p12Tot}/120</b> <span class="mu">(${x.p12}/${x.p12Q})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`)
+      +`<td><span class="mu">${fmt(one?x.t1:x.t12)} mins</span></td>`);
     const actCell=isComb
       ?`<td><span class="mu">B${x.bNum||1}</span></td>`
       :`<td><button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button></td>`;
@@ -4906,11 +4905,11 @@ function exportSummaryPng(r,rows,titleSuffix,fileSuffix){
   const passInfo=rows.length?`PASS: ${passCnt} · FAIL: ${failCnt} · Pass Mark: ${rows[0].passTot}/${rows[0].maxTot}`:'';
   ctx.fillText(`Examiner: ${r.examinerName||'Sensei'}  ·  ${r.dateStr||''}  ·  ${passInfo}`,pad,62);
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
-  const cols=(!onlyL&&hasL)?[pad,250,440,610,710,880]:[pad,280,480,620,820];
+  const cols=onlyL?[pad,290,540,780]:(hasL?[pad,250,440,610,710,880]:[pad,280,480,620,820]);
   ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
   ctx.fillText('Student Name',cols[0]+8,96);
   if(onlyL){
-    ctx.fillText('Listening',cols[1],96);ctx.fillText('Time',cols[2],96);ctx.fillText('Total',cols[3],96);ctx.fillText('Status',cols[4],96);
+    ctx.fillText('Listening',cols[1],96);ctx.fillText('Total',cols[2],96);ctx.fillText('Status',cols[3],96);
   }else if(one){
     ctx.fillText('Part 1',cols[1],96);
     if(hasL){ctx.fillText('Listening',cols[2],96);ctx.fillText('Time',cols[3],96);ctx.fillText('Total',cols[4],96);ctx.fillText('Status',cols[5],96)}
@@ -4928,14 +4927,13 @@ function exportSummaryPng(r,rows,titleSuffix,fileSuffix){
     ctx.fillText((idx+1)+'. '+x.name,cols[0]+8,y+22);
     ctx.font='13px system-ui,sans-serif';
     const totTxt=x.ded>0?`${x.rawTot}-${x.ded}=${x.finalTot}/${x.maxTot}`:`${x.finalTot}/${x.maxTot}`;
-    const timeTxt=fmt(onlyL?x.t3:(one?x.t1:x.t12))+' mins';
+    const timeTxt=fmt(one?x.t1:x.t12)+' mins';
     if(onlyL){
       ctx.fillText(`${x.s3}/${x.lTot} (${x.p3}/${roomListenTotal(r)})`,cols[1],y+22);
-      ctx.fillText(timeTxt,cols[2],y+22);
       ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
-      ctx.fillText(totTxt,cols[3],y+22);
+      ctx.fillText(totTxt,cols[2],y+22);
       ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
-      ctx.fillText(x.shortStatus,cols[4],y+22);
+      ctx.fillText(x.shortStatus,cols[3],y+22);
     }else if(one){
       ctx.fillText(`${x.s1}/${x.p1Tot} (${x.p1}/${r.p1q})`,cols[1],y+22);
       if(hasL){
