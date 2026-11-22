@@ -529,6 +529,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div class="mu" style="font-size:13px;margin-bottom:14px">তোমার রেজাল্ট দেখার আগে এই ভিডিওটি দেখো…</div>
     <video id="lrvPlayer" controls autoplay loop playsinline preload="auto" style="width:100%;max-height:68vh;border-radius:12px;background:#000;display:block"></video>
     <button type="button" class="btn sec hide" id="lrvPlaySoundBtn" style="margin-top:10px">🔊 Tap to Play with Sound</button>
+    <div id="lrvRangeMsg" class="hide" style="margin-top:14px;padding:12px 14px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);font-size:14px;font-weight:700;line-height:1.45"></div>
     <div id="lrvCountdown" class="mu" style="margin-top:12px;font-size:13px;font-weight:700"></div>
     <button type="button" class="btn hide" id="lrvResultBtn" style="margin-top:14px">View Result Card →</button>
   </div>
@@ -2699,46 +2700,48 @@ function stopLiveResultVideo(){
   const v=$('lrvPlayer');
   if(v){try{v.pause();v.removeAttribute('src');v.load()}catch(e){}}
 }
+const RESULT_VIDEO_RULES=[
+  {key:'fail80',label:'80+ but Fail',file:'80_or_80_plus_but_fail.mp4',score:85,pass:false,msg:'মোট নম্বর ৮০+ হলেও সেকশনাল বা নির্ধারিত শর্তে পাস আসেনি — পরের বার ইনশাআল্লাহ আরও ভালো হবে!'},
+  {key:'r1_45',label:'0–45 (Fail)',file:'1_to_45.mp4',score:30,pass:false,msg:'এবার নম্বর বেশ কম এসেছে — বেসিক থেকে আবার ভালোভাবে প্র্যাকটিস শুরু করো!'},
+  {key:'r46_50',label:'46–50 (Fail)',file:'46_to_50.mp4',score:48,pass:false,msg:'একটু একটু করে এগোচ্ছো — আরও মনোযোগ দিয়ে পড়লে খুব তাড়াতাড়ি উন্নতি হবে!'},
+  {key:'r51_65',label:'51–65 (Fail)',file:'51_to_65.mp4',score:58,pass:false,msg:'পাসের কাছাকাছি যাচ্ছো! দুর্বল জায়গাগুলো ঠিক করলে পরের বার পাস আসবে।'},
+  {key:'r66_75',label:'66–75 (Fail)',file:'65_to_75.mp4',score:70,pass:false,msg:'আর মাত্র অল্প কিছু নম্বর দরকার — আরেকটু চেষ্টা করলেই পাস হয়ে যাবে!'},
+  {key:'r76_78',label:'76–78 (Fail)',file:'76_to_78.mp4',score:77,pass:false,msg:'খুব কাছাকাছি এসে আটকে গেছো! পরের পরীক্ষায় এই গ্যাপটা সহজেই পূরণ করতে পারবে।'},
+  {key:'r79',label:'79 (Fail)',file:'79.mp4',score:79,pass:false,msg:'মাত্র ১ নম্বরের জন্য মিস! মন খারাপ করো না, পরের বার নিশ্চিত পাস!'},
+  {key:'r80_89',label:'80–89 (Pass)',file:'80_to_89_pass.mp4',score:85,pass:true,msg:'অভিনন্দন, পাস করেছো! পরের বার ৯০+ টার্গেট রাখো।'},
+  {key:'r90_110',label:'90–110 (Pass)',file:'90_to_110_pass.mp4',score:100,pass:true,msg:'দারুণ করেছো! ভালো স্কোর নিয়ে পাস করেছো — এই ধারাবাহিকতা ধরে রাখো।'},
+  {key:'r111_120',label:'111–120 (Pass)',file:'111_to_120_pass.mp4',score:115,pass:true,msg:'অসাধারণ স্কোর! পরিশ্রম কাজে দিয়েছে — এভাবেই এগিয়ে যাও।'},
+  {key:'r121_130',label:'121–130 (Pass)',file:'121_to_130_pass.mp4',score:125,pass:true,msg:'চমৎকার পারফরম্যান্স! তুমি এখন টপ স্কোরারদের কাতারে।'},
+  {key:'r131_140',label:'131–140 (Pass)',file:'131_to_140_pass.mp4',score:135,pass:true,msg:'দুর্দান্ত ফলাফল! প্রায় পারফেক্টের কাছাকাছি স্কোর করেছো।'},
+  {key:'r141_180',label:'141–180 (Pass)',file:'141_to_180_pass.mp4',score:160,pass:true,msg:'লেজেন্ডারি স্কোর! অনেক অনেক অভিনন্দন, সেরা পারফরম্যান্স!'}
+];
 function pickResultVideo(r,s){
   const sm=calcStuSummary(r,s);
   const eq=(sm.maxTot===180)?sm.finalTot:(sm.maxTot>0?(sm.finalTot/sm.maxTot)*180:0);
-  let file='';
-  if(eq>=80&&!sm.pass){
-    file='80_or_80_plus_but_fail.mp4';
-  }else if(eq<46){
-    file='1_to_45.mp4';
-  }else if(eq<51){
-    file='46_to_50.mp4';
-  }else if(eq<66){
-    file='51_to_65.mp4';
-  }else if(eq<76){
-    file='65_to_75.mp4';
-  }else if(eq<79){
-    file='76_to_78.mp4';
-  }else if(eq<80){
-    file='79.mp4';
-  }else if(eq<90){
-    file='80_to_89_pass.mp4';
-  }else if(eq<111){
-    file='90_to_110_pass.mp4';
-  }else if(eq<121){
-    file='111_to_120_pass.mp4';
-  }else if(eq<131){
-    file='121_to_130_pass.mp4';
-  }else if(eq<141){
-    file='131_to_140_pass.mp4';
-  }else{
-    file='141_to_180_pass.mp4';
-  }
-  return 'videos/'+file;
+  let key='r141_180';
+  if(eq>=80&&!sm.pass)key='fail80';
+  else if(eq<46)key='r1_45';
+  else if(eq<51)key='r46_50';
+  else if(eq<66)key='r51_65';
+  else if(eq<76)key='r66_75';
+  else if(eq<79)key='r76_78';
+  else if(eq<80)key='r79';
+  else if(eq<90)key='r80_89';
+  else if(eq<111)key='r90_110';
+  else if(eq<121)key='r111_120';
+  else if(eq<131)key='r121_130';
+  else if(eq<141)key='r131_140';
+  const rule=RESULT_VIDEO_RULES.find(x=>x.key===key)||RESULT_VIDEO_RULES[0];
+  return{src:'videos/'+rule.file,msg:rule.msg};
 }
-function startLiveVideoView(src,showPreviewBar,onResultClick){
+function startLiveVideoView(src,msg,showPreviewBar,onResultClick){
   stopYt();
   hideAllViews();
   $('liveResultVideoView').classList.remove('hide');
   $('lrvPreviewBar').classList.toggle('hide',!showPreviewBar);
-  const v=$('lrvPlayer'),btn=$('lrvResultBtn'),cd=$('lrvCountdown'),pb=$('lrvPlaySoundBtn');
+  const v=$('lrvPlayer'),btn=$('lrvResultBtn'),cd=$('lrvCountdown'),pb=$('lrvPlaySoundBtn'),rm=$('lrvRangeMsg');
   btn.classList.add('hide');pb.classList.add('hide');
+  rm.textContent=msg||'';rm.classList.toggle('hide',!msg);
   v.loop=true;v.muted=false;v.src=src;
   pb.onclick=()=>{v.muted=false;v.play().then(()=>pb.classList.add('hide')).catch(()=>{})};
   v.play().catch(()=>{pb.classList.remove('hide')});
@@ -2752,39 +2755,25 @@ function startLiveVideoView(src,showPreviewBar,onResultClick){
   btn.onclick=onResultClick;
 }
 function showLiveResultVideo(r,s){
-  startLiveVideoView(pickResultVideo(r,s),false,()=>{
+  const pv=pickResultVideo(r,s);
+  startLiveVideoView(pv.src,pv.msg,false,()=>{
     try{localStorage.setItem('liveVidSeen_'+liveRoomId+'_'+liveStuId,'1')}catch(e){}
     stopLiveResultVideo();
     showReport();
   });
 }
-const VIDEO_PREVIEW_CASES=[
-  {label:'0–45 (Fail)',file:'videos/1_to_45.mp4',score:30,pass:false},
-  {label:'46–50 (Fail)',file:'videos/46_to_50.mp4',score:48,pass:false},
-  {label:'51–65 (Fail)',file:'videos/51_to_65.mp4',score:58,pass:false},
-  {label:'66–75 (Fail)',file:'videos/65_to_75.mp4',score:70,pass:false},
-  {label:'76–78 (Fail)',file:'videos/76_to_78.mp4',score:77,pass:false},
-  {label:'79 (Fail)',file:'videos/79.mp4',score:79,pass:false},
-  {label:'80+ but Fail',file:'videos/80_or_80_plus_but_fail.mp4',score:85,pass:false},
-  {label:'80–89 (Pass)',file:'videos/80_to_89_pass.mp4',score:85,pass:true},
-  {label:'90–110 (Pass)',file:'videos/90_to_110_pass.mp4',score:100,pass:true},
-  {label:'111–120 (Pass)',file:'videos/111_to_120_pass.mp4',score:115,pass:true},
-  {label:'121–130 (Pass)',file:'videos/121_to_130_pass.mp4',score:125,pass:true},
-  {label:'131–140 (Pass)',file:'videos/131_to_140_pass.mp4',score:135,pass:true},
-  {label:'141–180 (Pass)',file:'videos/141_to_180_pass.mp4',score:160,pass:true}
-];
 function openVideoPreview(idx){
   if(location.hash!=='#videopreview')return;
   const sel=$('lrvPreviewSel');
   if(!sel.options.length){
-    sel.innerHTML=VIDEO_PREVIEW_CASES.map((c,i)=>`<option value="${i}">${c.label}</option>`).join('');
+    sel.innerHTML=RESULT_VIDEO_RULES.map((c,i)=>`<option value="${i}">${c.label}</option>`).join('');
     sel.onchange=()=>openVideoPreview(+sel.value);
     $('lrvPreviewHome').onclick=()=>{history.replaceState(null,'',location.pathname);goHome()};
   }
-  const i=Math.max(0,Math.min(VIDEO_PREVIEW_CASES.length-1,idx||0));
+  const i=Math.max(0,Math.min(RESULT_VIDEO_RULES.length-1,idx||0));
   sel.value=String(i);
-  const c=VIDEO_PREVIEW_CASES[i];
-  startLiveVideoView(c.file,true,()=>{
+  const c=RESULT_VIDEO_RULES[i];
+  startLiveVideoView('videos/'+c.file,c.msg,true,()=>{
     stopLiveResultVideo();
     liveRoomId='';liveRoom=null;liveStuId='';
     cfg={name:'Preview Student',examName:`Preview (${c.label})`,driveId:'',ytId:'',style:'jlpt',parts:[{lbl:'Part 1',q:30,m:30},{lbl:'Part 2',q:30,m:70},{lbl:'Listening',q:30,m:50,listen:true}]};
