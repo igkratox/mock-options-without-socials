@@ -174,6 +174,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 .pause-box{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.35)}
 .yt-wrap{position:relative;width:100%;height:100%}
 .yt-lock{position:absolute;inset:0;z-index:5;background:transparent}
+.yt-lock-bl,.yt-skip-box{display:none}
+.yt-wrap.skip-ad-open .yt-lock{bottom:84px}
+.yt-wrap.skip-ad-open .yt-lock-bl{display:block;position:absolute;left:0;right:145px;bottom:0;height:84px;z-index:5;background:transparent}
+.yt-wrap.skip-ad-open .yt-skip-box{display:block;position:absolute;right:0;bottom:0;width:145px;height:84px;z-index:6;border:2px dashed #f59e0b;border-radius:8px;pointer-events:none;box-sizing:border-box}
 .tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 .tbl th,.tbl td{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:middle}
 .tbl th{font-size:12px;color:var(--mu);font-weight:700}
@@ -360,6 +364,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <option value="later">Answer Later</option>
     </select>
     <button type="button" class="btn sec hide" id="ytMuteBtn" style="padding:5px 10px;font-size:12px">🔊 Sound On</button>
+    <button type="button" class="btn sec hide" id="ytSkipAdBtn" style="padding:5px 10px;font-size:12px">⏭ Skip Ad</button>
     <div class="yt-spd hide" id="ytSpdBar">
       <button type="button" data-r="0.75">0.75x</button>
       <button type="button" data-r="1" class="sel">1x</button>
@@ -1149,7 +1154,7 @@ function stopYt(){
 async function mountYt(el,videoId,opts){
   if(ytPlayer){try{ytPlayer.destroy()}catch(e){}ytPlayer=null}
   const locked=!!(opts&&opts.locked);
-  el.innerHTML=locked?'<div class="yt-wrap"><div id="ytFrameTarget"></div><div class="yt-lock"></div></div>':'<div id="ytFrameTarget"></div>';
+  el.innerHTML=locked?'<div class="yt-wrap"><div id="ytFrameTarget"></div><div class="yt-lock"></div><div class="yt-lock-bl"></div><div class="yt-skip-box"></div></div>':'<div id="ytFrameTarget"></div>';
   try{
     await loadYtApi();
     if(!document.body.contains(el))return;
@@ -1159,7 +1164,7 @@ async function mountYt(el,videoId,opts){
     ytPlayer=new YT.Player('ytFrameTarget',{width:'100%',height:'100%',videoId,playerVars:pv,events:{onReady:()=>{if(opts&&opts.onReady)opts.onReady(ytPlayer)}}});
   }catch(e){
     if(!document.body.contains(el))return;
-    el.innerHTML=`<div class="yt-wrap"><iframe src="https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0${locked?'&controls=0&disablekb=1':''}" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>${locked?'<div class="yt-lock"></div>':''}</div>`;
+    el.innerHTML=`<div class="yt-wrap"><iframe src="https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0${locked?'&controls=0&disablekb=1':''}" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>${locked?'<div class="yt-lock"></div><div class="yt-lock-bl"></div><div class="yt-skip-box"></div>':''}</div>`;
   }
 }
 function seekYt(sec){
@@ -1277,6 +1282,7 @@ async function startPart(i,auto,resumeSec){
   $('flagBtn').classList.toggle('hide',isLive);
   $('listenMode').disabled=isLive;
   $('ytMuteBtn').classList.toggle('hide',!(ytSynced&&hasYt));
+  $('ytSkipAdBtn').classList.toggle('hide',!(ytSynced&&hasYt));
   $('ytSpdBar').classList.toggle('hide',!hasYt||ytSynced);
   $('ytSpdBar').querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.r==='1'));
   document.querySelector('.dock').classList.toggle('pad-only',usePad);
@@ -2704,6 +2710,25 @@ $('ytMuteBtn').onclick=()=>{
   ytMuted=!ytMuted;
   $('ytMuteBtn').textContent=ytMuted?'🔇 Muted':'🔊 Sound On';
   try{if(ytPlayer){if(ytMuted)ytPlayer.mute();else ytPlayer.unMute()}}catch(e){}
+};
+let ytSkipTimer=null;
+$('ytSkipAdBtn').onclick=()=>{
+  const wrap=document.querySelector('#ytTopWrap .yt-wrap, #pages .yt-wrap');
+  if(!wrap)return;
+  if(ytSkipTimer)clearInterval(ytSkipTimer);
+  wrap.classList.add('skip-ad-open');
+  let sec=4;
+  $('ytSkipAdBtn').textContent=`⏭ Tap Skip (${sec}s)`;
+  ytSkipTimer=setInterval(()=>{
+    sec--;
+    if(sec<=0){
+      clearInterval(ytSkipTimer);ytSkipTimer=null;
+      wrap.classList.remove('skip-ad-open');
+      $('ytSkipAdBtn').textContent='⏭ Skip Ad';
+    }else{
+      $('ytSkipAdBtn').textContent=`⏭ Tap Skip (${sec}s)`;
+    }
+  },1000);
 };
 let lrvTimer=null;
 function stopLiveResultVideo(){
