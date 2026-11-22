@@ -4694,7 +4694,10 @@ function calcStuSummary(r,s){
   const shortStatus=senseiFailed?(numPass?`Pass by # · Failed by ${sn}`:`Failed by ${sn}`):(pass?'PASS':'FAIL');
   const totQ=(onlyL?0:r.p1q)+(onlyL||one?0:r.p2q)+(hasL?lTotQ:0);
   const totOk=p1Res.ok+p2Res.ok+p3Res.ok;
-  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,s1,s2,s3,p1Tot,lTot,t1:onlyL?0:(uArr[0]||0),t2:(onlyL||one)?0:(uArr[1]||0),t3:hasL?(uArr[lIdx]||0):0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
+  const p12=p1Res.ok+p2Res.ok;
+  const p12Q=(onlyL?0:r.p1q)+(onlyL||one?0:r.p2q);
+  const t1=onlyL?0:(uArr[0]||0),t2=(onlyL||one)?0:(uArr[1]||0);
+  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,p12,p12Q,s1,s2,s3,p12Tot,p1Tot,lTot,t1,t2,t12:t1+t2,t3:hasL?(uArr[lIdx]||0):0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
 }
 function buildStuDisp(stuObjs){
   const cnt={};
@@ -4801,7 +4804,7 @@ function renderSummaryInto(r,stus,opts){
   const rows=rankStudents(stus.map(([sid,s])=>({rmId:lcRoomId,sid,...calcStuSummary(r,s),dName:disp(s)})));
   const passCnt=rows.filter(x=>x.pass).length,failCnt=rows.length-passCnt;
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL),lTotQ=roomListenTotal(r);
-  const thCols=onlyL?`<th>Listening (Time)</th>`:(one?`<th>Part 1 (Time)</th>${hasL?'<th>Listening</th>':''}`:`<th>Part 1</th><th>Part 2</th>${hasL?'<th>Listening</th>':''}`);
+  const thCols=onlyL?`<th>Listening (Time)</th>`:(one?`<th>Part 1 (Time)</th>${hasL?'<th>Listening</th>':''}`:`<th>Part 1+2</th>${hasL?'<th>Listening</th>':''}`);
   const isWithin24h=(Date.now()-(r.publishedAt||r.createdAt||0)<=BATCH_TTL_MS);
   const canShareLink=!!(r.published&&isWithin24h);
   const renderCertCell=x=>{
@@ -4820,7 +4823,7 @@ function renderSummaryInto(r,stus,opts){
       ?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${lTotQ} · ${fmt(x.t3)})</span></td>`
       :(one
         ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`
-        :`<td><b>${x.s1}/60</b> <span class="mu">(${x.p1}/${r.p1q} · ${fmt(x.t1)})</span></td><td><b>${x.s2}/60</b> <span class="mu">(${x.p2}/${r.p2q} · ${fmt(x.t2)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`);
+        :`<td><b>${x.p12Tot}/120</b> <span class="mu">(${x.p12}/${x.p12Q} · ${fmt(x.t12)})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`);
     const actCell=isComb
       ?`<td><span class="mu">B${x.bNum||1}</span></td>`
       :`<td><button type="button" class="btn sec lc-fail-him" data-s="${esc(x.sid)}" data-f="${x.senseiFailed?1:0}" style="padding:4px 8px;font-size:11px;color:${x.senseiFailed?'var(--ok)':'var(--bad)'}">${x.senseiFailed?'Undo Fail':'Fail Him'}</button></td>`;
@@ -4901,7 +4904,7 @@ function exportSummaryPng(r,rows,titleSuffix,fileSuffix){
   const passInfo=rows.length?`PASS: ${passCnt} · FAIL: ${failCnt} · Pass Mark: ${rows[0].passTot}/${rows[0].maxTot}`:'';
   ctx.fillText(`Examiner: ${r.examinerName||'Sensei'}  ·  ${r.dateStr||''}  ·  ${passInfo}`,pad,62);
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
-  const cols=onlyL?[pad,290,540,780]:(one?(hasL?[pad,260,460,655,835]:[pad,290,540,780]):(hasL?[pad,240,395,550,695,840]:[pad,275,470,665,830]));
+  const cols=onlyL?[pad,290,540,780]:(hasL?[pad,260,480,685,850]:[pad,290,540,780]);
   ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
   ctx.fillText('Student Name',cols[0]+8,96);
   if(onlyL){
@@ -4911,10 +4914,9 @@ function exportSummaryPng(r,rows,titleSuffix,fileSuffix){
     if(hasL){ctx.fillText('Listening',cols[2],96);ctx.fillText('Total',cols[3],96);ctx.fillText('Status',cols[4],96)}
     else{ctx.fillText('Total',cols[2],96);ctx.fillText('Status',cols[3],96)}
   }else{
-    ctx.fillText('Part 1 (Time)',cols[1],96);
-    ctx.fillText('Part 2 (Time)',cols[2],96);
-    if(hasL){ctx.fillText('Listening',cols[3],96);ctx.fillText('Total',cols[4],96);ctx.fillText('Status',cols[5],96)}
-    else{ctx.fillText('Total',cols[3],96);ctx.fillText('Status',cols[4],96)}
+    ctx.fillText('Part 1+2',cols[1],96);
+    if(hasL){ctx.fillText('Listening',cols[2],96);ctx.fillText('Total',cols[3],96);ctx.fillText('Status',cols[4],96)}
+    else{ctx.fillText('Total',cols[2],96);ctx.fillText('Status',cols[3],96)}
   }
   ctx.strokeStyle='#cbd5e1';ctx.beginPath();ctx.moveTo(pad,104);ctx.lineTo(W-pad,104);ctx.stroke();
   rows.forEach((x,idx)=>{
@@ -4945,19 +4947,18 @@ function exportSummaryPng(r,rows,titleSuffix,fileSuffix){
         ctx.fillText(x.shortStatus,cols[3],y+22);
       }
     }else{
-      ctx.fillText(`${x.s1}/60 (${fmt(x.t1)})`,cols[1],y+22);
-      ctx.fillText(`${x.s2}/60 (${fmt(x.t2)})`,cols[2],y+22);
+      ctx.fillText(`${x.p12Tot}/120 (${x.p12}/${x.p12Q} · ${fmt(x.t12)})`,cols[1],y+22);
       if(hasL){
-        ctx.fillText(`${x.s3}/60 (${x.p3}/${roomListenTotal(r)})`,cols[3],y+22);
-        ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
-        ctx.fillText(totTxt,cols[4],y+22);
-        ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
-        ctx.fillText(x.shortStatus,cols[5],y+22);
-      }else{
+        ctx.fillText(`${x.s3}/60 (${x.p3}/${roomListenTotal(r)})`,cols[2],y+22);
         ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
         ctx.fillText(totTxt,cols[3],y+22);
         ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
         ctx.fillText(x.shortStatus,cols[4],y+22);
+      }else{
+        ctx.fillStyle='#18181b';ctx.font='bold 13px system-ui,sans-serif';
+        ctx.fillText(totTxt,cols[2],y+22);
+        ctx.fillStyle=x.pass?'#16a34a':'#dc2626';
+        ctx.fillText(x.shortStatus,cols[3],y+22);
       }
     }
   });
