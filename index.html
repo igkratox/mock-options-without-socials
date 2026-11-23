@@ -3194,7 +3194,7 @@ async function checkHashLive(){
     }
     if(me&&!me.kicked&&me.resumeTs&&me.resumeTs!==lastStuResumeTs){
       lastStuResumeTs=me.resumeTs;
-      toast('Examiner তোমাকে Unban করেছেন! বাকি সময় নিয়ে exam চালু হচ্ছে…');
+      toast(me.status==='waiting_listen'||me.resumePart!==undefined?'Examiner তোমাকে Listening-এ পাঠিয়েছেন!':'Examiner তোমাকে Unban করেছেন! বাকি সময় নিয়ে exam চালু হচ্ছে…');
       resumeLiveStudentFromRecord(r,me,liveStuId);
       return;
     }
@@ -4230,6 +4230,7 @@ function openLiveControl(rid){
           <button type="button" class="btn sec lc-scool" data-s="${esc(sid)}" style="padding:4px 8px;font-size:11px">⏳ 30s</button>
           <button type="button" class="btn sec lc-swarn" data-s="${esc(sid)}" data-w="${wrn}" style="padding:4px 8px;font-size:11px;color:#d97706">⚠ Warn</button>
           <button type="button" class="btn sec lc-sded" data-s="${esc(sid)}" data-ded="${ded}" style="padding:4px 8px;font-size:11px">−Mark</button>
+          ${(r.hasListen||r.onlyListen)&&!s.kicked&&s.status==='finished'?`<button type="button" class="btn sec lc-slisten" data-s="${esc(sid)}" style="padding:4px 8px;font-size:11px;color:var(--ac)">🎧 → Listening</button>`:''}
           <button type="button" class="btn sec lc-skick" data-s="${esc(sid)}" data-kk="${s.kicked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.kicked?'var(--ok)':'var(--bad)'}">${s.kicked?'Unban':'Kick'}</button>
       </div></td></tr>`;
     }).join(''):'<tr><td colspan="4" class="mu">এখনো কোনো student join করেনি।</td></tr>';
@@ -4282,6 +4283,20 @@ function openLiveControl(rid){
       if(v===null)return;
       const num=Math.max(0,parseFloat(v)||0);
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/deduct`).set(num);
+    });
+    $('lcStuBody').querySelectorAll('.lc-slisten').forEach(b=>b.onclick=()=>{
+      const sid=b.dataset.s,s=lcRoomData?.students?.[sid];if(!s||!lcRoomData)return;
+      if(!confirm(`${s.name}-কে Result-waiting থেকে Listening-এ পাঠাবে?`))return;
+      const lIdx=lcRoomData.onlyListen?0:(lcRoomData.onePart?1:2);
+      const lRem=(lcRoomData.lm||30)*60;
+      const upd={part:lIdx,partLabel:'Listening',rem:lRem,resumeTs:Date.now()};
+      if(lcRoomData.onlyListen||lcRoomData.listenStarted){
+        upd.status='active';upd.resumePart=lIdx;upd.resumeRem=lRem;
+      }else{
+        upd.status='waiting_listen';
+      }
+      db().ref(`rooms/${lcRoomId}/students/${sid}`).update(upd);
+      toast(`${s.name}-কে Listening-এ পাঠানো হয়েছে!`);
     });
     $('lcStuBody').querySelectorAll('.lc-skick').forEach(b=>b.onclick=()=>{
       const sid=b.dataset.s,s=lcRoomData?.students?.[sid];if(!s)return;
