@@ -1962,8 +1962,8 @@ function showReport(keepTime){
     const pv=pickResultVideo(liveRoom,liveRoom.students[liveStuId]);
     html+=`<button type="button" class="btn sec noprint" id="repReplayVidBtn" data-src="${esc(pv.src)}" data-msg="${esc(pv.msg)}" style="width:100%;margin-bottom:10px">🎬 Result Video আবার দেখো</button>
     <div id="repVidBox" class="card hide noprint" style="margin-bottom:12px;padding:10px;text-align:center">
-      <div id="repVidMsg" class="mu" style="margin-bottom:8px;font-weight:600"></div>
       <video id="repVidPlayer" controls loop playsinline style="width:100%;max-height:60vh;border-radius:10px;background:#000;display:block"></video>
+      <div id="repVidMsg" style="margin-top:12px;padding:10px 12px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);font-size:14px;font-weight:700;line-height:1.45"></div>
     </div>`;
     html+=`<div class="cert-card ${meSm.tierCls}">
       ${congratsHtml}
@@ -2857,19 +2857,19 @@ function stopLiveResultVideo(){
   });
 }
 const RESULT_VIDEO_RULES=[
-  {key:'fail80',label:'80+ but Fail',file:'80_or_80_plus_but_fail.mp4',score:85,pass:false,msg:'মোট নম্বর ৮০+ হলেও সেকশনাল বা নির্ধারিত শর্তে পাস আসেনি — পরের বার ইনশাআল্লাহ আরও ভালো হবে!'},
-  {key:'r1_45',label:'0–45 (Fail)',file:'1_to_45.mp4',score:30,pass:false,msg:'এবার নম্বর বেশ কম এসেছে — বেসিক থেকে আবার ভালোভাবে প্র্যাকটিস শুরু করো!'},
-  {key:'r46_50',label:'46–50 (Fail)',file:'46_to_50.mp4',score:48,pass:false,msg:'একটু একটু করে এগোচ্ছো — আরও মনোযোগ দিয়ে পড়লে খুব তাড়াতাড়ি উন্নতি হবে!'},
-  {key:'r51_65',label:'51–65 (Fail)',file:'51_to_65.mp4',score:58,pass:false,msg:'পাসের কাছাকাছি যাচ্ছো! দুর্বল জায়গাগুলো ঠিক করলে পরের বার পাস আসবে।'},
-  {key:'r66_75',label:'66–75 (Fail)',file:'65_to_75.mp4',score:70,pass:false,msg:'আর মাত্র অল্প কিছু নম্বর দরকার — আরেকটু চেষ্টা করলেই পাস হয়ে যাবে!'},
-  {key:'r76_78',label:'76–78 (Fail)',file:'76_to_78.mp4',score:77,pass:false,msg:'খুব কাছাকাছি এসে আটকে গেছো! পরের পরীক্ষায় এই গ্যাপটা সহজেই পূরণ করতে পারবে।'},
-  {key:'r79',label:'79 (Fail)',file:'79.mp4',score:79,pass:false,msg:'মাত্র ১ নম্বরের জন্য মিস! মন খারাপ করো না, পরের বার নিশ্চিত পাস!'},
-  {key:'r80_89',label:'80–89 (Pass)',file:'80_to_89_pass.mp4',score:85,pass:true,msg:'অভিনন্দন, পাস করেছো! পরের বার ৯০+ টার্গেট রাখো।'},
-  {key:'r90_110',label:'90–110 (Pass)',file:'90_to_110_pass.mp4',score:100,pass:true,msg:'দারুণ করেছো! ভালো স্কোর নিয়ে পাস করেছো — এই ধারাবাহিকতা ধরে রাখো।'},
-  {key:'r111_120',label:'111–120 (Pass)',file:'111_to_120_pass.mp4',score:115,pass:true,msg:'অসাধারণ স্কোর! পরিশ্রম কাজে দিয়েছে — এভাবেই এগিয়ে যাও।'},
-  {key:'r121_130',label:'121–130 (Pass)',file:'121_to_130_pass.mp4',score:125,pass:true,msg:'চমৎকার পারফরম্যান্স! তুমি এখন টপ স্কোরারদের কাতারে।'},
-  {key:'r131_140',label:'131–140 (Pass)',file:'131_to_140_pass.mp4',score:135,pass:true,msg:'দুর্দান্ত ফলাফল! প্রায় পারফেক্টের কাছাকাছি স্কোর করেছো।'},
-  {key:'r141_180',label:'141–180 (Pass)',file:'141_to_180_pass.mp4',score:160,pass:true,msg:'লেজেন্ডারি স্কোর! অনেক অনেক অভিনন্দন, সেরা পারফরম্যান্স!'}
+  {key:'fail80',label:'80+ but Fail',file:'80_or_80_plus_but_fail.mp4',score:85,pass:false,msg:'হবে হবে!'},
+  {key:'r1_45',label:'0–45 (Fail)',file:'1_to_45.mp4',score:30,pass:false,msg:'ははははははははは'},
+  {key:'r46_50',label:'46–50 (Fail)',file:'46_to_50.mp4',score:48,pass:false,msg:'পড়া লেখা বাদ দেন ফ্রী ফায়ার download দেন!'},
+  {key:'r51_65',label:'51–65 (Fail)',file:'51_to_65.mp4',score:58,pass:false,msg:'এই পড়া লেখা দিয়ে middle east confirm।'},
+  {key:'r66_75',label:'66–75 (Fail)',file:'65_to_75.mp4',score:70,pass:false,msg:'2nd hand বই বিক্রি করলে জানায়েন!'},
+  {key:'r76_78',label:'76–78 (Fail)',file:'76_to_78.mp4',score:77,pass:false,msg:'হবে হবে।'},
+  {key:'r79',label:'79 (Fail)',file:'79.mp4',score:79,pass:false,msg:'এই রেজাল্ট দেখে আত্মহত্যা নিষেধ!'},
+  {key:'r80_89',label:'80–89 (Pass)',file:'80_to_89_pass.mp4',score:85,pass:true,msg:'ঝরে বক মরসে।'},
+  {key:'r90_110',label:'90–110 (Pass)',file:'90_to_110_pass.mp4',score:100,pass:true,msg:'ok।'},
+  {key:'r111_120',label:'111–120 (Pass)',file:'111_to_120_pass.mp4',score:115,pass:true,msg:'wow।'},
+  {key:'r121_130',label:'121–130 (Pass)',file:'121_to_130_pass.mp4',score:125,pass:true,msg:'ভাইয়ের aura-ই আলাদা'},
+  {key:'r131_140',label:'131–140 (Pass)',file:'131_to_140_pass.mp4',score:135,pass:true,msg:'বিদ্যাসাগরের দাদা নাকি?'},
+  {key:'r141_180',label:'141–180 (Pass)',file:'141_to_180_pass.mp4',score:160,pass:true,msg:'sure AI দিয়ে নকল করছেন'}
 ];
 function pickResultVideo(r,s){
   const sm=calcStuSummary(r,s);
