@@ -2710,11 +2710,22 @@ function savePortalSess(obj){try{localStorage.setItem(PORTAL_SESS_KEY,JSON.strin
 function clearPortalSess(){try{localStorage.removeItem(PORTAL_SESS_KEY)}catch(e){}}
 
 /* Student Live Sync */
-function syncStudentLive(){
+let lastStuSyncAt=0,lastStuSyncSig='';
+function syncStudentLive(force){
   if(!liveRoomId||!liveStuId)return;
-  const rem=paused?pausedRem:Math.max(0,Math.round((endAt-Date.now())/1000));
+  const now=Date.now();
+  const rem=paused?pausedRem:Math.max(0,Math.round((endAt-now)/1000));
   const P=cfg?.parts?.[part];
   const st=$('liveWaitView').classList.contains('hide')?'active':($('lwStatusPill').dataset.st||'active');
+  const ansPacked=cfg.parts.map((pt,i)=>packArr(ans[i]||[],pt.q,'0'));
+  const hasAnyMark=!(liveRoom&&(liveRoom.graded||liveRoom.published))&&marks.some(arr=>Array.isArray(arr)&&arr.some(v=>v==='ok'||v==='bad'));
+  const marksPacked=hasAnyMark?cfg.parts.map((pt,i)=>packArr(marks[i]||[],pt.q,'.')):null;
+  const sig=st+'|'+part+'|'+cur+'|'+ansPacked.join(',')+'|'+(marksPacked?marksPacked.join(','):'');
+  if(!force){
+    if(now-lastStuSyncAt<8000)return;
+    if(sig===lastStuSyncSig&&now-lastStuSyncAt<25000)return;
+  }
+  lastStuSyncAt=now;lastStuSyncSig=sig;
   const payload={
     name:cfg.name,
     username:curStudent?curStudent.username:'',
@@ -2723,17 +2734,16 @@ function syncStudentLive(){
     partLabel:P?P.label:'',
     cur,
     rem,
-    ans:cfg.parts.map((pt,i)=>packArr(ans[i]||[],pt.q,'0')),
+    ans:ansPacked,
     used:used.map(x=>Math.round(x||0)),
-    updatedAt:Date.now()
+    updatedAt:now
   };
-  const hasAnyMark=!(liveRoom&&(liveRoom.graded||liveRoom.published))&&marks.some(arr=>Array.isArray(arr)&&arr.some(v=>v==='ok'||v==='bad'));
-  if(hasAnyMark)payload.marks=cfg.parts.map((pt,i)=>packArr(marks[i]||[],pt.q,'.'));
+  if(marksPacked)payload.marks=marksPacked;
   db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update(payload);
 }
 function setLiveWait(st,title,sub,pill){
   stopYt();clearInterval(tick);
-  syncStudentLive();
+  syncStudentLive(true);
   db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update({status:st,used:used.map(x=>Math.round(x||0)),updatedAt:Date.now()});
   if(st==='waiting_listen'&&liveRoomId){
     db().ref(`rooms/${liveRoomId}/alerts`).push({type:'wait',stuName:cfg?.name||'Student',ts:Date.now()});
@@ -2883,6 +2893,11 @@ function openVideoPreview(idx){
   });
 }
 async function loadPublishedLiveReport(skipVideo){
+  if(!liveRoomId||!liveStuId)return;
+  try{
+    const fresh=(await db().ref('rooms/'+liveRoomId).once('value')).val();
+    if(fresh)liveRoom=fresh;
+  }catch(e){}
   if(!liveRoom||!liveRoom.students||!liveRoom.students[liveStuId])return;
   const st=liveRoom.students[liveStuId];
   liveDeduct=+(st.deduct||0);
@@ -3028,7 +3043,7 @@ function startLiveStudent(room){
   lastGlobalDeltaTs=room.globalDeltaTs||0;
   lastStuDeltaTs=0;examinerLocked=false;liveDeduct=0;
   beginExam(stuName,room.driveId||'',parts,room.examName||'',room.ytId||'');
-  syncStudentLive();
+  syncStudentLive(true);
 }
 function isProtectedPart(){return !!(liveRoomId&&!$('exam').classList.contains('hide')&&cfg?.parts?.[part]&&!cfg.parts[part].listen)}
 ['contextmenu','copy','cut','dragstart'].forEach(ev=>document.addEventListener(ev,e=>{if(isProtectedPart())e.preventDefault()}));
@@ -3137,10 +3152,9 @@ async function checkHashLive(){
   $('lwSub').textContent='Exam-এর সাথে connect হচ্ছে…';
   $('lwJoinBox').classList.add('hide');
   $('lwSpinBox').classList.add('hide');
-  if(liveRoomRef)liveRoomRef.off();
-  liveRoomRef=db().ref('rooms/'+rid);
-  liveRoomRef.on('value',snap=>{
-    const r=snap.val();
+  let lightMode=false,lightUnsubs=[];
+  const clearLight=()=>{lightUnsubs.forEach(fn=>fn());lightUnsubs=[];lightMode=false};
+  const handleRoomSnap=r=>{
     liveRoom=r;
     if(r&&r.hasPdf)ensureRoomPdf(rid,r);
     if(!r){
@@ -3201,6 +3215,28 @@ async function checkHashLive(){
       return;
     }
     const me=r.students&&r.students[liveStuId];
+    const inLobby=!$('liveWaitView').classList.contains('hide')&&me&&me.status==='waiting_listen';
+    if(!lightMode&&!inLobby&&r.status!=='ended'&&!r.published&&!$('exam').classList.contains('hide')){
+      lightMode=true;
+      if(liveRoomRef){liveRoomRef.off();liveRoomRef=null}
+      const baseRef=db().ref('rooms/'+rid);
+      const stuRef=baseRef.child('students/'+liveStuId);
+      const onStu=sSnap=>{if(!liveRoom)return;if(!liveRoom.students)liveRoom.students={};liveRoom.students[liveStuId]=sSnap.val();handleRoomSnap(liveRoom)};
+      stuRef.on('value',onStu);
+      lightUnsubs.push(()=>stuRef.off('value',onStu));
+      const ctrlKeys=['status','published','notice','globalDeltaTs','globalDeltaSec','p1q','p2q','p1pages','p2pages','hasListen','lMode','listenStarted','listenVideoStarted','listenSelfCtrl','ytId','ytSync','lMondai','p1Tot','p2Tot','lTot','passTotal'];
+      ctrlKeys.forEach(k=>{
+        const kr=baseRef.child(k);
+        const onK=kSnap=>{if(!liveRoom)return;liveRoom[k]=kSnap.val();handleRoomSnap(liveRoom)};
+        kr.on('value',onK);
+        lightUnsubs.push(()=>kr.off('value',onK));
+      });
+    }else if(lightMode&&inLobby){
+      clearLight();
+      liveRoomRef=db().ref('rooms/'+rid);
+      liveRoomRef.on('value',s=>handleRoomSnap(s.val()));
+      return;
+    }
     if(r.status==='ended'&&me&&me.status!=='finished'){
       if(!$('exam').classList.contains('hide')){
         const remNow=paused?pausedRem:Math.max(0,(endAt-Date.now())/1000);
@@ -3435,7 +3471,11 @@ async function checkHashLive(){
       if(cfg)cfg.ytId=r.ytId||'';
       lastSelfCtrl=!!r.listenSelfCtrl;
     }
-  });
+  };
+  if(liveRoomRef)liveRoomRef.off();
+  clearLight();
+  liveRoomRef=db().ref('rooms/'+rid);
+  liveRoomRef.on('value',s=>handleRoomSnap(s.val()));
 }
 async function renderLiveReportForRoom(rid,r,sid){
   if(!r.published){
