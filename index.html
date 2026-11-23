@@ -1959,6 +1959,12 @@ function showReport(keepTime){
     const circleCls=meSm.tierCls||(meSm.pass?'':'fail-c');
     const rankLine=meSm.rank?`${meSm.medal} Rank #${meSm.rank}`:(meSm.pass?'PASS':'FAIL');
     const congratsHtml=meSm.rank===1?`<div style="background:rgba(245,158,11,.16);border:1px solid #f59e0b;color:#b45309;border-radius:10px;padding:8px 12px;font-weight:700;font-size:14px;margin-bottom:10px">🎉 Congratulations! You Ranked #1 (1st Place) 🥇🏆</div>`:'';
+    const pv=pickResultVideo(liveRoom,liveRoom.students[liveStuId]);
+    html+=`<button type="button" class="btn sec noprint" id="repReplayVidBtn" data-src="${esc(pv.src)}" data-msg="${esc(pv.msg)}" style="width:100%;margin-bottom:10px">🎬 Result Video আবার দেখো</button>
+    <div id="repVidBox" class="card hide noprint" style="margin-bottom:12px;padding:10px;text-align:center">
+      <div id="repVidMsg" class="mu" style="margin-bottom:8px;font-weight:600"></div>
+      <video id="repVidPlayer" controls loop playsinline style="width:100%;max-height:60vh;border-radius:10px;background:#000;display:block"></video>
+    </div>`;
     html+=`<div class="cert-card ${meSm.tierCls}">
       ${congratsHtml}
       <div class="mu" style="letter-spacing:1.6px;font-weight:700;text-transform:uppercase;font-size:11px">Certificate of Achievement · ${esc(rModeLbl)}</div>
@@ -2091,6 +2097,24 @@ function showReport(keepTime){
         document.body.appendChild(a);a.click();a.remove();
       }
       dlPdfBtn.disabled=false;dlPdfBtn.textContent='📄 Download Question PDF';
+    };
+  }
+  const repVidBtn=$('repReplayVidBtn');
+  if(repVidBtn){
+    repVidBtn.onclick=()=>{
+      const box=$('repVidBox'),v=$('repVidPlayer'),msgEl=$('repVidMsg');
+      if(!box||!v)return;
+      const hidden=box.classList.toggle('hide');
+      if(!hidden){
+        if(msgEl)msgEl.textContent=repVidBtn.dataset.msg||'';
+        if(!v.getAttribute('src'))v.src=repVidBtn.dataset.src||'';
+        v.muted=false;
+        v.play().catch(()=>{});
+        repVidBtn.textContent='▲ Video লুকাও';
+      }else{
+        try{v.pause()}catch(e){}
+        repVidBtn.textContent='🎬 Result Video আবার দেখো';
+      }
     };
   }
   const seeBtn=$('seeAllResBtn');
@@ -2827,8 +2851,10 @@ $('ytSkipAdBtn').onclick=()=>{
 let lrvTimer=null;
 function stopLiveResultVideo(){
   if(lrvTimer){clearInterval(lrvTimer);lrvTimer=null}
-  const v=$('lrvPlayer');
-  if(v){try{v.pause();v.removeAttribute('src');v.load()}catch(e){}}
+  ['lrvPlayer','repVidPlayer'].forEach(id=>{
+    const v=$(id);
+    if(v){try{v.pause();v.removeAttribute('src');v.load()}catch(e){}}
+  });
 }
 const RESULT_VIDEO_RULES=[
   {key:'fail80',label:'80+ but Fail',file:'80_or_80_plus_but_fail.mp4',score:85,pass:false,msg:'মোট নম্বর ৮০+ হলেও সেকশনাল বা নির্ধারিত শর্তে পাস আসেনি — পরের বার ইনশাআল্লাহ আরও ভালো হবে!'},
