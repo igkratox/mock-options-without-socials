@@ -1951,8 +1951,8 @@ function showReport(keepTime){
           ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক)</span><b>${meSm.s3} / ${meSm.lTot}</b></div>`:''}`
         :`<div class="stat" style="margin-top:8px"><span>Part 1 (${meSm.p1}/${liveRoom.p1q} টি সঠিক)</span><b>${meSm.s1} / ${meSm.p1Tot}</b></div>
           <div class="stat"><span>Part 2 (${meSm.p2}/${liveRoom.p2q} টি সঠিক)</span><b>${meSm.s2} / ${meSm.p2Tot}</b></div>
-          <div class="stat"><span>Part 1 + Part 2 (Min 38)</span><b>${Math.round((meSm.s1+meSm.s2)*10)/10} / ${meSm.p1Tot+meSm.p2Tot} <span style="color:${Math.round((meSm.s1+meSm.s2)*10)/10>=38?'var(--ok)':'var(--bad)'}">${Math.round((meSm.s1+meSm.s2)*10)/10>=38?'✓':'✕'}</span></b></div>
-          ${liveRoom.hasListen?(()=>{const lMinOk=lTotQ>=10?10:Math.ceil(lTotQ*0.42),lOk=meSm.s3>=19&&meSm.p3>=lMinOk;return `<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক · Min ${lMinOk} সঠিক & 19)</span><b>${meSm.s3} / ${meSm.lTot} <span style="color:${lOk?'var(--ok)':'var(--bad)'}">${lOk?'✓':'✕'}</span></b></div>`})():''}`);
+          <div class="stat"><span>Part 1 + Part 2 (Min ${meSm.p12Min})</span><b>${Math.round((meSm.s1+meSm.s2)*10)/10} / ${meSm.p1Tot+meSm.p2Tot} <span style="color:${Math.round((meSm.s1+meSm.s2)*10)/10>=meSm.p12Min?'var(--ok)':'var(--bad)'}">${Math.round((meSm.s1+meSm.s2)*10)/10>=meSm.p12Min?'✓':'✕'}</span></b></div>
+          ${liveRoom.hasListen?(()=>{const lMinOk=lTotQ>=10?10:Math.ceil(lTotQ*0.42),lOk=meSm.s3>=meSm.lMinScore&&meSm.p3>=lMinOk;return `<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক · Min ${lMinOk} সঠিক & ${meSm.lMinScore})</span><b>${meSm.s3} / ${meSm.lTot} <span style="color:${lOk?'var(--ok)':'var(--bad)'}">${lOk?'✓':'✕'}</span></b></div>`})():''}`);
     const lbHeadHtml=liveRoom.onlyListen?'':(liveRoom.onePart?(liveRoom.hasListen?'<th>P1</th><th>List.</th>':''):`<th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}`);
     const circleCls=meSm.tierCls||(meSm.pass?'':'fail-c');
     const rankLine=meSm.rank?`${meSm.medal} Rank #${meSm.rank}`:(meSm.pass?'PASS':'FAIL');
@@ -4605,14 +4605,21 @@ $('lcSaveMarksBtn').onclick=async()=>{
   if((!r.onlyListen&&p1Tot<1)||(!r.onlyListen&&!r.onePart&&p2Tot<1)||(hasL&&lTot<1)){
     toast('সঠিক নম্বর দাও (কমপক্ষে 1)।');return;
   }
+  const oldTots=roomPartTotals(r);
+  const newMaxTot=p1Tot+p2Tot+lTot;
   const upd={};
   if(!r.onlyListen)upd.p1Tot=p1Tot;
   if(!r.onlyListen&&!r.onePart)upd.p2Tot=p2Tot;
   if(hasL)upd.lTot=lTot;
   if(r.onlyListen)upd.oneTotal=lTot;
   else if(r.onePart)upd.oneTotal=p1Tot;
+  if(oldTots.maxTot>0&&newMaxTot!==oldTots.maxTot){
+    const oldDef=(r.onlyListen||r.onePart||oldTots.maxTot!==(r.hasListen?180:120))?Math.round(oldTots.maxTot*0.48):(r.hasListen?80:58);
+    const oldPass=+(r.passTotal||oldDef);
+    upd.passTotal=Math.max(1,Math.round(oldPass*newMaxTot/oldTots.maxTot));
+  }
   await db().ref('rooms/'+lcRoomId).update(upd);
-  toast(r.graded?'নম্বর আপডেট হয়েছে! নতুন নম্বরে রেজাল্ট আপডেট করতে নিচে Publish/Preview বাটনে চাপো।':'পার্টের মোট নম্বর আপডেট হয়েছে!');
+  toast(r.graded?`নম্বর আপডেট হয়েছে${upd.passTotal?` (Pass Mark: ${upd.passTotal})`:''}! নতুন নম্বরে রেজাল্ট আপডেট করতে নিচে Publish/Preview বাটনে চাপো।`:`পার্টের মোট নম্বর আপডেট হয়েছে${upd.passTotal?` (Pass Mark: ${upd.passTotal})`:''}!`);
 };
 $('lcSavePagesBtn').onclick=async()=>{
   if(!lcRoomId||!lcRoomData)return;
@@ -5148,7 +5155,9 @@ function calcStuSummary(r,s){
   const finalTot=Math.max(0,Math.round((rawTot-ded)*10)/10);
   const p12Tot=Math.round((s1+s2)*10)/10;
   const lMinOk=hasL?(lTotQ>=10?10:Math.ceil(lTotQ*0.42)):0;
-  const numPass=(onlyL||one)?(finalTot>=passTot):(p12Tot>=38&&(!hasL||(s3>=19&&p3Res.ok>=lMinOk))&&finalTot>=passTot);
+  const p12Min=(onlyL||one)?0:Math.round(38*(p1Tot+p2Tot)/120);
+  const lMinScore=hasL?Math.round(19*lTot/60):0;
+  const numPass=(onlyL||one)?(finalTot>=passTot):(p12Tot>=p12Min&&(!hasL||(s3>=lMinScore&&p3Res.ok>=lMinOk))&&finalTot>=passTot);
   const senseiFailed=!!s.senseiFailed;
   const pass=numPass&&!senseiFailed;
   const sn=r.examinerName||'Sensei';
@@ -5159,7 +5168,7 @@ function calcStuSummary(r,s){
   const p12=p1Res.ok+p2Res.ok;
   const p12Q=(onlyL?0:r.p1q)+(onlyL||one?0:r.p2q);
   const t1=onlyL?0:(uArr[0]||0),t2=(onlyL||one)?0:(uArr[1]||0);
-  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,p12,p12Q,s1,s2,s3,p12Tot,p1Tot,p2Tot,lTot,t1,t2,t12:t1+t2,t3:hasL?(uArr[lIdx]||0):0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
+  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,p12,p12Q,s1,s2,s3,p12Tot,p1Tot,p2Tot,lTot,p12Min,lMinScore,t1,t2,t12:t1+t2,t3:hasL?(uArr[lIdx]||0):0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
 }
 function buildStuDisp(stuObjs){
   const cnt={};
