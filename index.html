@@ -3266,7 +3266,7 @@ async function checkHashLive(){
     }
     if(me&&!me.kicked&&me.resumeTs&&me.resumeTs!==lastStuResumeTs){
       lastStuResumeTs=me.resumeTs;
-      toast(me.status==='waiting_listen'||me.resumePart!==undefined?'Examiner তোমাকে Listening-এ পাঠিয়েছেন!':'Examiner তোমাকে Unban করেছেন! বাকি সময় নিয়ে exam চালু হচ্ছে…');
+      toast(me.status==='waiting_listen'||me.resumePart!==undefined?`Examiner তোমাকে ${me.partLabel||'Exam'}-এ পাঠিয়েছেন!`:'Examiner তোমাকে Unban করেছেন! বাকি সময় নিয়ে exam চালু হচ্ছে…');
       resumeLiveStudentFromRecord(r,me,liveStuId);
       return;
     }
@@ -4221,6 +4221,32 @@ async function refreshBatchRooms(r,rid){
     lcBatchRooms=Object.entries(all).filter(([id,x])=>(x.batchGroupId||id)===gid).sort((a,b)=>(a[1].batchNum||1)-(b[1].batchNum||1));
   }catch(e){lcBatchRooms=[]}
 }
+function getBackStepTarget(r,s){
+  if(!r||!s||s.kicked||r.status==='ended')return null;
+  const hasL=!!(r.hasListen||r.onlyListen),lIdx=r.onlyListen?0:(r.onePart?1:2);
+  if(r.onlyListen){
+    return s.status==='finished'?{part:0,label:'Listening',m:r.lm||30,listen:true}:null;
+  }
+  if(r.onePart){
+    if(s.status==='finished'){
+      return hasL?{part:1,label:'Listening',m:r.lm||30,listen:true}:{part:0,label:'Exam',m:r.p1m||20,listen:false};
+    }
+    if(s.status==='waiting_listen'||(s.part||0)>=1){
+      return{part:0,label:'Part 1',m:r.p1m||20,listen:false};
+    }
+    return null;
+  }
+  if(s.status==='finished'){
+    return hasL?{part:lIdx,label:'Listening',m:r.lm||30,listen:true}:{part:1,label:'Part 2',m:r.p2m||40,listen:false};
+  }
+  if(s.status==='waiting_listen'||(s.part||0)>=2){
+    return{part:1,label:'Part 2',m:r.p2m||40,listen:false};
+  }
+  if((s.part||0)===1){
+    return{part:0,label:'Part 1',m:r.p1m||20,listen:false};
+  }
+  return null;
+}
 function openLiveControl(rid){
   lcRoomId=rid;lcBatchRooms=[];
   $('lcKey1').value='';$('lcKey2').value='';$('lcKey3').value='';
@@ -4399,6 +4425,7 @@ function openLiveControl(rid){
     $('lcStuBody').innerHTML=stus.length?stus.map(([sid,s])=>{
       if(!s.kicked)activeCnt++;
       if(s.status==='waiting_listen'&&!s.kicked)waitCnt++;
+      const backTgt=getBackStepTarget(r,s);
       const stTxt=s.kicked?'🚫 Kicked':s.locked?('🔒 Locked'+(s.lockReason?' ('+s.lockReason+')':'')):s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
       const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0),wrn=+(s.warnCount||0);
@@ -4418,7 +4445,7 @@ function openLiveControl(rid){
           <button type="button" class="btn sec lc-scool" data-s="${esc(sid)}" style="padding:4px 8px;font-size:11px">⏳ 30s</button>
           <button type="button" class="btn sec lc-swarn" data-s="${esc(sid)}" data-w="${wrn}" style="padding:4px 8px;font-size:11px;color:#d97706">⚠ Warn</button>
           <button type="button" class="btn sec lc-sded" data-s="${esc(sid)}" data-ded="${ded}" style="padding:4px 8px;font-size:11px">−Mark</button>
-          ${(r.hasListen||r.onlyListen)&&!s.kicked&&s.status==='finished'?`<button type="button" class="btn sec lc-slisten" data-s="${esc(sid)}" style="padding:4px 8px;font-size:11px;color:var(--ac)">🎧 → Listening</button>`:''}
+          ${backTgt?`<button type="button" class="btn sec lc-sback" data-s="${esc(sid)}" style="padding:4px 8px;font-size:11px;color:var(--ac)">↩ ${esc(backTgt.label)}</button>`:''}
           <button type="button" class="btn sec lc-skick" data-s="${esc(sid)}" data-kk="${s.kicked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.kicked?'var(--ok)':'var(--bad)'}">${s.kicked?'Unban':'Kick'}</button>
       </div></td></tr>`;
     }).join(''):'<tr><td colspan="4" class="mu">এখনো কোনো student join করেনি।</td></tr>';
@@ -4472,19 +4499,21 @@ function openLiveControl(rid){
       const num=Math.max(0,parseFloat(v)||0);
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/deduct`).set(num);
     });
-    $('lcStuBody').querySelectorAll('.lc-slisten').forEach(b=>b.onclick=()=>{
+    $('lcStuBody').querySelectorAll('.lc-sback').forEach(b=>b.onclick=()=>{
       const sid=b.dataset.s,s=lcRoomData?.students?.[sid];if(!s||!lcRoomData)return;
-      if(!confirm(`${s.name}-কে Result-waiting থেকে Listening-এ পাঠাবে?`))return;
-      const lIdx=lcRoomData.onlyListen?0:(lcRoomData.onePart?1:2);
-      const lRem=(lcRoomData.lm||30)*60;
-      const upd={part:lIdx,partLabel:'Listening',rem:lRem,resumeTs:Date.now()};
-      if(lcRoomData.onlyListen||lcRoomData.listenStarted){
-        upd.status='active';upd.resumePart=lIdx;upd.resumeRem=lRem;
-      }else{
+      const tgt=getBackStepTarget(lcRoomData,s);if(!tgt)return;
+      if(!confirm(`${s.name}-কে ${tgt.label}-এ back নেবে?`))return;
+      const fullSec=(tgt.m||30)*60;
+      const usedSec=Array.isArray(s.used)?(+s.used[tgt.part]||0):0;
+      const remSec=fullSec-usedSec>60?fullSec-usedSec:fullSec;
+      const upd={part:tgt.part,partLabel:tgt.label,rem:remSec,resumeTs:Date.now()};
+      if(tgt.listen&&!lcRoomData.onlyListen&&!lcRoomData.listenStarted){
         upd.status='waiting_listen';
+      }else{
+        upd.status='active';upd.resumePart=tgt.part;upd.resumeRem=remSec;
       }
       db().ref(`rooms/${lcRoomId}/students/${sid}`).update(upd);
-      toast(`${s.name}-কে Listening-এ পাঠানো হয়েছে!`);
+      toast(`${s.name}-কে ${tgt.label}-এ পাঠানো হয়েছে!`);
     });
     $('lcStuBody').querySelectorAll('.lc-skick').forEach(b=>b.onclick=()=>{
       const sid=b.dataset.s,s=lcRoomData?.students?.[sid];if(!s)return;
