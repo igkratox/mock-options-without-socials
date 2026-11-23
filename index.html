@@ -4232,7 +4232,7 @@ function openLiveControl(rid){
       if(!$('lcKey3').value&&r.keys.k3)$('lcKey3').value=r.keys.k3;
     }
     updateLcKeyHints();
-    const defPass=(r.onlyListen||r.onePart||rTots.maxTot!==(r.hasListen?180:120))?Math.round(rTots.maxTot*0.48):(r.hasListen?80:58);
+    const defPass=defaultPassForRoom(r);
     if(document.activeElement!==$('lcPassTotal'))$('lcPassTotal').value=r.passTotal||defPass;
     $('lcGradeMode').value=r.gradeMode||'excel';
     if(listenOn){
@@ -4512,7 +4512,13 @@ $('lcListenToggleBtn').onclick=async()=>{
   if(!lcRoomId||!lcRoomData||lcRoomData.onlyListen)return;
   const turnOn=!lcRoomData.hasListen;
   if(!turnOn&&!confirm('এই Exam-এর Listening বন্ধ করে দেবে?'))return;
+  const oldMax=roomPartTotals(lcRoomData).maxTot;
+  const newMax=roomPartTotals({...lcRoomData,hasListen:turnOn}).maxTot;
   const upd={hasListen:turnOn};
+  if(oldMax>0&&newMax!==oldMax){
+    const oldPass=+(lcRoomData.passTotal||defaultPassForRoom(lcRoomData,oldMax));
+    upd.passTotal=Math.max(1,Math.round(oldPass*newMax/oldMax));
+  }
   if(!turnOn){upd.ytId='';upd.listenStarted=false;upd.ytSync=null}
   await db().ref('rooms/'+lcRoomId).update(upd);
   toast(turnOn?'Listening চালু হয়েছে!':'Listening বন্ধ করা হয়েছে!');
@@ -4614,9 +4620,10 @@ $('lcSaveMarksBtn').onclick=async()=>{
   if(r.onlyListen)upd.oneTotal=lTot;
   else if(r.onePart)upd.oneTotal=p1Tot;
   if(oldTots.maxTot>0&&newMaxTot!==oldTots.maxTot){
-    const oldDef=(r.onlyListen||r.onePart||oldTots.maxTot!==(r.hasListen?180:120))?Math.round(oldTots.maxTot*0.48):(r.hasListen?80:58);
-    const oldPass=+(r.passTotal||oldDef);
+    const oldPass=+(r.passTotal||defaultPassForRoom(r,oldTots.maxTot));
     upd.passTotal=Math.max(1,Math.round(oldPass*newMaxTot/oldTots.maxTot));
+  }else if(!r.onlyListen&&!r.onePart&&newMaxTot!==(hasL?180:120)&&+(r.passTotal||0)===(hasL?80:58)){
+    upd.passTotal=defaultPassForRoom(r,newMaxTot);
   }
   await db().ref('rooms/'+lcRoomId).update(upd);
   toast(r.graded?`নম্বর আপডেট হয়েছে${upd.passTotal?` (Pass Mark: ${upd.passTotal})`:''}! নতুন নম্বরে রেজাল্ট আপডেট করতে নিচে Publish/Preview বাটনে চাপো।`:`পার্টের মোট নম্বর আপডেট হয়েছে${upd.passTotal?` (Pass Mark: ${upd.passTotal})`:''}!`);
@@ -5136,6 +5143,12 @@ function roomPartTotals(r){
   const lTot=hasL?(onlyL?(+(r.lTot||r.oneTotal||60)):(+(r.lTot||60))):0;
   return{p1Tot,p2Tot,lTot,maxTot:p1Tot+p2Tot+lTot};
 }
+function defaultPassForRoom(r,maxOverride){
+  const onlyL=!!r?.onlyListen,one=!!r?.onePart,hasL=!!(r?.hasListen||onlyL);
+  const maxTot=maxOverride!==undefined?maxOverride:roomPartTotals(r).maxTot;
+  if(onlyL||one)return Math.round(maxTot*0.48);
+  return Math.round(maxTot*(hasL?(80/180):(58/120)));
+}
 function calcStuSummary(r,s){
   const mArr=s.marks||[],uArr=s.used||[],qPts=r.qPts||[];
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
@@ -5149,7 +5162,7 @@ function calcStuSummary(r,s){
   const s1=onlyL?0:(useIrt?(+(s.irtScores[0]||0)):p1Res.scaled);
   const s2=(onlyL||one)?0:(useIrt?(+(s.irtScores[1]||0)):p2Res.scaled);
   const s3=hasL?(useIrt?(+(s.irtScores[lIdx]||0)):p3Res.scaled):0;
-  const passTot=r.passTotal||((onlyL||one||maxTot!==(hasL?180:120))?Math.round(maxTot*0.48):(hasL?80:58));
+  const passTot=r.passTotal||defaultPassForRoom(r);
   const rawTot=Math.round((s1+s2+s3)*10)/10;
   const ded=Math.round((+(s.deduct||0))*10)/10;
   const finalTot=Math.max(0,Math.round((rawTot-ded)*10)/10);
