@@ -988,7 +988,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <h3 style="margin:0">Exam Result Summary</h3>
         <span class="pill live hide" id="lcPubBadge">PUBLISHED ✓</span>
       </div>
-      <button type="button" class="btn sec" id="lcSumPngBtn">Download Summary PNG</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn sec" id="lcUnivRepBtn" title="সব Student-এর জন্য একই Result Link — যার যার Account/Browser অনুযায়ী নিজের রেজাল্ট দেখাবে">🔗 Universal Result Link</button>
+        <button type="button" class="btn sec" id="lcSumPngBtn">Download Summary PNG</button>
+      </div>
     </div>
     <div id="lcPubBar" class="hide" style="margin-top:10px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <select id="lcResultType" style="flex:1;min-width:210px;font-size:13px;padding:8px 10px">
@@ -2604,7 +2607,7 @@ function db(){
 }
 let liveRoomId='',liveStuId='',liveRoom=null,liveRoomRef=null,liveBatchRooms=[],lastLiveCertMeta=null,lastGlobalDeltaTs=0,lastStuDeltaTs=0,ytMuted=false,lastYtSyncTs=0,examinerLocked=false,liveDeduct=0,lastSelfCtrl=null;
 let curAdmin=false,curExaminer=null,lcRoomId='',lcRoomRef=null,lcRoomData=null,lcYtPlayer=null,lcReturnView='examinerDash';
-let gateMode='login',pendingLiveRoomId='';
+let gateMode='login',pendingLiveRoomId='',pendingResultRoomId='';
 
 function hideAllViews(){
   stopLiveResultVideo();
@@ -2625,6 +2628,7 @@ function enterNormalMode(){
   $('name').value=(curStudent&&curStudent.name)||p.name||'';
   renderHistory();
   checkActiveExam();
+  if(pendingResultRoomId){const rid=pendingResultRoomId;pendingResultRoomId='';location.hash='#result='+rid;return}
   if(pendingLiveRoomId){const rid=pendingLiveRoomId;pendingLiveRoomId='';location.hash='#live='+rid}
 }
 function showGate(){
@@ -3424,6 +3428,29 @@ async function checkHashLive(){
     }
   });
 }
+async function renderLiveReportForRoom(rid,r,sid){
+  if(!r.published){
+    $('lwTitle').textContent=r.examName||'Report Card';
+    $('lwSub').textContent='এই Exam-এর Result এখনো Publish হয়নি।';
+    return;
+  }
+  const refTs=r.publishedAt||r.createdAt||0;
+  if(refTs&&(Date.now()-refTs>BATCH_TTL_MS)){
+    $('lwTitle').textContent='Link মেয়াদোত্তীর্ণ';
+    $('lwSub').textContent='⏰ এই Report Card Link-টির মেয়াদ (২৪ ঘণ্টা) শেষ হয়ে গেছে।';
+    return;
+  }
+  liveRoomId=rid;liveStuId=sid;liveRoom=r;
+  const s=r.students[sid];
+  liveDeduct=+(s.deduct||0);
+  repTime=r.dateStr||'';
+  const parts=buildLiveParts(r);
+  cfg={name:s.name||'Student',driveId:r.driveId||'',examName:r.examName||'',ytId:'',style:$('style').value,parts};
+  ans=parts.map((pt,i)=>unpackAns((s.ans&&s.ans[i])||'',pt.q));
+  marks=parts.map((pt,i)=>unpackMarks((s.marks&&s.marks[i])||'',pt.q));
+  used=Array.isArray(s.used)?s.used.slice():parts.map(()=>0);
+  await loadPublishedLiveReport(true);
+}
 async function checkHashLiveReport(){
   if(!location.hash.startsWith('#report='))return;
   const raw=location.hash.slice(8).trim();
@@ -3446,27 +3473,53 @@ async function checkHashLiveReport(){
       $('lwSub').textContent='এই লিংকটি সঠিক নয় অথবা Exam delete করা হয়েছে।';
       return;
     }
-    if(!r.published){
-      $('lwTitle').textContent=r.examName||'Report Card';
-      $('lwSub').textContent='এই Exam-এর Result এখনো Publish হয়নি।';
+    await renderLiveReportForRoom(rid,r,sid);
+  }catch(e){
+    $('lwTitle').textContent='লোড করা যায়নি';
+    $('lwSub').textContent='নেটওয়ার্ক সমস্যা হয়েছে, আবার চেষ্টা করো।';
+  }
+}
+async function checkHashUniversalResult(){
+  if(!location.hash.startsWith('#result='))return;
+  const rid=decodeURIComponent(location.hash.slice(8).trim());
+  if(!rid)return;
+  hideAllViews();
+  $('liveWaitView').classList.remove('hide');
+  $('lwTitle').textContent='Result Card';
+  $('lwSub').textContent='তোমার Result Card খোঁজা হচ্ছে…';
+  $('lwJoinBox').classList.add('hide');
+  $('lwSpinBox').classList.add('hide');
+  try{
+    const snap=await db().ref('rooms/'+rid).once('value');
+    let targetRid=rid,r=snap.val();
+    if(!r){
+      $('lwTitle').textContent='Result পাওয়া যায়নি';
+      $('lwSub').textContent='এই লিংকটি সঠিক নয় অথবা Exam delete করা হয়েছে।';
       return;
     }
-    const refTs=r.publishedAt||r.createdAt||0;
-    if(refTs&&(Date.now()-refTs>BATCH_TTL_MS)){
-      $('lwTitle').textContent='Link মেয়াদোত্তীর্ণ';
-      $('lwSub').textContent='⏰ এই Report Card Link-টির মেয়াদ (২৪ ঘণ্টা) শেষ হয়ে গেছে।';
+    let sid=curStudent&&curStudent.username?('u_'+curStudent.username):'';
+    if(!sid){
+      try{sid=localStorage.getItem('guest_live_stu_'+rid)||''}catch(e){}
+    }
+    if(!sid){
+      $('lwTitle').textContent=r.examName||'Result Card';
+      $('lwSub').innerHTML='তোমার নিজের Result দেখতে Account-এ Login করো অথবা যে Browser দিয়ে Exam দিয়েছো সেটি দিয়ে Open করো।<div style="margin-top:12px"><button type="button" class="btn" id="lwResLoginBtn" style="width:auto;margin:0">Login করে Result দেখো</button></div>';
+      $('lwResLoginBtn').onclick=()=>{pendingResultRoomId=rid;showGate()};
       return;
     }
-    liveRoomId=rid;liveStuId=sid;liveRoom=r;
-    const s=r.students[sid];
-    liveDeduct=+(s.deduct||0);
-    repTime=r.dateStr||'';
-    const parts=buildLiveParts(r);
-    cfg={name:s.name||'Student',driveId:r.driveId||'',examName:r.examName||'',ytId:'',style:$('style').value,parts};
-    ans=parts.map((pt,i)=>unpackAns((s.ans&&s.ans[i])||'',pt.q));
-    marks=parts.map((pt,i)=>unpackMarks((s.marks&&s.marks[i])||'',pt.q));
-    used=Array.isArray(s.used)?s.used.slice():parts.map(()=>0);
-    await loadPublishedLiveReport(true);
+    if((!r.students||!r.students[sid])&&r.batchGroupId){
+      const bs=await db().ref('rooms').orderByChild('batchGroupId').equalTo(r.batchGroupId).once('value');
+      const found=Object.entries(bs.val()||{}).find(([,rm])=>rm&&rm.students&&rm.students[sid]);
+      if(found){targetRid=found[0];r=found[1]}
+    }
+    if(!r.students||!r.students[sid]){
+      $('lwTitle').textContent=r.examName||'Result Card';
+      $('lwSub').textContent=curStudent
+        ?`তোমার Account (${curStudent.name}) এই Exam-এ পাওয়া যায়নি। (Guest হিসেবে দিয়ে থাকলে Logout করে সেই Browser দিয়ে Open করো।)`
+        :'এই Browser-এ তোমার Exam record পাওয়া যায়নি। Account-এ Login করে থাকলে Login করে দেখো।';
+      return;
+    }
+    await renderLiveReportForRoom(targetRid,r,sid);
   }catch(e){
     $('lwTitle').textContent='লোড করা যায়নি';
     $('lwSub').textContent='নেটওয়ার্ক সমস্যা হয়েছে, আবার চেষ্টা করো।';
@@ -5390,6 +5443,15 @@ function exportCurrentRoomSummaryPng(){
   const rows=stus.map(([,s])=>({...calcStuSummary(r,s),name:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
   exportSummaryPng(r,rows,' — Result Summary','');
 }
+$('lcUnivRepBtn').onclick=()=>{
+  if(!lcRoomId)return;
+  const url=location.origin+location.pathname+'#result='+encodeURIComponent(lcRoomId);
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(()=>toast('Universal Result Link কপি হয়েছে! (সব Student নিজের Account/Browser থেকে নিজের রেজাল্ট দেখবে)')).catch(()=>prompt('Universal Result Link:',url));
+  }else{
+    prompt('Universal Result Link:',url);
+  }
+};
 $('lcSumPngBtn').onclick=exportCurrentRoomSummaryPng;
 $('lsSumPngBtn').onclick=exportCurrentRoomSummaryPng;
 (()=>{
@@ -5404,6 +5466,8 @@ $('lsSumPngBtn').onclick=exportCurrentRoomSummaryPng;
       checkHashLive();
     }else if(location.hash.startsWith('#report=')){
       checkHashLiveReport();
+    }else if(location.hash.startsWith('#result=')){
+      checkHashUniversalResult();
     }else if(location.hash==='#videopreview'){
       openVideoPreview(0);
     }else if(pSess&&pSess.role==='admin'){
@@ -5422,7 +5486,7 @@ $('lsSumPngBtn').onclick=exportCurrentRoomSummaryPng;
     clearPortalSess();
     showGate();
   }
-  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive();checkHashLiveReport();if(location.hash==='#videopreview')openVideoPreview(0)});
+  window.addEventListener('hashchange',()=>{checkHashReview();checkHashLive();checkHashLiveReport();checkHashUniversalResult();if(location.hash==='#videopreview')openVideoPreview(0)});
 })();
 </script>
 </body>
