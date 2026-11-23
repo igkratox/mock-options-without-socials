@@ -1976,7 +1976,8 @@ function showReport(keepTime){
     </div>`;
     const dlPdfHref=liveRoom.pdfUrl||(liveRoom.driveId?`https://drive.google.com/uc?export=download&id=${encodeURIComponent(liveRoom.driveId)}`:'');
     if(dlPdfHref){
-      html+=`<a href="${esc(dlPdfHref)}" target="_blank" rel="noopener" download="${esc((liveRoom.examName||'question')+'.pdf')}" class="btn sec noprint" style="width:100%;margin-top:10px;display:block;text-align:center;text-decoration:none;box-sizing:border-box">📄 Download Question PDF</a>`;
+      const dlPdfName=((liveRoom.examName||'question').replace(/[\\/:*?"<>|]+/g,'_').trim()||'question')+'.pdf';
+      html+=`<button type="button" id="dlQuestPdfBtn" data-href="${esc(dlPdfHref)}" data-fname="${esc(dlPdfName)}" class="btn sec noprint" style="width:100%;margin-top:10px">📄 Download Question PDF</button>`;
     }
     if(liveRoom.publicRanking!==false){
       const passCnt=stRows.filter(x=>x.pass).length,failCnt=stRows.length-passCnt;
@@ -2068,6 +2069,30 @@ function showReport(keepTime){
   html+=`<div class="stat"><span>Total time</span><b>${fmt(totTime)}</b></div></div>`;
   txt+=`\nTotal answered: ${totAns}/${totQ}`+(hasTot?`\nTotal score: ${totOk}/${totQ} (${totPct}%), wrong ${totBad}`:'')+`\nTotal time: ${fmt(totTime)}`;
   reportText=txt;$('repBody').innerHTML=html;
+  const dlPdfBtn=$('dlQuestPdfBtn');
+  if(dlPdfBtn){
+    dlPdfBtn.onclick=async()=>{
+      const href=dlPdfBtn.dataset.href,fname=dlPdfBtn.dataset.fname||'question.pdf';
+      if(!href)return;
+      dlPdfBtn.disabled=true;dlPdfBtn.textContent='⏳ Downloading PDF…';
+      try{
+        const res=await fetch(href);
+        if(!res.ok)throw new Error('HTTP '+res.status);
+        const ab=await res.arrayBuffer();
+        const u=URL.createObjectURL(new Blob([ab],{type:'application/octet-stream'}));
+        const a=document.createElement('a');
+        a.href=u;a.download=fname;
+        document.body.appendChild(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(u),10000);
+        toast('Question PDF download হচ্ছে!');
+      }catch(e){
+        const a=document.createElement('a');
+        a.href=href;a.target='_blank';a.rel='noopener';
+        document.body.appendChild(a);a.click();a.remove();
+      }
+      dlPdfBtn.disabled=false;dlPdfBtn.textContent='📄 Download Question PDF';
+    };
+  }
   const seeBtn=$('seeAllResBtn');
   if(seeBtn)seeBtn.onclick=()=>{
     const box=$('allResBox');if(!box)return;
