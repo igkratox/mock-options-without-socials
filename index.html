@@ -826,6 +826,28 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
   </div>
 
+  <div class="card hide" id="lcMarksCtrlCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div>
+        <h3 style="margin:0">🎯 Part Total Marks</h3>
+        <div class="mu" style="margin-top:2px;font-size:12px">প্রতি পার্টের মোট নম্বর (পূর্ণমান) লাইভ পরিবর্তন করো</div>
+      </div>
+      <button type="button" class="btn" id="lcSaveMarksBtn" style="width:auto;margin:0;padding:8px 14px">Save Marks</button>
+    </div>
+    <div id="lcP1TotRow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <span style="min-width:155px;font-size:13px;font-weight:700">Part 1 <span class="mu" id="lcP1TotCur" style="font-weight:400"></span></span>
+      <input id="lcP1TotIn" type="number" min="1" max="500" style="width:88px;padding:7px 8px;font-size:13px;text-align:center;font-weight:700">
+    </div>
+    <div id="lcP2TotRow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <span style="min-width:155px;font-size:13px;font-weight:700">Part 2 <span class="mu" id="lcP2TotCur" style="font-weight:400"></span></span>
+      <input id="lcP2TotIn" type="number" min="1" max="500" style="width:88px;padding:7px 8px;font-size:13px;text-align:center;font-weight:700">
+    </div>
+    <div id="lcLTotRow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <span style="min-width:155px;font-size:13px;font-weight:700">Listening <span class="mu" id="lcLTotCur" style="font-weight:400"></span></span>
+      <input id="lcLTotIn" type="number" min="1" max="500" style="width:88px;padding:7px 8px;font-size:13px;text-align:center;font-weight:700">
+    </div>
+  </div>
+
   <div class="card hide" id="lcPageCtrlCard">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <div>
@@ -1916,17 +1938,18 @@ function showReport(keepTime){
     const meRow=stRows.find(x=>x.sid===liveStuId&&x.rmId===liveRoomId)||{...calcStuSummary(liveRoom,liveRoom.students[liveStuId]),rank:null,medal:'',tierCls:''};
     const meSm=meRow;
     lastLiveCertMeta={meSm,rType,totRows:stRows.length,keyForPart};
-    const rModeLbl=liveRoom.onlyListen?`Only Listening (${meSm.maxTot} Marks)`:(liveRoom.onePart?`${meSm.maxTot} Marks`:'Scaled 60/Part');
+    const {p1Tot:rP1T,p2Tot:rP2T,lTot:rLT}=roomPartTotals(liveRoom);
+    const rModeLbl=liveRoom.onlyListen?`Only Listening (${meSm.maxTot} Marks)`:(liveRoom.onePart?`${meSm.maxTot} Marks`:((rP1T===60&&rP2T===60&&(!liveRoom.hasListen||rLT===60))?'Scaled 60/Part':`${meSm.maxTot} Marks`));
     const lTotQ=roomListenTotal(liveRoom);
     const meStatsHtml=liveRoom.onlyListen
       ?`<div class="stat" style="margin-top:8px"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক)</span><b>${meSm.s3} / ${meSm.maxTot}</b></div>`
       :(liveRoom.onePart
         ?`<div class="stat" style="margin-top:8px"><span>Part 1 (${meSm.p1}/${liveRoom.p1q} টি সঠিক)</span><b>${meSm.s1} / ${meSm.p1Tot}</b></div>
-          ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক)</span><b>${meSm.s3} / 60</b></div>`:''}`
-        :`<div class="stat" style="margin-top:8px"><span>Part 1 (${meSm.p1}/${liveRoom.p1q} টি সঠিক)</span><b>${meSm.s1} / 60</b></div>
-          <div class="stat"><span>Part 2 (${meSm.p2}/${liveRoom.p2q} টি সঠিক)</span><b>${meSm.s2} / 60</b></div>
-          <div class="stat"><span>Part 1 + Part 2 (Min 38)</span><b>${Math.round((meSm.s1+meSm.s2)*10)/10} / 120 <span style="color:${Math.round((meSm.s1+meSm.s2)*10)/10>=38?'var(--ok)':'var(--bad)'}">${Math.round((meSm.s1+meSm.s2)*10)/10>=38?'✓':'✕'}</span></b></div>
-          ${liveRoom.hasListen?(()=>{const lMinOk=lTotQ>=10?10:Math.ceil(lTotQ*0.42),lOk=meSm.s3>=19&&meSm.p3>=lMinOk;return `<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক · Min ${lMinOk} সঠিক & 19)</span><b>${meSm.s3} / 60 <span style="color:${lOk?'var(--ok)':'var(--bad)'}">${lOk?'✓':'✕'}</span></b></div>`})():''}`);
+          ${liveRoom.hasListen?`<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক)</span><b>${meSm.s3} / ${meSm.lTot}</b></div>`:''}`
+        :`<div class="stat" style="margin-top:8px"><span>Part 1 (${meSm.p1}/${liveRoom.p1q} টি সঠিক)</span><b>${meSm.s1} / ${meSm.p1Tot}</b></div>
+          <div class="stat"><span>Part 2 (${meSm.p2}/${liveRoom.p2q} টি সঠিক)</span><b>${meSm.s2} / ${meSm.p2Tot}</b></div>
+          <div class="stat"><span>Part 1 + Part 2 (Min 38)</span><b>${Math.round((meSm.s1+meSm.s2)*10)/10} / ${meSm.p1Tot+meSm.p2Tot} <span style="color:${Math.round((meSm.s1+meSm.s2)*10)/10>=38?'var(--ok)':'var(--bad)'}">${Math.round((meSm.s1+meSm.s2)*10)/10>=38?'✓':'✕'}</span></b></div>
+          ${liveRoom.hasListen?(()=>{const lMinOk=lTotQ>=10?10:Math.ceil(lTotQ*0.42),lOk=meSm.s3>=19&&meSm.p3>=lMinOk;return `<div class="stat"><span>Listening (${meSm.p3}/${lTotQ} টি সঠিক · Min ${lMinOk} সঠিক & 19)</span><b>${meSm.s3} / ${meSm.lTot} <span style="color:${lOk?'var(--ok)':'var(--bad)'}">${lOk?'✓':'✕'}</span></b></div>`})():''}`);
     const lbHeadHtml=liveRoom.onlyListen?'':(liveRoom.onePart?(liveRoom.hasListen?'<th>P1</th><th>List.</th>':''):`<th>P1</th><th>P2</th>${liveRoom.hasListen?'<th>List.</th>':''}`);
     const circleCls=meSm.tierCls||(meSm.pass?'':'fail-c');
     const rankLine=meSm.rank?`${meSm.medal} Rank #${meSm.rank}`:(meSm.pass?'PASS':'FAIL');
@@ -1957,7 +1980,7 @@ function showReport(keepTime){
         <div style="overflow:auto;margin-top:6px"><table class="tbl">
           <thead><tr><th>#</th><th>Name</th>${lbHeadHtml}<th>Total</th><th>Status</th></tr></thead>
           <tbody>${stRows.map(x=>{
-            const lbCells=liveRoom.onlyListen?'':(liveRoom.onePart?(liveRoom.hasListen?`<td>${x.s1}/${x.p1Tot}</td><td>${x.s3}/60</td>`:''):`<td>${x.s1}/60</td><td>${x.s2}/60</td>${liveRoom.hasListen?`<td>${x.s3}/60</td>`:''}`);
+            const lbCells=liveRoom.onlyListen?'':(liveRoom.onePart?(liveRoom.hasListen?`<td>${x.s1}/${x.p1Tot}</td><td>${x.s3}/${x.lTot}</td>`:''):`<td>${x.s1}/${x.p1Tot}</td><td>${x.s2}/${x.p2Tot}</td>${liveRoom.hasListen?`<td>${x.s3}/${x.lTot}</td>`:''}`);
             const rDisp=x.rank?(x.medal?`${x.medal} ${x.rank}`:x.rank):'—';
             return `<tr>
             <td><b>${rDisp}</b></td>
@@ -2125,8 +2148,8 @@ function saveReportImage(mode='sheet'){
     ctx.fillStyle='#6b7280';ctx.font='14px system-ui,sans-serif';
     const lTotQ=roomListenTotal(liveRoom);
     const partLine=liveRoom?.onlyListen?`Listening: ${sm.s3}/${sm.maxTot} (${sm.p3}/${lTotQ} Qs)`
-      :(liveRoom?.onePart?`Part 1: ${sm.s1}/${sm.p1Tot} (${sm.p1}/${liveRoom.p1q})`+(liveRoom.hasListen?`  ·  Listening: ${sm.s3}/60 (${sm.p3}/${lTotQ})`:'')
-      :`Part 1: ${sm.s1}/60 (${sm.p1}/${liveRoom?.p1q||0})  ·  Part 2: ${sm.s2}/60 (${sm.p2}/${liveRoom?.p2q||0})`+(liveRoom?.hasListen?`  ·  Listening: ${sm.s3}/60 (${sm.p3}/${lTotQ})`:''));
+      :(liveRoom?.onePart?`Part 1: ${sm.s1}/${sm.p1Tot} (${sm.p1}/${liveRoom.p1q})`+(liveRoom.hasListen?`  ·  Listening: ${sm.s3}/${sm.lTot} (${sm.p3}/${lTotQ})`:'')
+      :`Part 1: ${sm.s1}/${sm.p1Tot} (${sm.p1}/${liveRoom?.p1q||0})  ·  Part 2: ${sm.s2}/${sm.p2Tot} (${sm.p2}/${liveRoom?.p2q||0})`+(liveRoom?.hasListen?`  ·  Listening: ${sm.s3}/${sm.lTot} (${sm.p3}/${lTotQ})`:''));
     ctx.fillText(partLine,W/2,circY+124);
     ctx.textAlign='left';
   }
@@ -4058,7 +4081,7 @@ function openLiveControl(rid){
   lcRoomId=rid;lcBatchRooms=[];
   $('lcKey1').value='';$('lcKey2').value='';$('lcKey3').value='';
   $('lcP1Pages').value='';$('lcP2Pages').value='';
-  let lcPagesInit=false,lcQInit=false;
+  let lcPagesInit=false,lcQInit=false,lcMarksInit=false;
   if(curAdmin)savePortalSess({role:'admin',lcRoomId:rid});
   else if(curExaminer)savePortalSess({role:'examiner',examiner:curExaminer,lcRoomId:rid});
   hideAllViews();$('liveControl').classList.remove('hide');
@@ -4097,6 +4120,21 @@ function openLiveControl(rid){
       }
       $('lcSaveQBtn').disabled=(r.status==='ended');
     }
+    const rTots=roomPartTotals(r);
+    $('lcMarksCtrlCard').classList.remove('hide');
+    $('lcP1TotRow').classList.toggle('hide',!!r.onlyListen);
+    $('lcP2TotRow').classList.toggle('hide',!!(r.onlyListen||r.onePart));
+    $('lcLTotRow').classList.toggle('hide',!(r.hasListen||r.onlyListen));
+    $('lcP1TotCur').textContent=`(বর্তমান: ${rTots.p1Tot})`;
+    $('lcP2TotCur').textContent=`(বর্তমান: ${rTots.p2Tot})`;
+    $('lcLTotCur').textContent=`(বর্তমান: ${rTots.lTot})`;
+    if(!lcMarksInit){
+      $('lcP1TotIn').value=rTots.p1Tot||'';
+      $('lcP2TotIn').value=rTots.p2Tot||'';
+      $('lcLTotIn').value=rTots.lTot||'';
+      lcMarksInit=true;
+    }
+    $('lcSaveMarksBtn').disabled=(r.status==='ended');
     const lcPdf=getRoomPdf(r,rid);
     const showPageCtrl=!r.onlyListen&&(r.driveId||r.hasPdf||lcPdf);
     $('lcPageCtrlCard').classList.toggle('hide',!showPageCtrl);
@@ -4141,7 +4179,7 @@ function openLiveControl(rid){
       if(!$('lcKey3').value&&r.keys.k3)$('lcKey3').value=r.keys.k3;
     }
     updateLcKeyHints();
-    const defPass=(r.onlyListen||r.onePart)?Math.round((r.onlyListen?(r.oneTotal||60):((r.oneTotal||100)+(r.hasListen?60:0)))*0.48):(r.hasListen?80:58);
+    const defPass=(r.onlyListen||r.onePart||rTots.maxTot!==(r.hasListen?180:120))?Math.round(rTots.maxTot*0.48):(r.hasListen?80:58);
     if(document.activeElement!==$('lcPassTotal'))$('lcPassTotal').value=r.passTotal||defPass;
     $('lcGradeMode').value=r.gradeMode||'excel';
     if(listenOn){
@@ -4504,6 +4542,24 @@ $('lcSaveQBtn').onclick=async()=>{
   const mismatch=(k1Len>0&&k1Len!==p1q)||(!r.onePart&&k2Len>0&&k2Len!==p2q);
   if(mismatch)toast(`প্রশ্ন সংখ্যা আপডেট হয়েছে! Answer Key (${p1q}${r.onePart?'':' / '+p2q}টি) মিলিয়ে Save করো।`);
   else toast('প্রশ্ন সংখ্যা আপডেট হয়েছে — Student ও Answer Key আপডেট হয়ে যাবে!');
+};
+$('lcSaveMarksBtn').onclick=async()=>{
+  if(!lcRoomId||!lcRoomData)return;
+  const r=lcRoomData,hasL=!!(r.hasListen||r.onlyListen);
+  const p1Tot=r.onlyListen?0:Math.max(0,parseInt($('lcP1TotIn').value,10)||0);
+  const p2Tot=(r.onlyListen||r.onePart)?0:Math.max(0,parseInt($('lcP2TotIn').value,10)||0);
+  const lTot=hasL?Math.max(0,parseInt($('lcLTotIn').value,10)||0):0;
+  if((!r.onlyListen&&p1Tot<1)||(!r.onlyListen&&!r.onePart&&p2Tot<1)||(hasL&&lTot<1)){
+    toast('সঠিক নম্বর দাও (কমপক্ষে 1)।');return;
+  }
+  const upd={};
+  if(!r.onlyListen)upd.p1Tot=p1Tot;
+  if(!r.onlyListen&&!r.onePart)upd.p2Tot=p2Tot;
+  if(hasL)upd.lTot=lTot;
+  if(r.onlyListen)upd.oneTotal=lTot;
+  else if(r.onePart)upd.oneTotal=p1Tot;
+  await db().ref('rooms/'+lcRoomId).update(upd);
+  toast(r.graded?'নম্বর আপডেট হয়েছে! নতুন নম্বরে রেজাল্ট আপডেট করতে নিচে Publish/Preview বাটনে চাপো।':'পার্টের মোট নম্বর আপডেট হয়েছে!');
 };
 $('lcSavePagesBtn').onclick=async()=>{
   if(!lcRoomId||!lcRoomData)return;
@@ -4880,47 +4936,52 @@ async function gradeRoomWithCurrentKeys(silent){
   const curGradeMode=['excel','weighted','irt'].includes($('lcGradeMode').value)?$('lcGradeMode').value:'excel';
   let qPts=[],qStats=[],irtCols=[];
   const rLTot=roomListenTotal(r);
+  const {p1Tot,p2Tot,lTot}=roomPartTotals(r);
   if(curGradeMode==='excel'){
     if(r.onlyListen){
-      const wL=computeExcelWeights(mListL,rLTot,r.oneTotal||60);
+      const wL=computeExcelWeights(mListL,rLTot,lTot);
       qPts=[wL.pts];qStats=[wL.stats];
     }else if(r.onePart){
-      const p1Tot=r.oneTotal||100;
       const w0=computeExcelWeights(mList0,r.p1q,p1Tot);
       qPts=[w0.pts];qStats=[w0.stats];
       if(hasL){
-        const wL=computeExcelWeights(mListL,rLTot,60);
+        const wL=computeExcelWeights(mListL,rLTot,lTot);
         qPts.push(wL.pts);qStats.push(wL.stats);
       }
     }else{
-      const mList12=stuRefs.map((_,i)=>(mList0[i]||'').padEnd(r.p1q,'.').slice(0,r.p1q)+(mList1[i]||'').padEnd(r.p2q,'.').slice(0,r.p2q));
-      const w12=computeExcelWeights(mList12,r.p1q+r.p2q,120);
-      qPts=[w12.pts.slice(0,r.p1q),w12.pts.slice(r.p1q)];
-      qStats=[w12.stats.slice(0,r.p1q),w12.stats.slice(r.p1q).map((st,idx)=>({...st,q:idx+1}))];
+      if(p1Tot===60&&p2Tot===60){
+        const mList12=stuRefs.map((_,i)=>(mList0[i]||'').padEnd(r.p1q,'.').slice(0,r.p1q)+(mList1[i]||'').padEnd(r.p2q,'.').slice(0,r.p2q));
+        const w12=computeExcelWeights(mList12,r.p1q+r.p2q,120);
+        qPts=[w12.pts.slice(0,r.p1q),w12.pts.slice(r.p1q)];
+        qStats=[w12.stats.slice(0,r.p1q),w12.stats.slice(r.p1q).map((st,idx)=>({...st,q:idx+1}))];
+      }else{
+        const w0=computeExcelWeights(mList0,r.p1q,p1Tot);
+        const w1=computeExcelWeights(mList1,r.p2q,p2Tot);
+        qPts=[w0.pts,w1.pts];qStats=[w0.stats,w1.stats];
+      }
       if(hasL){
-        const wL=computeExcelWeights(mListL,rLTot,60);
+        const wL=computeExcelWeights(mListL,rLTot,lTot);
         qPts.push(wL.pts);qStats.push(wL.stats);
       }
     }
   }else{
     if(r.onlyListen){
-      const wL=computePartWeights(mListL,rLTot,r.oneTotal||60);
+      const wL=computePartWeights(mListL,rLTot,lTot);
       qPts=[wL.pts];qStats=[wL.stats];
-      irtCols=[computePartIRT(mListL,rLTot,r.oneTotal||60).scores];
+      irtCols=[computePartIRT(mListL,rLTot,lTot).scores];
     }else{
-      const p1Tot=r.onePart?(r.oneTotal||100):60;
       const w0=computePartWeights(mList0,r.p1q,p1Tot);
       qPts=[w0.pts];qStats=[w0.stats];
       irtCols=[computePartIRT(mList0,r.p1q,p1Tot).scores];
       if(!r.onePart){
-        const w1=computePartWeights(mList1,r.p2q,60);
+        const w1=computePartWeights(mList1,r.p2q,p2Tot);
         qPts.push(w1.pts);qStats.push(w1.stats);
-        irtCols.push(computePartIRT(mList1,r.p2q,60).scores);
+        irtCols.push(computePartIRT(mList1,r.p2q,p2Tot).scores);
       }
       if(hasL){
-        const wL=computePartWeights(mListL,rLTot,60);
+        const wL=computePartWeights(mListL,rLTot,lTot);
         qPts.push(wL.pts);qStats.push(wL.stats);
-        irtCols.push(computePartIRT(mListL,rLTot,60).scores);
+        irtCols.push(computePartIRT(mListL,rLTot,lTot).scores);
       }
     }
   }
@@ -5008,22 +5069,27 @@ function rankStudents(rows){
     return{...x,rank,medal,tierCls};
   });
 }
+function roomPartTotals(r){
+  const onlyL=!!r?.onlyListen,one=!!r?.onePart,hasL=!!(r?.hasListen||onlyL);
+  const p1Tot=onlyL?0:(one?(+(r.p1Tot||r.oneTotal||100)):(+(r.p1Tot||60)));
+  const p2Tot=(onlyL||one)?0:(+(r.p2Tot||60));
+  const lTot=hasL?(onlyL?(+(r.lTot||r.oneTotal||60)):(+(r.lTot||60))):0;
+  return{p1Tot,p2Tot,lTot,maxTot:p1Tot+p2Tot+lTot};
+}
 function calcStuSummary(r,s){
   const mArr=s.marks||[],uArr=s.used||[],qPts=r.qPts||[];
   const onlyL=!!r.onlyListen,one=!!r.onePart,hasL=!!(r.hasListen||onlyL);
-  const p1Tot=onlyL?0:(one?(r.oneTotal||100):60);
-  const lTot=onlyL?(r.oneTotal||60):60;
+  const {p1Tot,p2Tot,lTot,maxTot}=roomPartTotals(r);
   const lTotQ=roomListenTotal(r);
   const lIdx=onlyL?0:(one?1:2);
   const p1Res=onlyL?{ok:0,scaled:0}:scorePartFromMarks(mArr[0],r.p1q,qPts[0],p1Tot);
-  const p2Res=(onlyL||one)?{ok:0,scaled:0}:scorePartFromMarks(mArr[1],r.p2q,qPts[1],60);
+  const p2Res=(onlyL||one)?{ok:0,scaled:0}:scorePartFromMarks(mArr[1],r.p2q,qPts[1],p2Tot);
   const p3Res=hasL?scorePartFromMarks(mArr[lIdx],lTotQ,qPts[lIdx],lTot):{ok:0,scaled:0};
   const useIrt=r.gradeMode==='irt'&&Array.isArray(s.irtScores);
   const s1=onlyL?0:(useIrt?(+(s.irtScores[0]||0)):p1Res.scaled);
   const s2=(onlyL||one)?0:(useIrt?(+(s.irtScores[1]||0)):p2Res.scaled);
   const s3=hasL?(useIrt?(+(s.irtScores[lIdx]||0)):p3Res.scaled):0;
-  const maxTot=onlyL?lTot:(one?(p1Tot+(hasL?60:0)):(hasL?180:120));
-  const passTot=r.passTotal||((onlyL||one)?Math.round(maxTot*0.48):(hasL?80:58));
+  const passTot=r.passTotal||((onlyL||one||maxTot!==(hasL?180:120))?Math.round(maxTot*0.48):(hasL?80:58));
   const rawTot=Math.round((s1+s2+s3)*10)/10;
   const ded=Math.round((+(s.deduct||0))*10)/10;
   const finalTot=Math.max(0,Math.round((rawTot-ded)*10)/10);
@@ -5040,7 +5106,7 @@ function calcStuSummary(r,s){
   const p12=p1Res.ok+p2Res.ok;
   const p12Q=(onlyL?0:r.p1q)+(onlyL||one?0:r.p2q);
   const t1=onlyL?0:(uArr[0]||0),t2=(onlyL||one)?0:(uArr[1]||0);
-  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,p12,p12Q,s1,s2,s3,p12Tot,p1Tot,lTot,t1,t2,t12:t1+t2,t3:hasL?(uArr[lIdx]||0):0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
+  return{name:s.name,p1:p1Res.ok,p2:p2Res.ok,p3:p3Res.ok,p12,p12Q,s1,s2,s3,p12Tot,p1Tot,p2Tot,lTot,t1,t2,t12:t1+t2,t3:hasL?(uArr[lIdx]||0):0,totOk,rawTot,ded,finalTot,finalOk:finalTot,maxTot,passTot,numPass,senseiFailed,pass,statusLabel,shortStatus,totQ,pct:maxTot?Math.round(finalTot*100/maxTot):0};
 }
 function buildStuDisp(stuObjs){
   const cnt={};
@@ -5165,8 +5231,8 @@ function renderSummaryInto(r,stus,opts){
     const tdCols=onlyL
       ?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`
       :((one
-        ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`
-        :`<td><b>${x.p12Tot}/120</b> <span class="mu">(${x.p12}/${x.p12Q})</span></td>${hasL?`<td><b>${x.s3}/60</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`)
+        ?`<td><b>${x.s1}/${x.p1Tot}</b> <span class="mu">(${x.p1}/${r.p1q})</span></td>${hasL?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`
+        :`<td><b>${x.p12Tot}/${x.p1Tot+x.p2Tot}</b> <span class="mu">(${x.p12}/${x.p12Q})</span></td>${hasL?`<td><b>${x.s3}/${x.lTot}</b> <span class="mu">(${x.p3}/${lTotQ})</span></td>`:''}`)
       +`<td><span class="mu">${fmt(one?x.t1:x.t12)} mins</span></td>`);
     const actCell=isComb
       ?`<td><span class="mu">B${x.bNum||1}</span></td>`
