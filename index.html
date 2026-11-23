@@ -3149,6 +3149,9 @@ async function checkHashLive(){
       $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
       return;
     }
+    if(!liveStuId&&isRoomIdleExpired(r)){
+      autoEndIdleRooms({[rid]:r});
+    }
     let guestSavedId=null;
     if(!curStudent){try{guestSavedId=localStorage.getItem('guest_live_stu_'+rid)}catch(e){}}
     const expectedStuId=curStudent?('u_'+curStudent.username):guestSavedId;
@@ -3729,6 +3732,7 @@ $('admClean30Btn').onclick=async()=>{
 async function loadAdminData(){
   const [exSnap,rmSnap]=await Promise.all([db().ref('examiners').once('value'),db().ref('rooms').once('value')]);
   const exs=exSnap.val()||{},rms=rmSnap.val()||{};
+  autoEndIdleRooms(rms);
   const exCounts={};
   Object.values(rms).forEach(r=>{if(r.examinerId)exCounts[r.examinerId]=(exCounts[r.examinerId]||0)+1});
   const exKeys=Object.keys(exs);
@@ -3832,9 +3836,35 @@ function renderExaminerRanking(rms){
   </table>`:'<div class="mu">Result publish হলে এখানে Student Ranking দেখাবে।</div>';
 }
 const BATCH_TTL_MS=24*60*60*1000;
+const IDLE_END_MS=30*60*1000;
+function isRoomIdleExpired(r,now=Date.now()){
+  if(!r||r.status==='ended')return false;
+  const stus=Object.values(r.students||{});
+  const hasActive=stus.some(s=>s&&!s.kicked&&s.status!=='finished'&&(now-(s.updatedAt||0)<IDLE_END_MS));
+  if(hasActive)return false;
+  const lastTs=Math.max(r.createdAt||0,...stus.map(s=>(s&&s.updatedAt)||0));
+  return lastTs>0&&(now-lastTs>=IDLE_END_MS);
+}
+function autoEndIdleRooms(rms){
+  const now=Date.now(),upd={};
+  let any=false;
+  Object.entries(rms||{}).forEach(([rid,r])=>{
+    if(!isRoomIdleExpired(r,now))return;
+    r.status='ended';
+    delete r.pdfPages;delete r.hasPdf;delete r.lobbyChat;
+    upd[`rooms/${rid}/status`]='ended';
+    upd[`rooms/${rid}/pdfPages`]=null;
+    upd[`rooms/${rid}/hasPdf`]=null;
+    upd[`rooms/${rid}/lobbyChat`]=null;
+    upd[`roomPdfs/${rid}`]=null;
+    any=true;
+  });
+  if(any)db().ref().update(upd);
+}
 async function loadExaminerHistory(){
   const snap=await db().ref('rooms').orderByChild('examinerId').equalTo(curExaminer.id).once('value');
   const rms=snap.val()||{};
+  autoEndIdleRooms(rms);
   const now=Date.now();
   Object.entries(rms).forEach(([rid,r])=>{
     if((r.pdfPages||r.hasPdf)&&(now-(r.createdAt||0)>BATCH_TTL_MS)){
@@ -4173,6 +4203,10 @@ function openLiveControl(rid){
       else if(curExaminer)openExaminerDash();
       else goHome();
       return;
+    }
+    if(isRoomIdleExpired(r)){
+      autoEndIdleRooms({[rid]:r});
+      toast('৩০ মিনিট কোনো active student না থাকায় Exam auto-end হয়েছে!');
     }
     lcRoomData=r;
     if(r.hasPdf)ensureRoomPdf(rid,r);
