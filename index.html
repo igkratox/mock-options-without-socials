@@ -989,6 +989,8 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <span class="pill live hide" id="lcPubBadge">PUBLISHED ✓</span>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="lcPdfUpIn" type="file" accept="application/pdf" class="hide">
+        <button type="button" class="btn sec" id="lcPdfUpBtn" title="Result Sheet-এ Student-দের জন্য Question PDF আপলোড করো (Cloudinary)">📄 Upload Result PDF</button>
         <button type="button" class="btn sec" id="lcUnivRepBtn" title="সব Student-এর জন্য একই Result Link — যার যার Account/Browser অনুযায়ী নিজের রেজাল্ট দেখাবে">🔗 Universal Result Link</button>
         <button type="button" class="btn sec" id="lcSumPngBtn">Download Summary PNG</button>
       </div>
@@ -4207,6 +4209,8 @@ function openLiveControl(rid){
       lcMarksInit=true;
     }
     $('lcSaveMarksBtn').disabled=(r.status==='ended');
+    $('lcPdfUpBtn').textContent=r.pdfUrl?'📄 PDF ✓ (Change)':'📄 Upload Result PDF';
+    $('lcPdfUpBtn').style.color=r.pdfUrl?'var(--ok)':'';
     const lcPdf=getRoomPdf(r,rid);
     const showPageCtrl=!r.onlyListen&&(r.driveId||r.hasPdf||lcPdf);
     $('lcPageCtrlCard').classList.toggle('hide',!showPageCtrl);
@@ -5484,6 +5488,21 @@ function exportCurrentRoomSummaryPng(){
   const rows=stus.map(([,s])=>({...calcStuSummary(r,s),name:disp(s)})).sort((a,b)=>b.finalTot-a.finalTot);
   exportSummaryPng(r,rows,' — Result Summary','');
 }
+$('lcPdfUpBtn').onclick=()=>{if(lcRoomId)$('lcPdfUpIn').click()};
+$('lcPdfUpIn').onchange=async()=>{
+  const f=$('lcPdfUpIn').files[0];$('lcPdfUpIn').value='';
+  if(!f||!lcRoomId)return;
+  const btn=$('lcPdfUpBtn');btn.disabled=true;btn.textContent='Uploading PDF…';
+  try{
+    const url=await uploadPdfToCloudinary(f);
+    await db().ref('rooms/'+lcRoomId+'/pdfUrl').set(url);
+    toast('Question PDF Cloudinary-তে আপলোড হয়েছে — Result Sheet-এ পাওয়া যাবে!');
+  }catch(e){
+    toast('PDF আপলোড ব্যর্থ: '+(e.message||'Error'));
+  }
+  btn.disabled=false;
+  btn.textContent=lcRoomData?.pdfUrl?'📄 PDF ✓ (Change)':'📄 Upload Result PDF';
+};
 $('lcUnivRepBtn').onclick=()=>{
   if(!lcRoomId)return;
   const url=location.origin+location.pathname+'#result='+encodeURIComponent(lcRoomId);
