@@ -1972,6 +1972,10 @@ function showReport(keepTime){
       <div style="text-align:left;border-top:1px solid var(--bd);padding-top:8px">${meStatsHtml}</div>
       <div class="stat" style="margin-top:4px;border-top:1px solid var(--bd);padding-top:6px"><span>Total (Pass: ${meSm.passTot})</span><b>${meSm.finalTot} / ${meSm.maxTot}</b></div>
     </div>`;
+    const dlPdfHref=liveRoom.pdfUrl||(liveRoom.driveId?`https://drive.google.com/uc?export=download&id=${encodeURIComponent(liveRoom.driveId)}`:'');
+    if(dlPdfHref){
+      html+=`<a href="${esc(dlPdfHref)}" target="_blank" rel="noopener" download="${esc((liveRoom.examName||'question')+'.pdf')}" class="btn sec noprint" style="width:100%;margin-top:10px;display:block;text-align:center;text-decoration:none;box-sizing:border-box">📄 Download Question PDF</a>`;
+    }
     if(liveRoom.publicRanking!==false){
       const passCnt=stRows.filter(x=>x.pass).length,failCnt=stRows.length-passCnt;
       html+=`<button type="button" class="btn sec noprint" id="seeAllResBtn" style="width:100%;margin-top:10px">🏆 See Everyone's Result (${stRows.length} Students)</button>
@@ -3916,7 +3920,7 @@ async function loadExaminerHistory(){
       examName:`${base} (Batch ${nextNum})`,baseExamName:base,batchGroupId:gid,batchNum:nextNum,
       examinerId:curExaminer.id,examinerName:curExaminer.name,
       dateStr:new Date().toLocaleString(),createdAt:Date.now(),status:'live',
-      driveId:src.driveId||'',onePart:!!src.onePart,onlyListen:false,oneTotal:src.oneTotal||100,
+      driveId:src.driveId||'',pdfUrl:src.pdfUrl||'',onePart:!!src.onePart,onlyListen:false,oneTotal:src.oneTotal||100,
       p1q:src.p1q,p1m:src.p1m,p1pages:src.p1pages||'',p2q:src.p2q||0,p2m:src.p2m||0,p2pages:src.p2pages||'',
       hasListen:!!src.hasListen,lm:src.lm||30,lMode:src.lMode||'later',lMondai:src.lMondai?[...src.lMondai]:null,listenSelfCtrl:!!src.listenSelfCtrl,p3pages:src.p3pages||'',ytId:src.ytId||'',
       passTotal:src.passTotal||58,listenStarted:false,published:false,linkLocked:false
@@ -4065,6 +4069,18 @@ $('exCreateBtn').onclick=()=>{
   $('ecErr').textContent='';
   $('exConfirmModal').classList.remove('hide');
 };
+const CLOUDINARY_CLOUD='ib3rbvh1';
+const CLOUDINARY_PRESET='Mock live';
+async function uploadPdfToCloudinary(file){
+  const fd=new FormData();
+  fd.append('file',file);
+  fd.append('upload_preset',CLOUDINARY_PRESET);
+  const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/raw/upload`,{method:'POST',body:fd});
+  if(!res.ok)throw new Error('Cloudinary upload failed ('+res.status+')');
+  const data=await res.json();
+  if(!data.secure_url)throw new Error('No URL returned');
+  return data.secure_url;
+}
 $('ecCancelBtn').onclick=()=>$('exConfirmModal').classList.add('hide');
 $('ecGoBtn').onclick=async()=>{
   if(!pendingExDraft)return;
@@ -4077,11 +4093,13 @@ $('ecGoBtn').onclick=async()=>{
   const maxTot=onlyListen?oneTotal:(onePart?(oneTotal+(pendingExDraft.hasListen?60:0)):(pendingExDraft.hasListen?180:120));
   const passTotal=Math.max(1,+$('ecPassTotal').value||((onePart||onlyListen)?Math.round(maxTot*0.48):(pendingExDraft.hasListen?80:58)));
   if(!onlyListen&&(!p1q||!p1m||!p1pages||(!onePart&&(!p2q||!p2m||!p2pages)))){$('ecErr').textContent='সবগুলো field সঠিকভাবে পূরণ করো।';return}
-  let pdfPages=null;
+  let pdfPages=null,pdfUrl='';
   if(pendingExDraft.hasPdf){
-    $('ecGoBtn').textContent='Uploading Pages…';$('ecGoBtn').disabled=true;
+    $('ecGoBtn').textContent='Uploading PDF & Pages…';$('ecGoBtn').disabled=true;
+    const rawFile=$('exFile').files[0];
+    const cloudProm=rawFile?uploadPdfToCloudinary(rawFile).catch(e=>{console.warn('Cloudinary:',e);return ''}):Promise.resolve('');
     try{
-      if(!exPdf){await setWorker();exPdf=await pdfjsLib.getDocument({data:await $('exFile').files[0].arrayBuffer()}).promise}
+      if(!exPdf){await setWorker();exPdf=await pdfjsLib.getDocument({data:await rawFile.arrayBuffer()}).promise}
       const lPages=pendingExDraft.hasListen?(p3pages?parsePages(p3pages,exPdf.numPages):(onlyListen?Array.from({length:exPdf.numPages},(_,k)=>k+1):[])):[];
       const need=new Set([...(onlyListen?[]:parsePages(p1pages,exPdf.numPages)),...((onePart||onlyListen)?[]:parsePages(p2pages,exPdf.numPages)),...lPages]);
       if(!need.size)throw new Error('কোনো valid page পাওয়া যায়নি।');
@@ -4092,6 +4110,7 @@ $('ecGoBtn').onclick=async()=>{
         await pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;
         pdfPages[n]=c.toDataURL('image/jpeg',0.72);
       }
+      pdfUrl=await cloudProm;
     }catch(e){
       $('ecErr').textContent='PDF process হয়নি: '+e.message;
       $('ecGoBtn').textContent='Confirm & Start';$('ecGoBtn').disabled=false;
@@ -4104,7 +4123,7 @@ $('ecGoBtn').onclick=async()=>{
   const roomObj={
     examName:pendingExDraft.examName,examinerId:curExaminer.id,examinerName:curExaminer.name,
     dateStr:new Date().toLocaleString(),createdAt:Date.now(),
-    status:'live',driveId:pendingExDraft.driveId,onePart,onlyListen,oneTotal,p1q,p1m,p1pages,p2q,p2m,p2pages,
+    status:'live',driveId:pendingExDraft.driveId,pdfUrl,onePart,onlyListen,oneTotal,p1q,p1m,p1pages,p2q,p2m,p2pages,
     hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,listenSelfCtrl:!!pendingExDraft.listenSelfCtrl,p3pages,ytId:pendingExDraft.ytId,
     passTotal,listenStarted:onlyListen,published:false
   };
