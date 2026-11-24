@@ -1679,30 +1679,38 @@ async function renderPages(list){
   const ok=boxes.filter(Boolean);
   let X0=0,X1=1;
   if(ok.length){X0=Math.max(0,Math.min(...ok.map(b=>b.x0))-.015);X1=Math.min(1,Math.max(...ok.map(b=>b.x1))+.015)}
-  const cssW=$('qpane').clientWidth-8,dpr=Math.min(window.devicePixelRatio||1,3);
-  const target=Math.min(2200,cssW*zoom*dpr),els=[];
-  for(let i=0;i<list.length;i++){
-    const pg=await pdf.getPage(list[i]),v0=pg.getViewport({scale:1}),b=boxes[i]||{y0:0,y1:1};
-    const Y0=Math.max(0,b.y0-.012),Y1=Math.min(1,b.y1+.012);
-    const v=pg.getViewport({scale:target/((X1-X0)*v0.width)});
-    const c=document.createElement('canvas');c.width=Math.round((X1-X0)*v.width);c.height=Math.round((Y1-Y0)*v.height);
-    await pg.render({canvasContext:c.getContext('2d'),viewport:v,transform:[1,0,0,1,-X0*v.width,-Y0*v.height]}).promise;
-    if(tok!==renderToken)return;
-    els.push(c);
-  }
-  $('pages').replaceChildren(...els);
+  const cssW=Math.max(300,$('qpane').clientWidth-8),dpr=Math.min(window.devicePixelRatio||1,2.5);
+  const target=Math.min(1650,cssW*dpr*1.5),els=[];
+  if(!pdf)return;
+  try{
+    for(let i=0;i<list.length;i++){
+      const pg=await pdf.getPage(list[i]),v0=pg.getViewport({scale:1}),b=boxes[i]||{y0:0,y1:1};
+      const Y0=Math.max(0,b.y0-.012),Y1=Math.min(1,b.y1+.012);
+      const v=pg.getViewport({scale:target/((X1-X0)*v0.width)});
+      const c=document.createElement('canvas');c.width=Math.round((X1-X0)*v.width);c.height=Math.round((Y1-Y0)*v.height);
+      const ctx=c.getContext('2d');
+      ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+      await pg.render({canvasContext:ctx,viewport:v,transform:[1,0,0,1,-X0*v.width,-Y0*v.height]}).promise;
+      if(tok!==renderToken)return;
+      els.push(c);
+    }
+    if(els.length)$('pages').replaceChildren(...els);
+  }catch(e){}
 }
 function applyZoom(z){
   zoom=Math.min(4,Math.max(1,z));
   $('pages').style.width=(zoom*100)+'%';
   const df=$('driveFrame');
-  if(df){df.style.width=(zoom*100)+'%';df.style.height=(zoom*100)+'%'}
+  if(df){
+    df.style.width='100%';df.style.height='100%';
+    df.style.transformOrigin='0 0';
+    df.style.transform=zoom>1?`scale(${zoom})`:'';
+  }
 }
 function setZoom(z,cx,cy){
   const pane=cfg?.driveId&&$('driveScroll')?$('driveScroll'):$('qpane'),old=zoom;applyZoom(z);const r=zoom/old;
   if(cx===undefined){cx=pane.clientWidth/2;cy=pane.clientHeight/2}
   pane.scrollLeft=(pane.scrollLeft+cx)*r-cx;pane.scrollTop=(pane.scrollTop+cy)*r-cy;
-  if(!cfg?.driveId){clearTimeout(rzTimer);rzTimer=setTimeout(()=>renderPages(partPages),350)}
 }
 $('zIn').onclick=()=>setZoom(zoom*1.25);$('zOut').onclick=()=>setZoom(zoom/1.25);$('zFit').onclick=()=>{setZoom(1);$('qpane').scrollLeft=0};
 (()=>{
@@ -3608,6 +3616,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('resize',()=>{
   if(!liveRoomId||!liveStuId||$('exam').classList.contains('hide'))return;
+  if(window.visualViewport&&window.visualViewport.scale>1.05)return;
   const sw=screen.width||window.innerWidth,sh=screen.height||window.innerHeight;
   if((window.innerWidth<sw*0.68||window.innerHeight<sh*0.52)&&Date.now()-lastSplitAt>10000){
     lastSplitAt=Date.now();
