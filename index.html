@@ -3481,6 +3481,7 @@ function updateCoolOverlay(){
     if(coolTimer){clearInterval(coolTimer);coolTimer=null}
   }
 }
+let awayStartedAt=0,lastSplitAt=0;
 function recordTabSwitch(){
   if(!liveRoomId||!liveStuId||$('exam').classList.contains('hide'))return;
   if(Date.now()-lastTabSwitchAt<1500)return;
@@ -3494,7 +3495,36 @@ function recordTabSwitch(){
     }
   });
 }
-document.addEventListener('visibilitychange',()=>{if(document.hidden)recordTabSwitch()});
+function recordAwayReturn(){
+  if(!awayStartedAt||!liveRoomId||!liveStuId||$('exam').classList.contains('hide')){awayStartedAt=0;return}
+  const dur=Math.max(1,Math.round((Date.now()-awayStartedAt)/1000));
+  awayStartedAt=0;
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}/awaySec`).transaction(v=>(v||0)+dur);
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}/lastAwaySec`).set(dur);
+  if(dur>=8){
+    db().ref(`rooms/${liveRoomId}/alerts`).push({type:'away',stuName:cfg?.name||'Student',sec:dur,ts:Date.now()});
+  }
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){
+    if(liveRoomId&&liveStuId&&!$('exam').classList.contains('hide'))awayStartedAt=Date.now();
+    recordTabSwitch();
+  }else{
+    recordAwayReturn();
+  }
+});
+window.addEventListener('resize',()=>{
+  if(!liveRoomId||!liveStuId||$('exam').classList.contains('hide'))return;
+  const sw=screen.width||window.innerWidth,sh=screen.height||window.innerHeight;
+  if((window.innerWidth<sw*0.68||window.innerHeight<sh*0.52)&&Date.now()-lastSplitAt>10000){
+    lastSplitAt=Date.now();
+    db().ref(`rooms/${liveRoomId}/students/${liveStuId}/splitCount`).transaction(v=>(v||0)+1,(err,ok,snap)=>{
+      if(ok&&snap){
+        db().ref(`rooms/${liveRoomId}/alerts`).push({type:'split',stuName:cfg?.name||'Student',count:snap.val(),ts:Date.now()});
+      }
+    });
+  }
+});
 function resumeLiveStudentFromRecord(r,me,stuId){
   liveStuId=stuId;
   const parts=buildLiveParts(r);
@@ -4841,12 +4871,12 @@ function openLiveControl(rid){
       const backTgt=getBackStepTarget(r,s);
       const stTxt=s.kicked?'🚫 Kicked':s.locked?('🔒 Locked'+(s.lockReason?' ('+s.lockReason+')':'')):s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
-      const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0),wrn=+(s.warnCount||0);
+      const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0),wrn=+(s.warnCount||0),awy=+(s.awaySec||0),spl=+(s.splitCount||0);
       const pIdx=s.part||0;
       const partMin=r.onlyListen?(r.lm||30):(r.onePart?(pIdx===0?(r.p1m||20):(r.lm||30)):(pIdx===0?(r.p1m||20):(pIdx===1?(r.p2m||40):(r.lm||30))));
       const elapsedSec=Math.max(0,(partMin*60)-(s.rem||0));
       return `<tr class="stu-main">
-        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
+        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x${awy?` (${awy}s away)`:''}</div>`:''}${spl?`<div class="mu" style="color:var(--bad);font-size:11px">📱 Split-Screen: ${spl}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(elapsedSec)}</td>
@@ -4873,10 +4903,12 @@ function openLiveControl(rid){
       lastLcAlertTs=newestAlert.ts;
       const msg=newestAlert.type==='lock'?`🔒 ${newestAlert.stuName} Auto-Locked (${newestAlert.reason})`
         :(newestAlert.type==='ss'?`📸 ${newestAlert.stuName} Screenshot চেষ্টা করেছে (${newestAlert.count||1}x)`
+        :(newestAlert.type==='split'?`📱 ${newestAlert.stuName} Split-Screen / Floating Window খুলেছে (${newestAlert.count||1}x)`
+        :(newestAlert.type==='away'?`⏱ ${newestAlert.stuName} ${newestAlert.sec||0}s বাইরে ছিল`
         :(newestAlert.type==='tab'?`⚠ ${newestAlert.stuName} ${newestAlert.count||3}x Page/Tab পরিবর্তন করেছে`
-        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`));
+        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`))));
       toast(msg);
-      playBeep((newestAlert.type==='lock'||newestAlert.type==='ss'||newestAlert.type==='tab')?2:1);
+      playBeep((newestAlert.type==='lock'||newestAlert.type==='ss'||newestAlert.type==='tab'||newestAlert.type==='split'||newestAlert.type==='away')?2:1);
     }
     $('lcNotifBody').innerHTML=alertList.length?alertList.slice(0,20).map(a=>{
       const tStr=a.ts?new Date(a.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
