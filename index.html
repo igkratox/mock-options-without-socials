@@ -271,6 +271,15 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div id="stuInvitesList" style="margin-top:8px"></div>
   </div>
 
+  <div class="card" id="joinLinkCard">
+    <h3 style="margin:0 0 4px">🔗 Join Live Exam by Link / Code</h3>
+    <div class="mu" style="margin-bottom:8px">Sensei-r deya exam link ba Room ID paste kore Join dao</div>
+    <div style="display:flex;gap:8px">
+      <input id="joinLinkIn" placeholder="Paste exam link or Room ID" style="flex:1;margin:0">
+      <button type="button" class="btn" id="joinLinkBtn" style="width:auto;margin:0;padding:8px 16px">Join</button>
+    </div>
+  </div>
+
   <div class="card" id="senseiMocksCard" style="border-color:var(--ac)">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <div>
@@ -6239,6 +6248,20 @@ function renderStudentInvites(){
     location.hash='#live='+b.dataset.rid;
   });
 }
+function joinLiveByInput(){
+  const raw=($('joinLinkIn')?.value||'').trim();
+  if(!raw){toast('Exam link ba Room ID paste koro!');return}
+  let rid=raw;
+  const m=raw.match(/[#?&]live=([^&#\s]+)/i);
+  if(m&&m[1])rid=decodeURIComponent(m[1]);
+  else if(raw.includes('/'))rid=raw.split('/').pop().replace(/^#?live=/i,'').split(/[?#]/)[0];
+  rid=rid.trim();
+  if(!rid){toast('Valid exam link ba Room ID dao!');return}
+  if($('joinLinkIn'))$('joinLinkIn').value='';
+  location.hash='#live='+rid;
+}
+$('joinLinkBtn')?.addEventListener('click',joinLiveByInput);
+$('joinLinkIn')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();joinLiveByInput()}});
 function initStudentInvitesSync(){
   if(stuInvRef){stuInvRef.off();stuInvRef=null}
   if(stuInvTimer){clearInterval(stuInvTimer);stuInvTimer=null}
