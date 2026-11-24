@@ -188,6 +188,13 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
 .cert-card.tier-gold{border-color:#f59e0b}
 .cert-card.tier-silver{border-color:#94a3b8}
 .cert-card.tier-bronze{border-color:#b45309}
+.sm-card{border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--bg);margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.sm-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--ac-soft);color:var(--ac)}
+.yt-limit-bar{margin-top:6px;padding:8px 10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);display:flex;flex-direction:column;gap:6px}
+.yt-lim-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.yt-lim-btn{padding:5px 9px;font-size:12px;font-weight:700;border-radius:7px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+.yt-lim-prog{flex:1;min-width:110px;height:8px;background:var(--bd);border-radius:999px;overflow:hidden;cursor:pointer;position:relative}
+.yt-lim-fill{height:100%;width:0%;background:var(--ac);pointer-events:none}
 .cert-circle{width:152px;height:152px;border-radius:50%;margin:14px auto;display:flex;flex-direction:column;align-items:center;justify-content:center;border:7px solid var(--ac);background:var(--bg);box-shadow:0 4px 16px rgba(0,0,0,.08)}
 .cert-circle.tier-gold{border-color:#f59e0b;background:radial-gradient(circle at 30% 30%,rgba(251,191,36,.24),rgba(245,158,11,.08));box-shadow:0 0 22px rgba(245,158,11,.35)}
 .cert-circle.tier-silver{border-color:#94a3b8;background:radial-gradient(circle at 30% 30%,rgba(226,232,240,.35),rgba(148,163,184,.1));box-shadow:0 0 18px rgba(148,163,184,.32)}
@@ -252,6 +259,17 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <button type="button" class="btn" id="resumeExamBtn" style="margin:0;padding:9px 12px">Resume Exam</button>
       <button type="button" class="btn sec" id="discardExamBtn">Discard</button>
     </div>
+  </div>
+
+  <div class="card" id="senseiMocksCard" style="border-color:var(--ac)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div>
+        <h3 style="margin:0">🎓 Sensei Provided Mocks</h3>
+        <div class="mu">Sensei-er deya fixed mock tests (Listening video limit-soho)</div>
+      </div>
+      <span class="sm-badge" id="smStuCount">0 Mocks</span>
+    </div>
+    <div id="smStuList" class="mu" style="margin-top:8px">Loading mocks…</div>
   </div>
 
   <label>তোমার নাম</label>
@@ -611,6 +629,15 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
     <div id="adminExamsList" class="mu" style="margin-top:6px">Loading…</div>
   </div>
+  <div class="card" style="border-color:var(--ac)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div>
+        <h3 style="margin:0">🎓 Sensei Provided Mocks (Fixed Library)</h3>
+        <div class="mu">Students-er jonno fixed mock + Listening video mm:ss limiter add/manage korun</div>
+      </div>
+      <button type="button" class="btn open-sm-mgr-btn" style="width:auto;margin:0;padding:8px 14px">+ Add / Manage Mocks</button>
+    </div>
+  </div>
   <div class="card">
     <h3>Change Admin Credentials</h3>
     <div class="row">
@@ -688,6 +715,15 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div id="exCreateErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
     <button type="button" class="btn" id="exCreateBtn">Start Live Exam & Get Link</button>
   </div>
+  <div class="card" style="border-color:var(--ac)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div>
+        <h3 style="margin:0">🎓 Sensei Provided Mocks (Fixed Library)</h3>
+        <div class="mu">Students-er jonno fixed mock + Listening video mm:ss limiter add/manage korun</div>
+      </div>
+      <button type="button" class="btn open-sm-mgr-btn" style="width:auto;margin:0;padding:8px 14px">+ Add / Manage Mocks</button>
+    </div>
+  </div>
 
 <div id="exConfirmModal" class="modal-bg hide">
   <div class="modal" style="max-width:440px;max-height:90vh;overflow:auto">
@@ -713,6 +749,56 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div class="row" style="margin-top:14px">
       <button type="button" class="btn sec" id="ecCancelBtn">Cancel</button>
       <button type="button" class="btn" id="ecGoBtn" style="margin:0">Confirm & Start</button>
+    </div>
+  </div>
+</div>
+
+<div id="senseiMockModal" class="modal-bg hide">
+  <div class="modal" style="max-width:520px;max-height:92vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <h3 style="margin:0">🎓 Sensei Provided Mocks</h3>
+      <button type="button" class="btn sec" id="smCloseBtn" style="padding:5px 10px">✕</button>
+    </div>
+    <div class="mu" style="margin:4px 0 10px">Ekhane fixed mock add korle sob student home screen-e pabe. Listening video-te exact min:sec limit dile answer sheet lock thakbe.</div>
+    <label>Mock Title</label>
+    <input id="smTitle" placeholder="e.g. N5 Full Mock #1">
+    <div class="row" style="margin-top:8px">
+      <div><div class="mu">Level</div><select id="smLevel"><option value="N5">N5</option><option value="N4">N4</option><option value="N3">N3</option><option value="JFT">JFT-Basic</option><option value="Mock">Mock</option></select></div>
+      <div><div class="mu">Exam Type</div><select id="smMode"><option value="2">2 Parts (+ Listening)</option><option value="1">1 Part (+ Listening)</option><option value="listen">Only Listening (24 Qs)</option></select></div>
+    </div>
+    <div id="smDriveWrap" style="margin-top:8px">
+      <div class="mu">Question PDF Google Drive Link</div>
+      <input id="smDrive" type="url" placeholder="https://drive.google.com/file/d/.../view">
+    </div>
+    <div id="smP1Wrap" class="row" style="margin-top:8px">
+      <div><div class="mu">Part 1 Qs</div><input id="smP1q" type="number" min="1" value="21"></div>
+      <div><div class="mu">Part 1 Min</div><input id="smP1m" type="number" min="1" value="20"></div>
+      <div><div class="mu">Pages (opt)</div><input id="smP1pages" placeholder="2-6"></div>
+    </div>
+    <div id="smP2Wrap" class="row" style="margin-top:8px">
+      <div><div class="mu">Part 2 Qs</div><input id="smP2q" type="number" min="1" value="22"></div>
+      <div><div class="mu">Part 2 Min</div><input id="smP2m" type="number" min="1" value="40"></div>
+      <div><div class="mu">Pages (opt)</div><input id="smP2pages" placeholder="8-13"></div>
+    </div>
+    <div id="smHasListenWrap" style="margin-top:8px">
+      <div class="mu">Listening ache?</div>
+      <select id="smHasListen"><option value="1">Haan, Listening ache</option><option value="0">Na, Listening nei</option></select>
+    </div>
+    <div id="smListenFields" style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg)">
+      <div class="row">
+        <div><div class="mu">Listening Time (min)</div><input id="smLm" type="number" min="1" value="30"></div>
+        <div><div class="mu">Video Stop Min</div><input id="smMaxMin" type="number" min="0" value="0" placeholder="e.g. 24"></div>
+        <div><div class="mu">Video Stop Sec</div><input id="smMaxSec" type="number" min="0" max="59" value="0" placeholder="e.g. 30"></div>
+      </div>
+      <div class="mu" style="margin-top:6px">Listening Video Link (YouTube link dile exact min:sec limiter kaj korbe)</div>
+      <input id="smListenUrl" type="url" placeholder="https://youtu.be/... ba https://drive.google.com/file/d/.../view" style="margin-top:4px">
+      <div class="mu" id="smLimHint" style="margin-top:4px;font-size:11px">0 min 0 sec rakhle kono video limit thakbe na.</div>
+    </div>
+    <div id="smErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
+    <button type="button" class="btn" id="smSaveBtn" style="margin-top:10px">Save Sensei Mock</button>
+    <div style="margin-top:14px;border-top:1px solid var(--bd);padding-top:10px">
+      <h4 style="margin:0 0 6px">Saved Sensei Mocks</h4>
+      <div id="smAdminList" class="mu">Loading…</div>
     </div>
   </div>
 </div>
@@ -1190,7 +1276,8 @@ async function detect(){
 const driveIdOf=u=>{const m=(u||'').trim().match(/\/d\/([a-zA-Z0-9_-]{10,})|[?&]id=([a-zA-Z0-9_-]{10,})/);return m?(m[1]||m[2]):''};
 const ytIdOf=u=>{const m=(u||'').trim().match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/|live\/))([a-zA-Z0-9_-]{11})/);return m?m[1]:''};
 const parseListenMedia=u=>{const s=(u||'').trim();if(!s)return{ytId:'',listenDriveId:'',ok:true};const y=ytIdOf(s)||(/^[a-zA-Z0-9_-]{11}$/.test(s)?s:'');if(y)return{ytId:y,listenDriveId:'',ok:true};const d=driveIdOf(s);if(d)return{ytId:'',listenDriveId:d,ok:true};return{ytId:'',listenDriveId:'',ok:false}};
-let ytPlayer=null,ytApiPromise=null;
+let ytPlayer=null,ytApiPromise=null,ytLimitTimer=null;
+function fmtMmSs(s){s=Math.max(0,Math.floor(s||0));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
 function loadYtApi(){
   if(window.YT&&window.YT.Player)return Promise.resolve();
   if(ytApiPromise)return ytApiPromise;
@@ -1206,23 +1293,78 @@ function loadYtApi(){
   return ytApiPromise;
 }
 function stopYt(){
+  if(ytLimitTimer){clearInterval(ytLimitTimer);ytLimitTimer=null}
   if(ytPlayer){try{ytPlayer.destroy()}catch(e){}ytPlayer=null}
   const top=$('ytTopWrap');if(top){top.innerHTML='';top.classList.add('hide')}
 }
 async function mountYt(el,videoId,opts){
+  if(ytLimitTimer){clearInterval(ytLimitTimer);ytLimitTimer=null}
   if(ytPlayer){try{ytPlayer.destroy()}catch(e){}ytPlayer=null}
-  const locked=!!(opts&&opts.locked);
-  el.innerHTML=locked?'<div class="yt-wrap"><div id="ytFrameTarget"></div><div class="yt-lock"></div><div class="yt-lock-bl"></div><div class="yt-skip-box"></div></div>':'<div id="ytFrameTarget"></div>';
+  const maxSec=opts&&opts.maxSec>0?Math.floor(opts.maxSec):0;
+  const locked=!!((opts&&opts.locked)||maxSec>0);
+  const limBar=maxSec>0?`<div class="yt-limit-bar">
+    <div class="yt-lim-row">
+      <button type="button" class="yt-lim-btn" id="ytLimPlay">▶ Play</button>
+      <button type="button" class="yt-lim-btn" id="ytLimBack">« 10s</button>
+      <button type="button" class="yt-lim-btn" id="ytLimFwd">10s »</button>
+      <div class="yt-lim-prog" id="ytLimProg"><div class="yt-lim-fill" id="ytLimFill"></div></div>
+      <span class="mu" id="ytLimTime" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:12px">00:00 / ${fmtMmSs(maxSec)}</span>
+    </div>
+    <div class="mu" id="ytLimNotice" style="font-size:11px">🔒 Video limit: ${fmtMmSs(maxSec)} porjonto cholbe (erpor answer sheet lock)</div>
+  </div>`:'';
+  el.innerHTML=(locked?`<div style="display:flex;flex-direction:column;height:100%"><div class="yt-wrap" style="flex:1;min-height:170px"><div id="ytFrameTarget"></div><div class="yt-lock"></div><div class="yt-lock-bl"></div><div class="yt-skip-box"></div></div>${limBar}</div>`:'<div id="ytFrameTarget"></div>');
   try{
     await loadYtApi();
     if(!document.body.contains(el))return;
     const pv={playsinline:1,rel:0,modestbranding:1,fs:locked?0:1};
     if(locked){pv.controls=0;pv.disablekb=1}
+    if(maxSec>0){pv.end=maxSec}
     if(location.protocol.startsWith('http'))pv.origin=location.origin;
-    ytPlayer=new YT.Player('ytFrameTarget',{width:'100%',height:'100%',videoId,playerVars:pv,events:{onReady:()=>{if(opts&&opts.onReady)opts.onReady(ytPlayer)}}});
+    ytPlayer=new YT.Player('ytFrameTarget',{width:'100%',height:'100%',videoId,playerVars:pv,events:{onReady:()=>{
+      if(opts&&opts.onReady)opts.onReady(ytPlayer);
+      if(maxSec>0&&!(opts&&opts.locked)){
+        const playB=$('ytLimPlay'),backB=$('ytLimBack'),fwdB=$('ytLimFwd'),prog=$('ytLimProg'),fill=$('ytLimFill'),tm=$('ytLimTime'),noti=$('ytLimNotice');
+        const clampSeek=t=>{
+          const nt=Math.max(0,Math.min(maxSec-0.5,t));
+          try{ytPlayer.seekTo(nt,true)}catch(e){}
+        };
+        if(playB)playB.onclick=()=>{
+          try{
+            const st=ytPlayer.getPlayerState?ytPlayer.getPlayerState():-1;
+            const ct=ytPlayer.getCurrentTime?ytPlayer.getCurrentTime():0;
+            if(ct>=maxSec-0.5){ytPlayer.seekTo(0,true);ytPlayer.playVideo();return}
+            if(st===1)ytPlayer.pauseVideo();else ytPlayer.playVideo();
+          }catch(e){}
+        };
+        if(backB)backB.onclick=()=>{try{clampSeek((ytPlayer.getCurrentTime()||0)-10)}catch(e){}};
+        if(fwdB)fwdB.onclick=()=>{try{clampSeek((ytPlayer.getCurrentTime()||0)+10)}catch(e){}};
+        if(prog)prog.onclick=e=>{
+          const r=prog.getBoundingClientRect();
+          const pct=Math.max(0,Math.min(1,(e.clientX-r.left)/Math.max(1,r.width)));
+          clampSeek(pct*maxSec);
+        };
+        ytLimitTimer=setInterval(()=>{
+          if(!ytPlayer||typeof ytPlayer.getCurrentTime!=='function')return;
+          try{
+            const ct=ytPlayer.getCurrentTime()||0;
+            const st=ytPlayer.getPlayerState?ytPlayer.getPlayerState():-1;
+            if(tm)tm.textContent=fmtMmSs(Math.min(ct,maxSec))+' / '+fmtMmSs(maxSec);
+            if(fill)fill.style.width=Math.min(100,(ct/maxSec)*100)+'%';
+            if(ct>=maxSec){
+              if(st===1)ytPlayer.pauseVideo();
+              ytPlayer.seekTo(maxSec,true);
+              if(playB)playB.textContent='↺ Replay';
+              if(noti){noti.textContent='🔒 Listening limit ('+fmtMmSs(maxSec)+') shesh — answer sheet lock kora ache!';noti.style.color='var(--bad)'}
+            }else{
+              if(playB)playB.textContent=(st===1?'⏸ Pause':'▶ Play');
+            }
+          }catch(e){}
+        },250);
+      }
+    }}});
   }catch(e){
     if(!document.body.contains(el))return;
-    el.innerHTML=`<div class="yt-wrap"><iframe src="https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0${locked?'&controls=0&disablekb=1':''}" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>${locked?'<div class="yt-lock"></div><div class="yt-lock-bl"></div><div class="yt-skip-box"></div>':''}</div>`;
+    el.innerHTML=`<div style="display:flex;flex-direction:column;height:100%"><div class="yt-wrap" style="flex:1;min-height:170px"><iframe src="https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0${locked?'&controls=0&disablekb=1':''}${maxSec>0?'&end='+maxSec:''}" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>${locked?'<div class="yt-lock"></div><div class="yt-lock-bl"></div><div class="yt-skip-box"></div>':''}</div>${limBar}</div>`;
   }
 }
 function mountDriveMedia(el,driveFileId){
@@ -1256,11 +1398,11 @@ document.querySelectorAll('.step button').forEach(b=>b.onclick=()=>{
 });
 
 let currentExamId='',flags=[],paused=false,pausedRem=0,warn5=false,warn1=false;
-function beginExam(name,driveId,parts,examName,ytId,listenDriveId){
+function beginExam(name,driveId,parts,examName,ytId,listenDriveId,listenMaxSec){
   saveProfileName(name);
   currentExamId='ex_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
   repTime='';paused=false;pausedRem=0;
-  cfg={name,driveId,examName:examName||'',ytId:ytId||'',listenDriveId:listenDriveId||'',style:$('style').value,parts};
+  cfg={name,driveId,examName:examName||'',ytId:ytId||'',listenDriveId:listenDriveId||'',listenMaxSec:listenMaxSec||0,style:$('style').value,parts};
   ans=parts.map(()=>[]);
   marks=parts.map(()=>[]);
   flags=parts.map(()=>[]);
@@ -1355,14 +1497,14 @@ async function startPart(i,auto,resumeSec){
     $('pages').style.width='100%';$('pages').style.height='100%';
     $('pages').innerHTML=`<div class="listen-pad${hasMedia?' has-yt':''}">
       ${hasMedia?'<div class="yt-box" id="ytBox"></div>':''}
-      <div class="l-head">${hasYt&&!ytSynced?'<button type="button" class="yt-seek" id="ytBack10">« 10s</button><span id="lHead">Mondai 1 · Q1</span><button type="button" class="yt-seek" id="ytFwd10">10s »</button>':'<span id="lHead">Mondai 1 · Q1</span>'}</div>
+      <div class="l-head">${hasYt&&!ytSynced&&!(cfg.listenMaxSec>0)?'<button type="button" class="yt-seek" id="ytBack10">« 10s</button><span id="lHead">Mondai 1 · Q1</span><button type="button" class="yt-seek" id="ytFwd10">10s »</button>':'<span id="lHead">Mondai 1 · Q1</span>'}</div>
       <div class="l-opts" id="lOpts"></div>
       <div class="l-rw"><button class="ok" id="lOk">✓ Right</button><button class="bad" id="lBad">✕ Wrong</button></div>
       <div class="l-nav"><button id="lPrev">◀ আগের প্রশ্ন</button><button id="lNext">পরের প্রশ্ন ▶</button></div>
     </div>`;
     if(hasYt){
-      mountYt($('ytBox'),cfg.ytId,{locked:ytSynced,onReady:()=>{if(ytSynced)applyYtSync()}});
-      if(!ytSynced){
+      mountYt($('ytBox'),cfg.ytId,{locked:ytSynced,maxSec:cfg.listenMaxSec||0,onReady:()=>{if(ytSynced)applyYtSync()}});
+      if(!ytSynced&&!(cfg.listenMaxSec>0)){
         $('ytBack10').onclick=()=>seekYt(-10);
         $('ytFwd10').onclick=()=>seekYt(10);
       }
@@ -1380,7 +1522,7 @@ async function startPart(i,auto,resumeSec){
       const top=$('ytTopWrap');
       top.innerHTML='<div class="yt-box" id="ytBoxTop"></div>';
       top.classList.remove('hide');
-      if(hasYt)mountYt($('ytBoxTop'),cfg.ytId,{locked:ytSynced,onReady:()=>{if(ytSynced)applyYtSync()}});
+      if(hasYt)mountYt($('ytBoxTop'),cfg.ytId,{locked:ytSynced,maxSec:cfg.listenMaxSec||0,onReady:()=>{if(ytSynced)applyYtSync()}});
       else mountDriveMedia($('ytBoxTop'),cfg.listenDriveId);
     }
   }
@@ -2836,6 +2978,7 @@ function enterNormalMode(){
   $('name').value=(curStudent&&curStudent.name)||p.name||'';
   renderHistory();
   checkActiveExam();
+  initSenseiMocksSync();
   if(pendingResultRoomId){const rid=pendingResultRoomId;pendingResultRoomId='';location.hash='#result='+rid;return}
   if(pendingLiveRoomId){const rid=pendingLiveRoomId;pendingLiveRoomId='';location.hash='#live='+rid}
 }
@@ -5840,6 +5983,181 @@ $('lcUnivRepBtn').onclick=()=>{
 };
 $('lcSumPngBtn').onclick=exportCurrentRoomSummaryPng;
 $('lsSumPngBtn').onclick=exportCurrentRoomSummaryPng;
+/* Sensei Provided Mocks (Fixed Library + Listening Video Limiter) */
+const SENSEI_FIXED_MOCKS=[];
+let senseiMocksMap={},senseiMocksInited=false;
+
+function getMergedSenseiMocks(){
+  const list=[...SENSEI_FIXED_MOCKS];
+  Object.values(senseiMocksMap||{}).forEach(m=>{
+    if(m&&m.id&&!list.some(x=>x.id===m.id))list.push(m);
+  });
+  return list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+}
+
+function initSenseiMocksSync(){
+  if(senseiMocksInited)return;
+  senseiMocksInited=true;
+  renderSenseiMocksStudent();
+  try{
+    const db=getFb();
+    db.ref('senseiMocks').on('value',snap=>{
+      senseiMocksMap=snap.val()||{};
+      renderSenseiMocksStudent();
+      renderSenseiMocksAdmin();
+    },()=>{renderSenseiMocksStudent()});
+  }catch(e){renderSenseiMocksStudent()}
+}
+
+function renderSenseiMocksStudent(){
+  const box=$('smStuList'),cnt=$('smStuCount');
+  if(!box)return;
+  const list=getMergedSenseiMocks();
+  if(cnt)cnt.textContent=list.length+' Mock'+(list.length===1?'':'s');
+  if(!list.length){
+    box.innerHTML='<div class="mu">Ekhono kono Sensei Provided Mock add kora hoyni.</div>';
+    return;
+  }
+  box.innerHTML=list.map(m=>{
+    const modeLbl=m.mode==='listen'?'Only Listening (24q)':(m.mode==='1'?`1 Part (${m.p1q||21}q)`:`2 Parts (${m.p1q||21}q+${m.p2q||22}q)`);
+    const limLbl=m.listenMaxSec>0?` · 🔒 Limit ${fmtMmSs(m.listenMaxSec)}`:'';
+    const lisLbl=m.mode==='listen'||m.hasListen?` · 🎧 Listening (${m.lm||30}m${limLbl})`:'';
+    return `<div class="sm-card">
+      <div style="flex:1;min-width:190px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <strong style="font-size:15px">${esc(m.title)}</strong>
+          <span class="sm-badge">${esc(m.level||'Mock')}</span>
+        </div>
+        <div class="mu" style="margin-top:2px;font-size:12px">${esc(modeLbl)}${esc(lisLbl)}</div>
+      </div>
+      <button type="button" class="btn sm-start-btn" data-id="${esc(m.id)}" style="width:auto;margin:0;padding:8px 14px">Start Mock</button>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.sm-start-btn').forEach(b=>b.onclick=()=>startSenseiMock(b.dataset.id));
+}
+
+function startSenseiMock(id){
+  const m=getMergedSenseiMocks().find(x=>x.id===id);
+  if(!m){toast('Mock pawa jayni');return}
+  const name=$('name').value.trim()||(curStudent&&curStudent.name)||'Student';
+  const parts=[];
+  if(m.mode==='listen'){
+    parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:Math.max(1,+m.lm||30)});
+  }else{
+    parts.push({label:m.mode==='1'?'Exam':'Part 1',listen:false,pages:[],pageRange:m.p1pages||'',q:Math.max(1,+m.p1q||21),m:Math.max(1,+m.p1m||20)});
+    if(m.mode==='2'){
+      parts.push({label:'Part 2',listen:false,pages:[],pageRange:m.p2pages||'',q:Math.max(1,+m.p2q||22),m:Math.max(1,+m.p2m||40)});
+    }
+    if(m.hasListen){
+      parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:Math.max(1,+m.lm||30)});
+    }
+  }
+  beginExam(name,m.driveId||'',parts,m.title,m.ytId||'',m.listenDriveId||'',m.listenMaxSec||0);
+}
+
+function syncSmModalUi(){
+  const mode=$('smMode').value;
+  const isLis=mode==='listen';
+  $('smDriveWrap').classList.toggle('hide',isLis);
+  $('smP1Wrap').classList.toggle('hide',isLis);
+  $('smP2Wrap').classList.toggle('hide',mode!=='2');
+  $('smHasListenWrap').classList.toggle('hide',isLis);
+  const showLis=isLis||$('smHasListen').value==='1';
+  $('smListenFields').classList.toggle('hide',!showLis);
+}
+function updateSmLimHint(){
+  const mn=Math.max(0,+$('smMaxMin').value||0),sc=Math.max(0,Math.min(59,+$('smMaxSec').value||0));
+  const tot=mn*60+sc;
+  const med=parseListenMedia($('smListenUrl').value);
+  if(tot>0&&med.listenDriveId&&!med.ytId){
+    $('smLimHint').textContent=`⚠️ Google Drive link-e exact ${fmtMmSs(tot)} lock kaj kore na; exact limiter-er jonno YouTube link din.`;
+    $('smLimHint').style.color='var(--warn)';
+  }else if(tot>0){
+    $('smLimHint').textContent=`🔒 Video thik ${fmtMmSs(tot)} (${mn} min ${sc} sec) porjonto cholbe — erpor auto stop & lock hobe.`;
+    $('smLimHint').style.color='var(--ac)';
+  }else{
+    $('smLimHint').textContent='0 min 0 sec rakhle kono video limit thakbe na.';
+    $('smLimHint').style.color='';
+  }
+}
+$('smMode').onchange=syncSmModalUi;
+$('smHasListen').onchange=syncSmModalUi;
+$('smMaxMin').oninput=updateSmLimHint;
+$('smMaxSec').oninput=updateSmLimHint;
+$('smListenUrl').oninput=updateSmLimHint;
+
+function renderSenseiMocksAdmin(){
+  const box=$('smAdminList');
+  if(!box)return;
+  const list=getMergedSenseiMocks();
+  if(!list.length){box.innerHTML='<div class="mu">Kono Sensei Mock save kora nei.</div>';return}
+  box.innerHTML=list.map(m=>{
+    const isFixed=SENSEI_FIXED_MOCKS.some(x=>x.id===m.id);
+    const lim=m.listenMaxSec>0?` · 🔒 ${fmtMmSs(m.listenMaxSec)}`:'';
+    return `<div class="sm-card">
+      <div style="flex:1;min-width:160px">
+        <b>${esc(m.title)}</b> <span class="sm-badge">${esc(m.level||'Mock')}</span>
+        <div class="mu" style="font-size:11px">${esc(m.mode==='listen'?'Only Listening':m.mode+' Part(s)')}${lim}</div>
+      </div>
+      ${isFixed?'<span class="mu" style="font-size:11px">Hardcoded</span>':`<button type="button" class="btn sec sm-del-btn" data-id="${esc(m.id)}" style="padding:5px 10px;font-size:12px;color:var(--bad)">Delete</button>`}
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.sm-del-btn').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Ei Sensei Mock delete korbe?'))return;
+    try{await getFb().ref('senseiMocks/'+b.dataset.id).remove();toast('Mock deleted')}catch(e){toast('Delete failed: '+e.message)}
+  });
+}
+
+document.querySelectorAll('.open-sm-mgr-btn').forEach(b=>b.onclick=()=>{
+  initSenseiMocksSync();
+  syncSmModalUi();
+  updateSmLimHint();
+  renderSenseiMocksAdmin();
+  $('smErr').textContent='';
+  $('senseiMockModal').classList.remove('hide');
+});
+$('smCloseBtn').onclick=()=>$('senseiMockModal').classList.add('hide');
+
+$('smSaveBtn').onclick=async()=>{
+  $('smErr').textContent='';
+  const title=$('smTitle').value.trim();
+  const level=$('smLevel').value;
+  const mode=$('smMode').value;
+  const driveId=mode==='listen'?'':driveIdOf($('smDrive').value);
+  if(!title){$('smErr').textContent='Mock Title dao.';return}
+  if(mode!=='listen'&&!driveId){$('smErr').textContent='Question PDF-er sothik Google Drive link dao.';return}
+  const hasListen=mode==='listen'||$('smHasListen').value==='1';
+  const med=parseListenMedia($('smListenUrl').value);
+  if(hasListen&&$('smListenUrl').value.trim()&&!med.ok){$('smErr').textContent='Sothik YouTube ba Google Drive link dao.';return}
+  const mn=Math.max(0,+$('smMaxMin').value||0),sc=Math.max(0,Math.min(59,+$('smMaxSec').value||0));
+  const listenMaxSec=hasListen?(mn*60+sc):0;
+  const id='sm_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
+  const obj={
+    id,title,level,mode,driveId,
+    p1q:Math.max(1,+$('smP1q').value||21),
+    p1m:Math.max(1,+$('smP1m').value||20),
+    p1pages:$('smP1pages').value.trim(),
+    p2q:Math.max(1,+$('smP2q').value||22),
+    p2m:Math.max(1,+$('smP2m').value||40),
+    p2pages:$('smP2pages').value.trim(),
+    hasListen,
+    lm:Math.max(1,+$('smLm').value||30),
+    ytId:med.ytId||'',
+    listenDriveId:med.listenDriveId||'',
+    listenMaxSec,
+    createdAt:Date.now(),
+    createdBy:curExaminer?curExaminer.name:'Admin'
+  };
+  try{
+    $('smSaveBtn').disabled=true;$('smSaveBtn').textContent='Saving…';
+    await getFb().ref('senseiMocks/'+id).set(obj);
+    $('smTitle').value='';$('smDrive').value='';$('smListenUrl').value='';$('smMaxMin').value=0;$('smMaxSec').value=0;
+    updateSmLimHint();
+    toast('Sensei Mock saved!');
+  }catch(e){$('smErr').textContent='Save failed: '+e.message}
+  finally{$('smSaveBtn').disabled=false;$('smSaveBtn').textContent='Save Sensei Mock'}
+};
+
 (()=>{
   try{
     applyTheme(localStorage.getItem(THEME_KEY)||'auto');
