@@ -344,7 +344,10 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div class="drawer">
     <div class="drawer-hd">
       <strong>Menu & Exam History</strong>
-      <button type="button" class="btn sec" id="menuCloseBtn" style="padding:5px 10px">✕</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button type="button" class="btn sec" id="menuReloadBtn" style="padding:5px 10px;font-size:12px" title="Clear Cache & Reload">🔄 Reload</button>
+        <button type="button" class="btn sec" id="menuCloseBtn" style="padding:5px 10px">✕</button>
+      </div>
     </div>
     <div class="drawer-bd">
       <div class="card" style="margin-top:0">
@@ -2888,6 +2891,10 @@ function openMenu(){
 }
 function closeMenu(){$('menuDrawer').classList.add('hide')}
 $('menuBtn').onclick=openMenu;
+$('menuReloadBtn').onclick=()=>{
+  if(window.ExamAppBridge&&typeof window.ExamAppBridge.forceReload==='function')window.ExamAppBridge.forceReload();
+  else location.reload();
+};
 $('menuCloseBtn').onclick=closeMenu;
 $('menuDrawer').onclick=e=>{if(e.target===$('menuDrawer'))closeMenu()};
 $('examHomeBtn').onclick=()=>{if(confirm('Exam থেকে বের হয়ে Home-এ যাবে?'))goHome()};
@@ -3534,6 +3541,17 @@ function recordAwayReturn(){
     db().ref(`rooms/${liveRoomId}/alerts`).push({type:'away',stuName:cfg?.name||'Student',sec:dur,ts:Date.now()});
   }
 }
+let lastOverlayAt=0;
+window.onNativeOverlayDetected=()=>{
+  if(!liveRoomId||!liveStuId||$('exam').classList.contains('hide'))return;
+  if(Date.now()-lastOverlayAt<8000)return;
+  lastOverlayAt=Date.now();
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}/overlayCount`).transaction(v=>(v||0)+1,(err,ok,snap)=>{
+    if(ok&&snap){
+      db().ref(`rooms/${liveRoomId}/alerts`).push({type:'overlay',stuName:cfg?.name||'Student',count:snap.val(),ts:Date.now()});
+    }
+  });
+};
 window.onNativeAppSwitched=(pkg,label,awaySec)=>{
   if(!liveRoomId||!liveStuId||$('exam').classList.contains('hide'))return;
   const appName=label||pkg||'Unknown App';
@@ -4941,7 +4959,7 @@ function openLiveControl(rid){
       const backTgt=getBackStepTarget(r,s);
       const stTxt=s.kicked?'🚫 Kicked':s.locked?('🔒 Locked'+(s.lockReason?' ('+s.lockReason+')':'')):s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
-      const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0),wrn=+(s.warnCount||0),awy=+(s.awaySec||0),spl=+(s.splitCount||0);
+      const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0),wrn=+(s.warnCount||0),awy=+(s.awaySec||0),spl=+(s.splitCount||0),ovl=+(s.overlayCount||0);
       const stuPin=(s.kioskOverride!==undefined?!!s.kioskOverride:!!r.kioskEnabled);
       const swApp=s.lastSwitchedApp||'';
       const pIdx=s.part||0;
@@ -4951,7 +4969,7 @@ function openLiveControl(rid){
         ?'<span class="sm-badge" style="background:#dcfce7;color:#166534;margin-left:4px">📱 App</span>'
         :'<span class="sm-badge" style="background:#e2e8f0;color:#475569;margin-left:4px">🌐 Web</span>';
       return `<tr class="stu-main">
-        <td><b>${esc(disp(s))}</b>${devBadge}${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x${awy?` (${awy}s away)`:''}</div>`:''}${swApp?`<div class="mu" style="color:var(--bad);font-size:11px">🚨 App: ${esc(swApp)} (${s.lastSwitchedCount||1}x)</div>`:''}${spl?`<div class="mu" style="color:var(--bad);font-size:11px">📱 Split-Screen: ${spl}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
+        <td><b>${esc(disp(s))}</b>${devBadge}${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x${awy?` (${awy}s away)`:''}</div>`:''}${swApp?`<div class="mu" style="color:var(--bad);font-size:11px">🚨 App: ${esc(swApp)} (${s.lastSwitchedCount||1}x)</div>`:''}${spl?`<div class="mu" style="color:var(--bad);font-size:11px">📱 Split-Screen: ${spl}x</div>`:''}${ovl?`<div class="mu" style="color:var(--bad);font-size:11px">🫧 Floating Overlay: ${ovl}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(elapsedSec)}</td>
@@ -4979,23 +4997,25 @@ function openLiveControl(rid){
       lastLcAlertTs=newestAlert.ts;
       const msg=newestAlert.type==='lock'?`🔒 ${newestAlert.stuName} Auto-Locked (${newestAlert.reason})`
         :(newestAlert.type==='app'?`🚨 ${newestAlert.stuName} অন্য App খুলেছে: ${newestAlert.appName} (${newestAlert.count||1}x)`
+        :(newestAlert.type==='overlay'?`🫧 ${newestAlert.stuName} Floating Overlay / Pop-up খুলেছে (${newestAlert.count||1}x)`
         :(newestAlert.type==='ss'?`📸 ${newestAlert.stuName} Screenshot চেষ্টা করেছে (${newestAlert.count||1}x)`
         :(newestAlert.type==='split'?`📱 ${newestAlert.stuName} Split-Screen / Floating Window খুলেছে (${newestAlert.count||1}x)`
         :(newestAlert.type==='away'?`⏱ ${newestAlert.stuName} ${newestAlert.sec||0}s বাইরে ছিল`
         :(newestAlert.type==='tab'?`⚠ ${newestAlert.stuName} ${newestAlert.count||3}x Page/Tab পরিবর্তন করেছে`
-        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`)))));
+        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`))))));
       toast(msg);
-      playBeep((newestAlert.type==='lock'||newestAlert.type==='app'||newestAlert.type==='ss'||newestAlert.type==='tab'||newestAlert.type==='split'||newestAlert.type==='away')?2:1);
+      playBeep((newestAlert.type==='lock'||newestAlert.type==='app'||newestAlert.type==='overlay'||newestAlert.type==='ss'||newestAlert.type==='tab'||newestAlert.type==='split'||newestAlert.type==='away')?2:1);
     }
     $('lcNotifBody').innerHTML=alertList.length?alertList.slice(0,20).map(a=>{
       const tStr=a.ts?new Date(a.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
       const txt=a.type==='lock'?`🔒 <b>${esc(a.stuName)}</b>-এর Exam Auto-Lock হয়েছে (${esc(a.reason||'')})`
         :(a.type==='app'?`🚨 <b>${esc(a.stuName)}</b> অন্য App খুলেছে: <b>${esc(a.appName||'Unknown')}</b> (${a.count||1}x)`
+        :(a.type==='overlay'?`🫧 <b>${esc(a.stuName)}</b> Floating Overlay খুলেছে (${a.count||1}x)`
         :(a.type==='ss'?`📸 <b>${esc(a.stuName)}</b> Screenshot নেওয়ার চেষ্টা করেছে (${a.count||1}x)`
         :(a.type==='split'?`📱 <b>${esc(a.stuName)}</b> Split-Screen খুলেছে (${a.count||1}x)`
         :(a.type==='away'?`⏱ <b>${esc(a.stuName)}</b> ${a.sec||0}s বাইরে ছিল`
         :(a.type==='tab'?`⚠ <b>${esc(a.stuName)}</b> ${a.count||3}x Page/Tab পরিবর্তন করেছে`
-        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`)))));
+        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`))))));
       return `<div style="padding:5px 0;border-bottom:1px dashed var(--bd);display:flex;justify-content:space-between;gap:8px"><span>${txt}</span><span class="mu" style="font-size:11px;white-space:nowrap">${tStr}</span></div>`;
     }).join(''):'<div class="mu">কোনো notification নেই।</div>';
     $('lcClearNotifsBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/alerts').remove()};
@@ -6160,7 +6180,7 @@ $('lcUnivRepBtn').onclick=()=>{
 };
 $('lcSumPngBtn').onclick=exportCurrentRoomSummaryPng;
 $('lsSumPngBtn').onclick=exportCurrentRoomSummaryPng;
-let stuInvRef=null,stuInvTimer=null,stuInvData={};
+let stuInvRef=null,stuInvTimer=null,stuInvData={},seenInvKeys=new Set();
 function renderStudentInvites(){
   const card=$('stuInvitesCard'),listEl=$('stuInvitesList');
   if(!card||!listEl)return;
@@ -6193,6 +6213,18 @@ function initStudentInvitesSync(){
     stuInvRef=getFb().ref('studentInvites/'+curStudent.username);
     stuInvRef.on('value',snap=>{
       stuInvData=snap.val()||{};
+      const now=Date.now();
+      Object.values(stuInvData).forEach(inv=>{
+        if(inv&&inv.rid&&inv.expiresAt>now){
+          const key=inv.rid+'_'+inv.ts;
+          if(!seenInvKeys.has(key)){
+            seenInvKeys.add(key);
+            try{playBeep(2)}catch(e){}
+            toast(`📨 Live Exam Invite: ${inv.examName||'Exam'}`);
+            try{if(window.ExamAppBridge&&typeof window.ExamAppBridge.notifyInvite==='function')window.ExamAppBridge.notifyInvite(inv.examName||'Live Exam',inv.examinerName||'Sensei',inv.rid)}catch(e){}
+          }
+        }
+      });
       renderStudentInvites();
     });
     stuInvTimer=setInterval(renderStudentInvites,1000);
