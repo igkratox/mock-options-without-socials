@@ -612,6 +612,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div class="mu">All Examiners & Live Exams Control</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn sec open-cat-mgr-btn" style="padding:7px 12px;font-size:13px">🏷 Categories</button>
       <button type="button" class="btn open-sm-mgr-btn" style="padding:7px 12px;font-size:13px">🎓 Sensei Mocks</button>
       <button type="button" class="btn sec" id="adminLogoutBtn">Logout</button>
     </div>
@@ -672,6 +673,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div class="mu" id="exDashSub">Live Exam Create & History</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn sec open-cat-mgr-btn" style="padding:7px 12px;font-size:13px">🏷 Categories</button>
       <button type="button" class="btn open-sm-mgr-btn" style="padding:7px 12px;font-size:13px">🎓 Sensei Mocks</button>
       <button type="button" class="btn sec" id="exLogoutBtn">Logout</button>
     </div>
@@ -837,6 +839,32 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div style="margin-top:14px;border-top:1px solid var(--bd);padding-top:10px">
       <h4 style="margin:0 0 6px">Saved Sensei Mocks</h4>
       <div id="smAdminList" class="mu">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Category Manager Modal -->
+<div id="catMgrModal" class="modal hide">
+  <div class="card" style="max-width:560px;width:94%;max-height:88vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <h3 style="margin:0">🏷 Student Categories</h3>
+      <button type="button" class="btn sec" id="catCloseBtn" style="width:auto;margin:0;padding:6px 12px">✕</button>
+    </div>
+    <div class="mu" style="margin-top:4px">Notun category banao ar select kore students add/remove koro</div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <input id="catNewName" placeholder="New Category Name (e.g. Batch A)" style="flex:1;margin:0">
+      <button type="button" class="btn" id="catCreateBtn" style="width:auto;margin:0;padding:8px 14px">+ Create</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+      <select id="catSelect" style="flex:1;margin:0"><option value="">-- Select Category --</option></select>
+      <button type="button" class="btn sec" id="catDeleteBtn" style="width:auto;margin:0;padding:8px 12px;color:var(--bad)">🗑 Delete</button>
+    </div>
+    <div id="catMembersWrap" style="margin-top:12px;border-top:1px solid var(--bd);padding-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <b id="catSelectedTitle" style="font-size:13px">Select a category above</b>
+        <input id="catStuSearch" placeholder="Search student name / @username" style="flex:1;min-width:170px;margin:0;padding:6px 10px;font-size:13px">
+      </div>
+      <div id="catStuList" style="max-height:280px;overflow:auto;border:1px solid var(--bd);border-radius:10px;padding:6px 10px;background:var(--bg)">Loading students…</div>
     </div>
   </div>
 </div>
@@ -6237,9 +6265,11 @@ async function loadLcInviteStudents(){
   if(!box)return;
   box.innerHTML='<div class="mu">Loading students…</div>';
   try{
-    const snap=await getFb().ref('students').once('value');
+    const [snap,catSnap]=await Promise.all([getFb().ref('students').once('value'),getFb().ref('studentCategories').once('value')]);
     lcAllStudentsCache=snap.val()||{};
-    const cats=[...new Set(Object.values(lcAllStudentsCache).map(s=>(s.category||'').trim()).filter(Boolean))].sort();
+    const savedCats=Object.values(catSnap.val()||{}).map(c=>String(c||'').trim()).filter(Boolean);
+    const stuCats=Object.values(lcAllStudentsCache).map(s=>(s.category||'').trim()).filter(Boolean);
+    const cats=[...new Set([...savedCats,...stuCats])].sort();
     const sel=$('lcInvCatSel');
     if(sel){
       const cur=sel.value;
@@ -6303,6 +6333,115 @@ $('lcInvCatBtn').onclick=()=>{
   if(!targets.length){toast('Ei category te kono active student nei.');return}
   sendLiveInvites(targets);
 };
+
+/* Category Manager Modal (Create Category & Add/Remove Users) */
+let catMgrStudentsCache={},catMgrCatsCache={};
+function catKey(name){return name.trim().toLowerCase().replace(/[.#$\[\]\/]/g,'_')}
+async function openCategoryManager(){
+  const m=$('catMgrModal');if(!m)return;
+  m.classList.remove('hide');
+  const box=$('catStuList');if(box)box.innerHTML='<div class="mu">Loading students…</div>';
+  try{
+    const [sSnap,cSnap]=await Promise.all([getFb().ref('students').once('value'),getFb().ref('studentCategories').once('value')]);
+    catMgrStudentsCache=sSnap.val()||{};
+    catMgrCatsCache=cSnap.val()||{};
+    renderCatSelect();
+    renderCatStudentList();
+  }catch(e){
+    if(box)box.innerHTML='<div class="mu">Load kora jayni.</div>';
+  }
+}
+function getAllCategoriesList(){
+  const fromNode=Object.values(catMgrCatsCache||{}).map(v=>String(v||'').trim()).filter(Boolean);
+  const fromStus=Object.values(catMgrStudentsCache||{}).map(s=>(s&&s.category||'').trim()).filter(Boolean);
+  return [...new Set([...fromNode,...fromStus])].sort();
+}
+function renderCatSelect(preferName){
+  const sel=$('catSelect');if(!sel)return;
+  const cur=preferName!==undefined?preferName:sel.value;
+  const cats=getAllCategoriesList();
+  sel.innerHTML='<option value="">-- Select Category --</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if(cur&&cats.includes(cur))sel.value=cur;
+  else if(!cur&&cats.length)sel.value=cats[0];
+}
+function renderCatStudentList(){
+  const box=$('catStuList'),title=$('catSelectedTitle');if(!box)return;
+  const selected=($('catSelect')?.value||'').trim();
+  const q=($('catStuSearch')?.value||'').trim().toLowerCase();
+  if(title){
+    const count=selected?Object.values(catMgrStudentsCache).filter(s=>s&&(s.category||'').trim()===selected).length:0;
+    title.textContent=selected?`🏷 ${selected} (${count} students)`:'Select a category above';
+  }
+  const rows=Object.entries(catMgrStudentsCache).filter(([u,s])=>{
+    if(!s)return false;
+    if(q&&!(s.name||'').toLowerCase().includes(q)&&!u.toLowerCase().includes(q))return false;
+    return true;
+  }).sort((a,b)=>{
+    const aIn=selected&&(a[1].category||'').trim()===selected?0:1;
+    const bIn=selected&&(b[1].category||'').trim()===selected?0:1;
+    if(aIn!==bIn)return aIn-bIn;
+    return (a[1].name||'').localeCompare(b[1].name||'');
+  });
+  box.innerHTML=rows.length?rows.map(([u,s])=>{
+    const curCat=(s.category||'').trim();
+    const inSel=!!(selected&&curCat===selected);
+    const badge=curCat?`<span class="sm-badge" style="margin-left:4px">🏷 ${esc(curCat)}</span>`:'';
+    const btn=!selected
+      ?`<span class="mu" style="font-size:11px">Select category</span>`
+      :(inSel
+        ?`<button type="button" class="btn sec cat-rem-btn" data-u="${esc(u)}" style="width:auto;margin:0;padding:4px 10px;font-size:12px;color:var(--bad)">✓ Added · Remove</button>`
+        :`<button type="button" class="btn cat-add-btn" data-u="${esc(u)}" style="width:auto;margin:0;padding:4px 10px;font-size:12px">+ Add</button>`);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--bd)">
+      <div style="font-size:13px"><b>${esc(s.name)}</b> <span class="mu">@${esc(u)}</span>${badge}</div>
+      ${btn}
+    </div>`;
+  }).join(''):'<div class="mu" style="padding:6px 0">Kono student pawa jayni.</div>';
+
+  box.querySelectorAll('.cat-add-btn').forEach(b=>b.onclick=async()=>{
+    const u=b.dataset.u;if(!selected||!u)return;
+    await getFb().ref(`students/${u}/category`).set(selected);
+    if(catMgrStudentsCache[u])catMgrStudentsCache[u].category=selected;
+    renderCatStudentList();
+    toast(`✅ @${u} → ${selected} e add hoyeche`);
+  });
+  box.querySelectorAll('.cat-rem-btn').forEach(b=>b.onclick=async()=>{
+    const u=b.dataset.u;if(!u)return;
+    await getFb().ref(`students/${u}/category`).set('');
+    if(catMgrStudentsCache[u])catMgrStudentsCache[u].category='';
+    renderCatStudentList();
+    toast(`Removed @${u} from ${selected}`);
+  });
+}
+document.querySelectorAll('.open-cat-mgr-btn').forEach(b=>b.onclick=openCategoryManager);
+$('catCloseBtn')?.addEventListener('click',()=>$('catMgrModal')?.classList.add('hide'));
+$('catSelect')?.addEventListener('change',renderCatStudentList);
+$('catStuSearch')?.addEventListener('input',renderCatStudentList);
+$('catCreateBtn')?.addEventListener('click',async()=>{
+  const inp=$('catNewName');
+  const name=(inp?.value||'').trim();
+  if(!name){toast('Category name likho!');return}
+  const key=catKey(name);
+  await getFb().ref(`studentCategories/${key}`).set(name);
+  catMgrCatsCache[key]=name;
+  if(inp)inp.value='';
+  renderCatSelect(name);
+  renderCatStudentList();
+  toast(`🏷 Category "${name}" created!`);
+});
+$('catDeleteBtn')?.addEventListener('click',async()=>{
+  const selected=($('catSelect')?.value||'').trim();
+  if(!selected){toast('Age ekta category select koro!');return}
+  if(!confirm(`Delete category "${selected}"? Ei category-r students der category clear hoye jabe.`))return;
+  const upd={};
+  Object.entries(catMgrCatsCache||{}).forEach(([k,v])=>{if(String(v||'').trim()===selected)upd[`studentCategories/${k}`]=null});
+  Object.entries(catMgrStudentsCache||{}).forEach(([u,s])=>{if(s&&(s.category||'').trim()===selected)upd[`students/${u}/category`]=''});
+  if(Object.keys(upd).length)await getFb().ref().update(upd);
+  Object.entries(catMgrCatsCache||{}).forEach(([k,v])=>{if(String(v||'').trim()===selected)delete catMgrCatsCache[k]});
+  Object.values(catMgrStudentsCache||{}).forEach(s=>{if(s&&(s.category||'').trim()===selected)s.category=''});
+  renderCatSelect('');
+  renderCatStudentList();
+  toast(`🗑 Category "${selected}" deleted`);
+});
 
 /* Sensei Provided Mocks (Fixed Library + Listening Video Limiter) */
 const SENSEI_FIXED_MOCKS=[];
