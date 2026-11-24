@@ -808,10 +808,13 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div class="mu" id="smLimHint" style="margin-top:4px;font-size:11px">0 min 0 sec rakhle kono video limit thakbe na.</div>
     </div>
     <div id="smKeysWrap" style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg)">
-      <div class="mu" style="font-weight:700">🔑 Answer Keys (Optional — save korle student auto-grade pabe)</div>
+      <div class="mu" style="font-weight:700">🔑 Answer Keys &amp; Fixed Question Marks (Difficulty)</div>
       <div id="smKey1Wrap" style="margin-top:6px"><div class="mu" style="font-size:11px">Part 1 Answer Key</div><input id="smKey1" placeholder="e.g. 1 3 2 4 ... ba ABCD"></div>
+      <div id="smPts1Wrap" style="margin-top:4px"><div class="mu" style="font-size:11px">Part 1 Fixed Marks per Q (optional, auto from Live Room)</div><input id="smPts1" placeholder="e.g. 2.5 3.1 2.0 ..."></div>
       <div id="smKey2Wrap" style="margin-top:6px"><div class="mu" style="font-size:11px">Part 2 Answer Key</div><input id="smKey2" placeholder="e.g. 2 1 4 3 ..."></div>
+      <div id="smPts2Wrap" style="margin-top:4px"><div class="mu" style="font-size:11px">Part 2 Fixed Marks per Q (optional, auto from Live Room)</div><input id="smPts2" placeholder="e.g. 2.8 3.2 2.4 ..."></div>
       <div id="smKey3Wrap" style="margin-top:6px"><div class="mu" style="font-size:11px">Listening Answer Key</div><input id="smKey3" placeholder="e.g. 1 2 3 4 ..."></div>
+      <div id="smPts3Wrap" style="margin-top:4px"><div class="mu" style="font-size:11px">Listening Fixed Marks per Q (optional, auto from Live Room)</div><input id="smPts3" placeholder="e.g. 2.5 2.5 3.0 ..."></div>
     </div>
     <div id="smErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
     <div style="display:flex;gap:8px;margin-top:10px">
@@ -2145,25 +2148,37 @@ function calcSoloSummary(){
   const one=!onlyL&&nonL.length===1;
   const p1Idx=nonL[0]?nonL[0].i:-1;
   const p2Idx=nonL[1]?nonL[1].i:-1;
-  const p1Tot=onlyL?0:soloPartDefaultTotal(p1Idx);
-  const p2Tot=(onlyL||one)?0:soloPartDefaultTotal(p2Idx);
-  const lTot=hasL?soloPartDefaultTotal(pListenIdx):0;
+  const st=(cfg&&cfg.senseiTotals)||{};
+  const p1Tot=onlyL?0:(st.p1Tot||soloPartDefaultTotal(p1Idx));
+  const p2Tot=(onlyL||one)?0:(st.p2Tot||soloPartDefaultTotal(p2Idx));
+  const lTot=hasL?(st.lTot||soloPartDefaultTotal(pListenIdx)):0;
   const maxTot=p1Tot+p2Tot+lTot;
+  const sq=(cfg&&Array.isArray(cfg.senseiQPts))?cfg.senseiQPts:null;
   const partScore=(pi,partTotal,isListen)=>{
     if(pi<0||!parts[pi])return{ok:0,q:0,scaled:0};
     const P=parts[pi],A=ans[pi]||[],M=marks[pi]||[];
-    let ok=0,qCnt=0;
+    const ptsArr=sq&&Array.isArray(sq[pi])&&sq[pi].length?sq[pi]:null;
+    let ok=0,qCnt=0,ptsSum=0,ptsMax=0;
     if(isListen){
       for(const md of effectiveMondai(P,A,M)){
         qCnt+=md.effQ;
-        for(let j=1;j<=md.effQ;j++)if(M[md.off+j]==='ok')ok++;
+        for(let j=1;j<=md.effQ;j++){
+          const qi=md.off+j;
+          const qp=ptsArr&&ptsArr[qi-1]>0?+ptsArr[qi-1]:0;
+          ptsMax+=qp;
+          if(M[qi]==='ok'){ok++;ptsSum+=qp;}
+        }
       }
       if(!qCnt)qCnt=P.q;
     }else{
       qCnt=P.q;
-      for(let q=1;q<=qCnt;q++)if(M[q]==='ok')ok++;
+      for(let q=1;q<=qCnt;q++){
+        const qp=ptsArr&&ptsArr[q-1]>0?+ptsArr[q-1]:0;
+        ptsMax+=qp;
+        if(M[q]==='ok'){ok++;ptsSum+=qp;}
+      }
     }
-    const raw=ok*(partTotal/Math.max(1,qCnt));
+    const raw=ptsArr&&ptsMax>0?ptsSum:ok*(partTotal/Math.max(1,qCnt));
     const scaled=ok===qCnt?partTotal:Math.min(partTotal,Math.round(raw*10)/10);
     return{ok,q:qCnt,scaled};
   };
@@ -6105,14 +6120,18 @@ async function startSenseiMock(id){
   }
   beginExam(name,m.driveId||'',parts,m.title,m.ytId||'',m.listenDriveId||'',m.listenMaxSec||0);
   if(m.keys&&(m.keys.k1||m.keys.k2||m.keys.k3))cfg.senseiKeys=m.keys;
+  if(Array.isArray(m.qPts)&&m.qPts.length)cfg.senseiQPts=m.qPts;
+  if(m.partTotals)cfg.senseiTotals=m.partTotals;
   if(senseiPdfPages){cfg.senseiPdfPages=senseiPdfPages;cfg.senseiMockId=id;startPart(0)}
 }
 
-let smLiveRoomsCache={},smEditId='',smSourceRoomId='',smEditHasPdf=false;
+const parsePtsStr=s=>(s||'').trim().split(/[\s,;]+/).map(Number).filter(n=>Number.isFinite(n)&&n>0);
+const fmtPtsStr=arr=>Array.isArray(arr)&&arr.length?arr.map(n=>Math.round((+n||0)*100)/100).join(' '):'';
+let smLiveRoomsCache={},smEditId='',smSourceRoomId='',smEditHasPdf=false,smImportedTotals=null;
 function resetSmForm(){
-  smEditId='';smSourceRoomId='';smEditHasPdf=false;
+  smEditId='';smSourceRoomId='';smEditHasPdf=false;smImportedTotals=null;
   $('smLiveRoomSel').value='';
-  $('smLiveImportHint').textContent='Live/past room select korle Title, Qs, Listening link, PDF & Answer Key auto fill hobe.';
+  $('smLiveImportHint').textContent='Live/past room select korle Title, Qs, Listening link, PDF, Answer Key & Fixed Marks auto fill hobe.';
   $('smLiveImportHint').style.color='';
   $('smTitle').value='';$('smLevel').value='Mock';$('smMode').value='2';
   $('smFile').value='';$('smDrive').value='';
@@ -6120,6 +6139,7 @@ function resetSmForm(){
   $('smP2q').value=22;$('smP2m').value=40;$('smP2pages').value='';
   $('smHasListen').value='1';$('smLm').value=30;$('smMaxMin').value=0;$('smMaxSec').value=0;
   $('smListenUrl').value='';$('smKey1').value='';$('smKey2').value='';$('smKey3').value='';
+  $('smPts1').value='';$('smPts2').value='';$('smPts3').value='';
   $('smSaveBtn').textContent='Save Sensei Mock';
   $('smCancelEditBtn').classList.add('hide');
   syncSmModalUi();updateSmLimHint();
@@ -6167,10 +6187,16 @@ $('smLiveRoomSel').onchange=()=>{
   $('smKey1').value=(r.keys&&r.keys.k1)||'';
   $('smKey2').value=(r.keys&&r.keys.k2)||'';
   $('smKey3').value=(r.keys&&r.keys.k3)||'';
+  const rq=Array.isArray(r.qPts)?r.qPts:[];
+  if(r.onlyListen){$('smPts1').value='';$('smPts2').value='';$('smPts3').value=fmtPtsStr(rq[0]);}
+  else if(r.onePart){$('smPts1').value=fmtPtsStr(rq[0]);$('smPts2').value='';$('smPts3').value=r.hasListen?fmtPtsStr(rq[1]):'';}
+  else{$('smPts1').value=fmtPtsStr(rq[0]);$('smPts2').value=fmtPtsStr(rq[1]);$('smPts3').value=r.hasListen?fmtPtsStr(rq[2]):'';}
+  const rt=roomPartTotals(r);
+  smImportedTotals={p1Tot:rt.p1Tot,p2Tot:rt.p2Tot,lTot:rt.lTot};
   smSourceRoomId=(!r.driveId&&r.hasPdf)?rid:'';
   $('smLiveImportHint').textContent=smSourceRoomId
-    ?'✅ Imported! Live room er uploaded PDF + Answer Key + Listening link auto-save hobe.'
-    :'✅ Imported! Title, Qs, Listening link & Answer Key fill hoyeche — dorkar hole edit kore Save dao.';
+    ?'✅ Imported! Live room er uploaded PDF + Answer Key + Fixed Marks + Listening link auto-save hobe.'
+    :'✅ Imported! Title, Qs, Listening link, Answer Key & Fixed Marks fill hoyeche — dorkar hole edit kore Save dao.';
   $('smLiveImportHint').style.color='var(--ok)';
   syncSmModalUi();updateSmLimHint();
 };
@@ -6185,8 +6211,11 @@ function syncSmModalUi(){
   const showLis=isLis||$('smHasListen').value==='1';
   $('smListenFields').classList.toggle('hide',!showLis);
   $('smKey1Wrap').classList.toggle('hide',isLis);
+  $('smPts1Wrap').classList.toggle('hide',isLis);
   $('smKey2Wrap').classList.toggle('hide',mode!=='2');
+  $('smPts2Wrap').classList.toggle('hide',mode!=='2');
   $('smKey3Wrap').classList.toggle('hide',!showLis);
+  $('smPts3Wrap').classList.toggle('hide',!showLis);
 }
 function updateSmLimHint(){
   const mn=Math.max(0,+$('smMaxMin').value||0),sc=Math.max(0,Math.min(59,+$('smMaxSec').value||0));
@@ -6231,6 +6260,11 @@ function loadSmForEdit(id){
   $('smKey1').value=(m.keys&&m.keys.k1)||'';
   $('smKey2').value=(m.keys&&m.keys.k2)||'';
   $('smKey3').value=(m.keys&&m.keys.k3)||'';
+  const mq=Array.isArray(m.qPts)?m.qPts:[];
+  if(m.mode==='listen'){$('smPts1').value='';$('smPts2').value='';$('smPts3').value=fmtPtsStr(mq[0]);}
+  else if(m.mode==='1'){$('smPts1').value=fmtPtsStr(mq[0]);$('smPts2').value='';$('smPts3').value=m.hasListen?fmtPtsStr(mq[1]):'';}
+  else{$('smPts1').value=fmtPtsStr(mq[0]);$('smPts2').value=fmtPtsStr(mq[1]);$('smPts3').value=m.hasListen?fmtPtsStr(mq[2]):'';}
+  smImportedTotals=m.partTotals||null;
   $('smSaveBtn').textContent='Update Sensei Mock';
   $('smCancelEditBtn').classList.remove('hide');
   $('smLiveImportHint').textContent=smEditHasPdf?'✏️ Edit mode: Ager uploaded PDF saved ache (notun PDF na dile oitai thakbe).':'✏️ Edit mode: Update kore "Update Sensei Mock" chapo.';
@@ -6330,6 +6364,8 @@ $('smSaveBtn').onclick=async()=>{
       k2:mode==='2'?$('smKey2').value.trim():'',
       k3:hasListen?$('smKey3').value.trim():''
     };
+    const pt1=parsePtsStr($('smPts1').value),pt2=parsePtsStr($('smPts2').value),pt3=parsePtsStr($('smPts3').value);
+    const qPts=mode==='listen'?(pt3.length?[pt3]:[]):(mode==='1'?(pt1.length||pt3.length?[pt1,...(hasListen?[pt3]:[])]:[]):(pt1.length||pt2.length||pt3.length?[pt1,pt2,...(hasListen?[pt3]:[])]:[]));
     const prev=isEdit?senseiMocksMap[id]:null;
     const obj={
       id,title,level,mode,driveId,hasPdf,
@@ -6345,6 +6381,8 @@ $('smSaveBtn').onclick=async()=>{
       listenDriveId:med.listenDriveId||'',
       listenMaxSec,
       keys,
+      qPts,
+      partTotals:smImportedTotals||(prev&&prev.partTotals)||null,
       createdAt:(prev&&prev.createdAt)||Date.now(),
       updatedAt:Date.now(),
       createdBy:(prev&&prev.createdBy)||(curExaminer?curExaminer.name:'Admin')
