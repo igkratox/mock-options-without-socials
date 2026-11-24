@@ -773,7 +773,9 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div><div class="mu">Exam Type</div><select id="smMode"><option value="2">2 Parts (+ Listening)</option><option value="1">1 Part (+ Listening)</option><option value="listen">Only Listening (24 Qs)</option></select></div>
     </div>
     <div id="smDriveWrap" style="margin-top:8px">
-      <div class="mu">Question PDF Google Drive Link</div>
+      <div class="mu">Question PDF Upload <span class="mu">(othoba niche Google Drive Link dao)</span></div>
+      <input id="smFile" type="file" accept="application/pdf" style="margin-bottom:6px">
+      <div class="mu">Question PDF Google Drive Link <span class="mu">(optional jodi upore PDF upload koro)</span></div>
       <input id="smDrive" type="url" placeholder="https://drive.google.com/file/d/.../view">
     </div>
     <div id="smP1Wrap" class="row" style="margin-top:8px">
@@ -1585,7 +1587,7 @@ async function getBox(n){
 }
 async function renderPages(list){
   const tok=++renderToken;
-  const rPdf=getRoomPdf(liveRoom,liveRoomId);
+  const rPdf=(cfg&&cfg.senseiPdfPages)||getRoomPdf(liveRoom,liveRoomId);
   if(!pdf&&rPdf){
     const els=[];
     for(const n of list){
@@ -2873,7 +2875,8 @@ const ACTIVE_KEY='mock_exam_active_v1';
 function saveActiveExam(){
   if(!cfg||!cfg.parts||$('exam').classList.contains('hide'))return;
   const rem=paused?pausedRem:Math.max(0,(endAt-Date.now())/1000);
-  try{localStorage.setItem(ACTIVE_KEY,JSON.stringify({id:currentExamId,cfg,part,ans,marks,flags,used,rem:Math.round(rem)}))}catch(e){}
+  const slimCfg={...cfg};delete slimCfg.senseiPdfPages;
+  try{localStorage.setItem(ACTIVE_KEY,JSON.stringify({id:currentExamId,cfg:slimCfg,part,ans,marks,flags,used,rem:Math.round(rem)}))}catch(e){}
 }
 function clearActiveExam(){
   try{localStorage.removeItem(ACTIVE_KEY)}catch(e){}
@@ -6042,23 +6045,36 @@ function renderSenseiMocksStudent(){
   box.querySelectorAll('.sm-start-btn').forEach(b=>b.onclick=()=>startSenseiMock(b.dataset.id));
 }
 
-function startSenseiMock(id){
+async function startSenseiMock(id){
   const m=getMergedSenseiMocks().find(x=>x.id===id);
   if(!m){toast('Mock pawa jayni');return}
   const name=$('name').value.trim()||(curStudent&&curStudent.name)||'Student';
+  let senseiPdfPages=null,maxPage=0;
+  if(m.hasPdf&&!m.driveId){
+    toast('Question PDF load hocche…');
+    try{
+      const snap=await getFb().ref('senseiMockPdfs/'+id).once('value');
+      senseiPdfPages=snap.val()||{};
+      const nums=Object.keys(senseiPdfPages).map(Number).filter(n=>n>0);
+      maxPage=nums.length?Math.max(...nums):0;
+    }catch(e){toast('PDF load failed: '+e.message);return}
+  }
+  const allPgs=maxPage?Array.from({length:maxPage},(_,k)=>k+1):[];
+  const getPgs=spec=>(senseiPdfPages&&maxPage)?(spec?parsePages(spec,maxPage):allPgs):[];
   const parts=[];
   if(m.mode==='listen'){
     parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:Math.max(1,+m.lm||30)});
   }else{
-    parts.push({label:m.mode==='1'?'Exam':'Part 1',listen:false,pages:[],pageRange:m.p1pages||'',q:Math.max(1,+m.p1q||21),m:Math.max(1,+m.p1m||20)});
+    parts.push({label:m.mode==='1'?'Exam':'Part 1',listen:false,pages:getPgs(m.p1pages),pageRange:m.p1pages||'',q:Math.max(1,+m.p1q||21),m:Math.max(1,+m.p1m||20)});
     if(m.mode==='2'){
-      parts.push({label:'Part 2',listen:false,pages:[],pageRange:m.p2pages||'',q:Math.max(1,+m.p2q||22),m:Math.max(1,+m.p2m||40)});
+      parts.push({label:'Part 2',listen:false,pages:getPgs(m.p2pages),pageRange:m.p2pages||'',q:Math.max(1,+m.p2q||22),m:Math.max(1,+m.p2m||40)});
     }
     if(m.hasListen){
       parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:[],q:LISTEN_TOTAL,m:Math.max(1,+m.lm||30)});
     }
   }
   beginExam(name,m.driveId||'',parts,m.title,m.ytId||'',m.listenDriveId||'',m.listenMaxSec||0);
+  if(senseiPdfPages){cfg.senseiPdfPages=senseiPdfPages;cfg.senseiMockId=id;startPart(0)}
 }
 
 function syncSmModalUi(){
@@ -6110,9 +6126,16 @@ function renderSenseiMocksAdmin(){
   }).join('');
   box.querySelectorAll('.sm-del-btn').forEach(b=>b.onclick=async()=>{
     if(!confirm('Ei Sensei Mock delete korbe?'))return;
-    try{await getFb().ref('senseiMocks/'+b.dataset.id).remove();toast('Mock deleted')}catch(e){toast('Delete failed: '+e.message)}
+    try{
+      await getFb().ref('senseiMocks/'+b.dataset.id).remove();
+      await getFb().ref('senseiMockPdfs/'+b.dataset.id).remove();
+      toast('Mock deleted');
+    }catch(e){toast('Delete failed: '+e.message)}
   });
 }
+
+$('smFile').onchange=()=>{if($('smFile').files[0])$('smDrive').value=''};
+$('smDrive').oninput=()=>{if(driveIdOf($('smDrive').value))$('smFile').value=''};
 
 document.querySelectorAll('.open-sm-mgr-btn').forEach(b=>b.onclick=()=>{
   initSenseiMocksSync();
@@ -6129,35 +6152,58 @@ $('smSaveBtn').onclick=async()=>{
   const title=$('smTitle').value.trim();
   const level=$('smLevel').value;
   const mode=$('smMode').value;
-  const driveId=mode==='listen'?'':driveIdOf($('smDrive').value);
+  const f=$('smFile').files[0];
+  const driveId=mode==='listen'?'':(f?'':driveIdOf($('smDrive').value));
   if(!title){$('smErr').textContent='Mock Title dao.';return}
-  if(mode!=='listen'&&!driveId){$('smErr').textContent='Question PDF-er sothik Google Drive link dao.';return}
+  if(mode!=='listen'&&!f&&!driveId){$('smErr').textContent='Question PDF upload koro othoba Google Drive link dao.';return}
   const hasListen=mode==='listen'||$('smHasListen').value==='1';
   const med=parseListenMedia($('smListenUrl').value);
   if(hasListen&&$('smListenUrl').value.trim()&&!med.ok){$('smErr').textContent='Sothik YouTube ba Google Drive link dao.';return}
   const mn=Math.max(0,+$('smMaxMin').value||0),sc=Math.max(0,Math.min(59,+$('smMaxSec').value||0));
   const listenMaxSec=hasListen?(mn*60+sc):0;
   const id='sm_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
-  const obj={
-    id,title,level,mode,driveId,
-    p1q:Math.max(1,+$('smP1q').value||21),
-    p1m:Math.max(1,+$('smP1m').value||20),
-    p1pages:$('smP1pages').value.trim(),
-    p2q:Math.max(1,+$('smP2q').value||22),
-    p2m:Math.max(1,+$('smP2m').value||40),
-    p2pages:$('smP2pages').value.trim(),
-    hasListen,
-    lm:Math.max(1,+$('smLm').value||30),
-    ytId:med.ytId||'',
-    listenDriveId:med.listenDriveId||'',
-    listenMaxSec,
-    createdAt:Date.now(),
-    createdBy:curExaminer?curExaminer.name:'Admin'
-  };
   try{
-    $('smSaveBtn').disabled=true;$('smSaveBtn').textContent='Saving…';
+    $('smSaveBtn').disabled=true;$('smSaveBtn').textContent=f?'PDF processing…':'Saving…';
+    let hasPdf=false,pdfPages=null;
+    if(mode!=='listen'&&f){
+      await setWorker();
+      const doc=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+      const needed=new Set();
+      const p1s=$('smP1pages').value.trim(),p2s=$('smP2pages').value.trim();
+      if(p1s)parsePages(p1s,doc.numPages).forEach(n=>needed.add(n));
+      if(mode==='2'&&p2s)parsePages(p2s,doc.numPages).forEach(n=>needed.add(n));
+      if(!needed.size)for(let k=1;k<=doc.numPages;k++)needed.add(k);
+      pdfPages={};
+      for(const n of needed){
+        const pg=await doc.getPage(n),v0=pg.getViewport({scale:1}),v=pg.getViewport({scale:Math.min(1.6,720/v0.width)});
+        const c=document.createElement('canvas');c.width=Math.ceil(v.width);c.height=Math.ceil(v.height);
+        await pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;
+        pdfPages[n]=c.toDataURL('image/jpeg',0.72);
+      }
+      hasPdf=true;
+    }
+    const obj={
+      id,title,level,mode,driveId,hasPdf,
+      p1q:Math.max(1,+$('smP1q').value||21),
+      p1m:Math.max(1,+$('smP1m').value||20),
+      p1pages:$('smP1pages').value.trim(),
+      p2q:Math.max(1,+$('smP2q').value||22),
+      p2m:Math.max(1,+$('smP2m').value||40),
+      p2pages:$('smP2pages').value.trim(),
+      hasListen,
+      lm:Math.max(1,+$('smLm').value||30),
+      ytId:med.ytId||'',
+      listenDriveId:med.listenDriveId||'',
+      listenMaxSec,
+      createdAt:Date.now(),
+      createdBy:curExaminer?curExaminer.name:'Admin'
+    };
+    if(pdfPages){
+      $('smSaveBtn').textContent='Uploading PDF…';
+      await getFb().ref('senseiMockPdfs/'+id).set(pdfPages);
+    }
     await getFb().ref('senseiMocks/'+id).set(obj);
-    $('smTitle').value='';$('smDrive').value='';$('smListenUrl').value='';$('smMaxMin').value=0;$('smMaxSec').value=0;
+    $('smTitle').value='';$('smFile').value='';$('smDrive').value='';$('smListenUrl').value='';$('smMaxMin').value=0;$('smMaxSec').value=0;
     updateSmLimHint();
     toast('Sensei Mock saved!');
   }catch(e){$('smErr').textContent='Save failed: '+e.message}
