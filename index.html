@@ -261,6 +261,16 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
   </div>
 
+  <div id="stuInvitesCard" class="card hide" style="border-color:var(--ok);background:rgba(22,163,74,.08)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div>
+        <h3 style="margin:0;color:var(--ok)">📨 Live Exam Invite!</h3>
+        <div class="mu">Sensei tomake live exam e invite korechen — 5 minute er moddhe Join dao!</div>
+      </div>
+    </div>
+    <div id="stuInvitesList" style="margin-top:8px"></div>
+  </div>
+
   <div class="card" id="senseiMocksCard" style="border-color:var(--ac)">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <div>
@@ -911,6 +921,21 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <tbody id="lcStuBody"></tbody>
       </table>
     </div>
+  </div>
+
+  <div class="card" id="lcInviteCard">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <div>
+        <h3 style="margin:0">📨 Student Invite (5-Min Direct Join)</h3>
+        <div class="mu">Link share charai student ke invite dao — App/Web e dhuklei Join button pabe.</div>
+      </div>
+    </div>
+    <div class="row" style="gap:8px;margin-bottom:8px">
+      <input id="lcInvSearch" placeholder="🔍 Name ba @username likhe search koro..." style="flex:2;min-width:170px">
+      <select id="lcInvCatSel" style="flex:1;min-width:130px"><option value="">All Categories</option></select>
+      <button type="button" class="btn" id="lcInvCatBtn" style="width:auto;margin:0;padding:8px 12px;white-space:nowrap">📨 Invite Category</button>
+    </div>
+    <div id="lcInvList" style="max-height:210px;overflow:auto;border:1px solid var(--bd);border-radius:10px;padding:6px 10px;background:var(--bg)">Loading students…</div>
   </div>
 
   <div class="card hide" id="lcQCtrlCard">
@@ -3035,6 +3060,7 @@ function enterNormalMode(){
   renderHistory();
   checkActiveExam();
   initSenseiMocksSync();
+  initStudentInvitesSync();
   if(pendingResultRoomId){const rid=pendingResultRoomId;pendingResultRoomId='';location.hash='#result='+rid;return}
   if(pendingLiveRoomId){const rid=pendingLiveRoomId;pendingLiveRoomId='';location.hash='#live='+rid}
 }
@@ -3130,6 +3156,7 @@ function syncStudentLive(force){
   const payload={
     name:cfg.name,
     username:curStudent?curStudent.username:'',
+    viaApp:!!(window.ExamAppBridge||navigator.userAgent.includes('ProjectMockApp')),
     status:st,
     part,
     partLabel:P?P.label:'',
@@ -4268,19 +4295,27 @@ async function loadStuApprovals(targetEl){
   const stus=snap.val()||{};
   const keys=Object.keys(stus).sort((a,b)=>(stus[a].disabled?0:1)-(stus[b].disabled?0:1)||(stus[b].createdAt||0)-(stus[a].createdAt||0));
   targetEl.innerHTML=keys.length?keys.map(k=>{
-    const s=stus[k],ok=!s.disabled;
+    const s=stus[k],ok=!s.disabled,cat=s.category||'';
     return `<div class="hist-item">
       <div class="hist-info">
-        <div class="hist-title">${esc(s.name)} <span class="mu">(@${esc(k)})</span></div>
+        <div class="hist-title">${esc(s.name)} <span class="mu">(@${esc(k)})</span> ${cat?`<span class="sm-badge" style="margin-left:4px">🏷 ${esc(cat)}</span>`:''}</div>
         <div class="hist-meta"><span class="pill ${ok?'live':'end'}">${ok?'Active':'Off'}</span></div>
       </div>
       <div class="hist-acts">
+        <button type="button" class="btn sec stu-cat-btn" data-u="${esc(k)}" data-cat="${esc(cat)}">🏷 Category</button>
         <button type="button" class="btn sec stu-app-tog" data-u="${esc(k)}" data-ok="${ok?1:0}">${ok?'Turn Off':'Turn On'}</button>
         <button type="button" class="btn sec stu-app-pass" data-u="${esc(k)}" title="Reset Password">Pass</button>
         <button type="button" class="btn sec stu-app-del" data-u="${esc(k)}" style="color:var(--bad)">✕</button>
       </div>
     </div>`;
   }).join(''):'<div class="mu">কোনো Student Account নেই।</div>';
+  targetEl.querySelectorAll('.stu-cat-btn').forEach(b=>b.onclick=async()=>{
+    const nc=prompt(`@${b.dataset.u} er Category / Batch lekho (e.g. N5 Morning, Batch A):`,b.dataset.cat||'');
+    if(nc===null)return;
+    await db().ref('students/'+b.dataset.u+'/category').set(nc.trim());
+    toast(nc.trim()?`Category "${nc.trim()}" set hoyeche`:'Category clear hoyeche');
+    loadStuApprovals(targetEl);
+  });
   targetEl.querySelectorAll('.stu-app-tog').forEach(b=>b.onclick=async()=>{
     await db().ref('students/'+b.dataset.u+'/disabled').set(b.dataset.ok==='1');
     loadStuApprovals(targetEl);
@@ -4714,6 +4749,7 @@ function openLiveControl(rid){
   if(curAdmin)savePortalSess({role:'admin',lcRoomId:rid});
   else if(curExaminer)savePortalSess({role:'examiner',examiner:curExaminer,lcRoomId:rid});
   hideAllViews();$('liveControl').classList.remove('hide');
+  loadLcInviteStudents();
   if(lcRoomRef)lcRoomRef.off();
   if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
   if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
@@ -4911,8 +4947,11 @@ function openLiveControl(rid){
       const pIdx=s.part||0;
       const partMin=r.onlyListen?(r.lm||30):(r.onePart?(pIdx===0?(r.p1m||20):(r.lm||30)):(pIdx===0?(r.p1m||20):(pIdx===1?(r.p2m||40):(r.lm||30))));
       const elapsedSec=Math.max(0,(partMin*60)-(s.rem||0));
+      const devBadge=s.viaApp
+        ?'<span class="sm-badge" style="background:#dcfce7;color:#166534;margin-left:4px">📱 App</span>'
+        :'<span class="sm-badge" style="background:#e2e8f0;color:#475569;margin-left:4px">🌐 Web</span>';
       return `<tr class="stu-main">
-        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x${awy?` (${awy}s away)`:''}</div>`:''}${swApp?`<div class="mu" style="color:var(--bad);font-size:11px">🚨 App: ${esc(swApp)} (${s.lastSwitchedCount||1}x)</div>`:''}${spl?`<div class="mu" style="color:var(--bad);font-size:11px">📱 Split-Screen: ${spl}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
+        <td><b>${esc(disp(s))}</b>${devBadge}${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x${awy?` (${awy}s away)`:''}</div>`:''}${swApp?`<div class="mu" style="color:var(--bad);font-size:11px">🚨 App: ${esc(swApp)} (${s.lastSwitchedCount||1}x)</div>`:''}${spl?`<div class="mu" style="color:var(--bad);font-size:11px">📱 Split-Screen: ${spl}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(elapsedSec)}</td>
@@ -6121,6 +6160,118 @@ $('lcUnivRepBtn').onclick=()=>{
 };
 $('lcSumPngBtn').onclick=exportCurrentRoomSummaryPng;
 $('lsSumPngBtn').onclick=exportCurrentRoomSummaryPng;
+let stuInvRef=null,stuInvTimer=null,stuInvData={};
+function renderStudentInvites(){
+  const card=$('stuInvitesCard'),listEl=$('stuInvitesList');
+  if(!card||!listEl)return;
+  const now=Date.now();
+  const active=Object.values(stuInvData||{}).filter(v=>v&&v.rid&&v.expiresAt>now).sort((a,b)=>b.ts-a.ts);
+  card.classList.toggle('hide',!active.length);
+  if(!active.length){listEl.innerHTML='';return}
+  listEl.innerHTML=active.map(inv=>{
+    const remSec=Math.max(0,Math.ceil((inv.expiresAt-now)/1000));
+    return `<div class="sm-card" style="border-color:var(--ok)">
+      <div style="flex:1;min-width:180px">
+        <div style="font-weight:700;font-size:15px">${esc(inv.examName||'Live Exam')}</div>
+        <div class="mu" style="font-size:12px">Sensei: ${esc(inv.examinerName||'Sensei')} · ⏱ Expires in <b>${fmtMmSs(remSec)}</b></div>
+      </div>
+      <button type="button" class="btn stu-inv-join" data-rid="${esc(inv.rid)}" style="width:auto;margin:0;padding:8px 14px;background:var(--ok)">Join Exam Now</button>
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('.stu-inv-join').forEach(b=>b.onclick=()=>{
+    location.hash='#live='+b.dataset.rid;
+  });
+}
+function initStudentInvitesSync(){
+  if(stuInvRef){stuInvRef.off();stuInvRef=null}
+  if(stuInvTimer){clearInterval(stuInvTimer);stuInvTimer=null}
+  if(!curStudent||!curStudent.username){
+    $('stuInvitesCard')?.classList.add('hide');
+    return;
+  }
+  try{
+    stuInvRef=getFb().ref('studentInvites/'+curStudent.username);
+    stuInvRef.on('value',snap=>{
+      stuInvData=snap.val()||{};
+      renderStudentInvites();
+    });
+    stuInvTimer=setInterval(renderStudentInvites,1000);
+  }catch(e){}
+}
+
+let lcAllStudentsCache={};
+async function loadLcInviteStudents(){
+  const box=$('lcInvList');
+  if(!box)return;
+  box.innerHTML='<div class="mu">Loading students…</div>';
+  try{
+    const snap=await getFb().ref('students').once('value');
+    lcAllStudentsCache=snap.val()||{};
+    const cats=[...new Set(Object.values(lcAllStudentsCache).map(s=>(s.category||'').trim()).filter(Boolean))].sort();
+    const sel=$('lcInvCatSel');
+    if(sel){
+      const cur=sel.value;
+      sel.innerHTML='<option value="">All Categories</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+      if(cats.includes(cur))sel.value=cur;
+    }
+    renderLcInviteList();
+  }catch(e){
+    box.innerHTML='<div class="mu">Students load kora jayni.</div>';
+  }
+}
+function renderLcInviteList(){
+  const box=$('lcInvList');if(!box)return;
+  const q=($('lcInvSearch')?.value||'').trim().toLowerCase();
+  const cat=$('lcInvCatSel')?.value||'';
+  const invited=(lcRoomData&&lcRoomData.invited)||{};
+  const rows=Object.entries(lcAllStudentsCache).filter(([u,s])=>{
+    if(!s||s.disabled)return false;
+    if(cat&&(s.category||'').trim()!==cat)return false;
+    if(q&&!(s.name||'').toLowerCase().includes(q)&&!u.toLowerCase().includes(q))return false;
+    return true;
+  }).sort((a,b)=>(a[1].name||'').localeCompare(b[1].name||''));
+  box.innerHTML=rows.length?rows.map(([u,s])=>{
+    const isInv=!!invited[u];
+    const catTxt=s.category?`<span class="sm-badge" style="margin-left:4px">🏷 ${esc(s.category)}</span>`:'';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--bd)">
+      <div style="font-size:13px"><b>${esc(s.name)}</b> <span class="mu">@${esc(u)}</span>${catTxt}</div>
+      <button type="button" class="btn sec lc-inv-one" data-u="${esc(u)}" style="width:auto;margin:0;padding:4px 10px;font-size:12px;color:${isInv?'var(--ok)':'var(--ac)'}">${isInv?'✓ Invited':'Invite'}</button>
+    </div>`;
+  }).join(''):'<div class="mu" style="padding:6px 0">Kono matching student pawa jayni.</div>';
+  box.querySelectorAll('.lc-inv-one').forEach(b=>b.onclick=()=>sendLiveInvites([b.dataset.u]));
+}
+async function sendLiveInvites(usernames){
+  if(!lcRoomId||!lcRoomData||!usernames.length)return;
+  const now=Date.now(),exp=now+5*60*1000;
+  const upd={};
+  usernames.forEach(u=>{
+    upd[`studentInvites/${u}/${lcRoomId}`]={
+      rid:lcRoomId,
+      examName:lcRoomData.examName||'Live Exam',
+      examinerName:lcRoomData.examinerName||'Sensei',
+      ts:now,
+      expiresAt:exp
+    };
+    upd[`rooms/${lcRoomId}/invited/${u}`]=true;
+  });
+  await db().ref().update(upd);
+  if(!lcRoomData.invited)lcRoomData.invited={};
+  usernames.forEach(u=>lcRoomData.invited[u]=true);
+  renderLcInviteList();
+  toast(`📨 ${usernames.length} jon student ke 5-min Invite pathano hoyeche!`);
+}
+$('lcInvSearch').oninput=renderLcInviteList;
+$('lcInvCatSel').onchange=renderLcInviteList;
+$('lcInvCatBtn').onclick=()=>{
+  const cat=$('lcInvCatSel').value;
+  if(!cat){toast('Age ekta Category select koro!');return}
+  const targets=Object.entries(lcAllStudentsCache)
+    .filter(([,s])=>s&&!s.disabled&&(s.category||'').trim()===cat)
+    .map(([u])=>u);
+  if(!targets.length){toast('Ei category te kono active student nei.');return}
+  sendLiveInvites(targets);
+};
+
 /* Sensei Provided Mocks (Fixed Library + Listening Video Limiter) */
 const SENSEI_FIXED_MOCKS=[];
 let senseiMocksMap={},senseiMocksInited=false;
@@ -6392,6 +6543,7 @@ $('smCancelEditBtn').onclick=resetSmForm;
 
 document.querySelectorAll('.open-sm-mgr-btn').forEach(b=>b.onclick=()=>{
   initSenseiMocksSync();
+  initStudentInvitesSync();
   resetSmForm();
   loadSmLiveRooms();
   renderSenseiMocksAdmin();
