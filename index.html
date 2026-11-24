@@ -305,8 +305,8 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <div class="step"><button data-t="onlyLm" data-d="-5">−</button><input id="onlyLm" type="number" min="1" value="30"><button data-t="onlyLm" data-d="5">+</button></div>
     </div>
     <div style="margin-top:10px">
-      <div class="mu">YouTube Link <span class="mu">(optional — দিলে ভিডিওসহ Listening হবে)</span></div>
-      <input id="onlyListenYt" type="url" placeholder="https://youtu.be/... বা https://www.youtube.com/watch?v=...">
+      <div class="mu">YouTube / Google Drive Link <span class="mu">(optional — দিলে অডিও/ভিডিওসহ Listening হবে)</span></div>
+      <input id="onlyListenYt" type="url" placeholder="https://youtu.be/... বা https://drive.google.com/file/d/.../view">
     </div>
     <button class="btn sec" id="onlyListenBtn" style="width:100%;margin-top:12px;border-color:var(--ac);color:var(--ac);font-weight:700">Start Only Listening</button>
   </div>
@@ -449,8 +449,8 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
         <input id="p3pages" placeholder="খালি রাখলে Listening Pad দেখাবে">
       </div>
       <div style="margin-top:8px">
-        <div class="mu">YouTube Link (optional)</div>
-        <input id="p3yt" type="url" placeholder="https://youtu.be/... (খালি রাখলে শুধু Pad)">
+        <div class="mu">YouTube / Google Drive Link (optional)</div>
+        <input id="p3yt" type="url" placeholder="YouTube বা Drive link (খালি রাখলে শুধু Pad)">
         <div id="p3ytErr" class="mu" style="color:var(--bad);margin-top:4px"></div>
       </div>
       <button class="btn" id="yesListenBtn" style="margin-top:14px">হ্যাঁ, Listening শুরু করো</button>
@@ -677,7 +677,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
           </div>
           <div style="margin-top:8px"><div class="mu">Listening Audio/Video Control</div><select id="exLSelfCtrl"><option value="0">Sensei Sync (Teacher control করবে)</option><option value="1">Self-Control (Student নিজে control করবে)</option></select></div>
           <div style="margin-top:8px"><div class="mu">Listening Pages (optional)</div><input id="exP3pages" placeholder="খালি রাখলে Listening Pad দেখাবে"></div>
-          <div style="margin-top:8px"><div class="mu">YouTube Link (Listening)</div><input id="exYt" type="url" placeholder="https://youtu.be/..."></div>
+          <div style="margin-top:8px"><div class="mu">YouTube / Google Drive Link (Listening)</div><input id="exYt" type="url" placeholder="https://youtu.be/... বা https://drive.google.com/file/d/.../view"></div>
         </div>
       </div>
       <div style="margin-top:10px">
@@ -871,7 +871,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
   <div class="card hide" id="lcListenCard">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <div>
-        <h3 style="margin:0">Listening Sync & YouTube Control</h3>
+        <h3 style="margin:0">Listening Sync & Audio/Video Control</h3>
         <div class="mu" id="lcWaitCount">Waiting for Listening: 0</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -890,7 +890,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       </div>
     </div>
     <div id="lcYtLinkRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
-      <input id="lcYtInput" type="url" placeholder="YouTube link দাও / পরিবর্তন করো (youtu.be/... বা watch?v=...)" style="flex:1;min-width:200px;padding:7px 10px;font-size:13px">
+      <input id="lcYtInput" type="url" placeholder="YouTube বা Google Drive link দাও / পরিবর্তন করো" style="flex:1;min-width:200px;padding:7px 10px;font-size:13px">
       <button type="button" class="btn sec" id="lcYtSaveBtn" style="width:auto;margin:0;padding:8px 12px">Add Link</button>
     </div>
     <div id="lcMondaiRow" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
@@ -899,7 +899,11 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     </div>
     <div id="lcYtWrap" class="hide" style="margin-top:12px">
       <div class="yt-box" id="lcYtBox" style="max-width:480px"></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">
+      <div id="lcDriveCtrlBar" class="hide" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
+        <span class="mu" style="font-size:12px">📁 Google Drive Audio/Video: নিচের player থেকে Play করো (Drive link-এ student-দের auto-sync হয় না)।</span>
+        <button type="button" class="btn sec" id="lcDriveStartTimerBtn" style="width:auto;margin:0;padding:6px 12px;font-size:12px">▶ Start Student Timer</button>
+      </div>
+      <div id="lcYtCtrlBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">
         <button type="button" class="btn sec" id="lcYtPlayBtn">▶ Play</button>
         <button type="button" class="btn sec" id="lcYtPauseBtn">⏸ Pause</button>
         <button type="button" class="btn sec" id="lcYtBack60">−1m</button>
@@ -1185,6 +1189,7 @@ async function detect(){
 }
 const driveIdOf=u=>{const m=(u||'').trim().match(/\/d\/([a-zA-Z0-9_-]{10,})|[?&]id=([a-zA-Z0-9_-]{10,})/);return m?(m[1]||m[2]):''};
 const ytIdOf=u=>{const m=(u||'').trim().match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/|live\/))([a-zA-Z0-9_-]{11})/);return m?m[1]:''};
+const parseListenMedia=u=>{const s=(u||'').trim();if(!s)return{ytId:'',listenDriveId:'',ok:true};const y=ytIdOf(s)||(/^[a-zA-Z0-9_-]{11}$/.test(s)?s:'');if(y)return{ytId:y,listenDriveId:'',ok:true};const d=driveIdOf(s);if(d)return{ytId:'',listenDriveId:d,ok:true};return{ytId:'',listenDriveId:'',ok:false}};
 let ytPlayer=null,ytApiPromise=null;
 function loadYtApi(){
   if(window.YT&&window.YT.Player)return Promise.resolve();
@@ -1220,6 +1225,10 @@ async function mountYt(el,videoId,opts){
     el.innerHTML=`<div class="yt-wrap"><iframe src="https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0${locked?'&controls=0&disablekb=1':''}" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:100%;border:0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>${locked?'<div class="yt-lock"></div><div class="yt-lock-bl"></div><div class="yt-skip-box"></div>':''}</div>`;
   }
 }
+function mountDriveMedia(el,driveFileId){
+  if(ytPlayer){try{ytPlayer.destroy()}catch(e){}ytPlayer=null}
+  el.innerHTML=`<div class="yt-wrap"><iframe src="https://drive.google.com/file/d/${driveFileId}/preview" style="width:100%;height:100%;border:0" allow="autoplay; fullscreen" allowfullscreen></iframe></div>`;
+}
 function seekYt(sec){
   if(!ytPlayer||typeof ytPlayer.getCurrentTime!=='function')return;
   try{ytPlayer.seekTo(Math.max(0,(ytPlayer.getCurrentTime()||0)+sec),true)}catch(e){}
@@ -1247,11 +1256,11 @@ document.querySelectorAll('.step button').forEach(b=>b.onclick=()=>{
 });
 
 let currentExamId='',flags=[],paused=false,pausedRem=0,warn5=false,warn1=false;
-function beginExam(name,driveId,parts,examName,ytId){
+function beginExam(name,driveId,parts,examName,ytId,listenDriveId){
   saveProfileName(name);
   currentExamId='ex_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
   repTime='';paused=false;pausedRem=0;
-  cfg={name,driveId,examName:examName||'',ytId:ytId||'',style:$('style').value,parts};
+  cfg={name,driveId,examName:examName||'',ytId:ytId||'',listenDriveId:listenDriveId||'',style:$('style').value,parts};
   ans=parts.map(()=>[]);
   marks=parts.map(()=>[]);
   flags=parts.map(()=>[]);
@@ -1298,8 +1307,8 @@ $('startBtn').onclick=async()=>{
 $('onlyListenBtn').onclick=async()=>{
   $('err').textContent='';
   const name=$('name').value.trim()||'Student',f=$('file').files[0],driveId=driveIdOf($('gdrive').value);
-  const ytRaw=$('onlyListenYt').value.trim(),ytId=ytIdOf(ytRaw);
-  if(ytRaw&&!ytId){$('err').textContent='সঠিক YouTube link দাও (অথবা খালি রাখো)।';return}
+  const lmMedia=parseListenMedia($('onlyListenYt').value);
+  if(!lmMedia.ok){$('err').textContent='সঠিক YouTube বা Google Drive link দাও (অথবা খালি রাখো)।';return}
   let pages=[],examName=$('examNameIn').value.trim();
   if(f){
     if(!examName)examName=f.name.replace(/\.pdf$/i,'');
@@ -1309,7 +1318,7 @@ $('onlyListenBtn').onclick=async()=>{
       pages=Array.from({length:pdf.numPages},(_,k)=>k+1);
     }catch(e){$('err').textContent='PDF load হয়নি: '+e.message;$('onlyListenBtn').textContent='Start Only Listening';return}
   }
-  beginExam(name,f?'':driveId,[{label:'Listening',listen:true,mondai:cloneMondai(),pages,q:LISTEN_TOTAL,m:Math.max(1,+$('onlyLm').value||30)}],examName,ytId);
+  beginExam(name,f?'':driveId,[{label:'Listening',listen:true,mondai:cloneMondai(),pages,q:LISTEN_TOTAL,m:Math.max(1,+$('onlyLm').value||30)}],examName,lmMedia.ytId,lmMedia.listenDriveId);
 };
 
 async function startPart(i,auto,resumeSec){
@@ -1318,8 +1327,10 @@ async function startPart(i,auto,resumeSec){
   $('partLabel').textContent=P.label;
   $('nextBtn').textContent=i<cfg.parts.length-1?cfg.parts[i+1].label+' ▸':'Submit ✓';
   $('listenModeBar').classList.toggle('hide',!P.listen);
-  const usePad=P.listen&&!P.pages.length&&(!cfg.driveId||!!cfg.ytId);
   const hasYt=!!(P.listen&&cfg.ytId);
+  const hasDriveMedia=!!(P.listen&&!cfg.ytId&&cfg.listenDriveId);
+  const hasMedia=hasYt||hasDriveMedia;
+  const usePad=P.listen&&!P.pages.length&&(!cfg.driveId||hasMedia);
   const isLive=!!liveRoomId;
   const ytSynced=isLive&&!(liveRoom&&liveRoom.listenSelfCtrl);
   const prot=isLive&&!P.listen;
@@ -1342,8 +1353,8 @@ async function startPart(i,auto,resumeSec){
   if(usePad){
     document.querySelector('.zoom').classList.add('hide');
     $('pages').style.width='100%';$('pages').style.height='100%';
-    $('pages').innerHTML=`<div class="listen-pad${hasYt?' has-yt':''}">
-      ${hasYt?'<div class="yt-box" id="ytBox"></div>':''}
+    $('pages').innerHTML=`<div class="listen-pad${hasMedia?' has-yt':''}">
+      ${hasMedia?'<div class="yt-box" id="ytBox"></div>':''}
       <div class="l-head">${hasYt&&!ytSynced?'<button type="button" class="yt-seek" id="ytBack10">« 10s</button><span id="lHead">Mondai 1 · Q1</span><button type="button" class="yt-seek" id="ytFwd10">10s »</button>':'<span id="lHead">Mondai 1 · Q1</span>'}</div>
       <div class="l-opts" id="lOpts"></div>
       <div class="l-rw"><button class="ok" id="lOk">✓ Right</button><button class="bad" id="lBad">✕ Wrong</button></div>
@@ -1356,6 +1367,8 @@ async function startPart(i,auto,resumeSec){
         $('ytFwd10').onclick=()=>seekYt(10);
       }
       if(location.protocol==='content:'||location.protocol==='file:')toast('content:// বা file:// থেকে সরাসরি খুললে YouTube Error 153 দেয়। http://localhost দিয়ে খুললে ভিডিও চলবে।');
+    }else if(hasDriveMedia){
+      mountDriveMedia($('ytBox'),cfg.listenDriveId);
     }
     $('lOk').onclick=()=>toggleMark('ok');
     $('lBad').onclick=()=>toggleMark('bad');
@@ -1363,22 +1376,23 @@ async function startPart(i,auto,resumeSec){
     $('lNext').onclick=()=>$('nextQ').click();
   }else{
     $('pages').style.height='';
-    if(hasYt){
+    if(hasMedia){
       const top=$('ytTopWrap');
       top.innerHTML='<div class="yt-box" id="ytBoxTop"></div>';
       top.classList.remove('hide');
-      mountYt($('ytBoxTop'),cfg.ytId,{locked:ytSynced,onReady:()=>{if(ytSynced)applyYtSync()}});
+      if(hasYt)mountYt($('ytBoxTop'),cfg.ytId,{locked:ytSynced,onReady:()=>{if(ytSynced)applyYtSync()}});
+      else mountDriveMedia($('ytBoxTop'),cfg.listenDriveId);
     }
   }
   buildSheet();
   limit=P.m*60;
   const rem0=(typeof resumeSec==='number'&&resumeSec>0)?Math.min(limit,resumeSec):limit;
   endAt=Date.now()+rem0*1000;
-  const holdForVideo=isLive&&P.listen&&liveRoom&&liveRoom.ytId&&!liveRoom.listenSelfCtrl&&!liveRoom.listenVideoStarted;
+  const holdForVideo=isLive&&P.listen&&liveRoom&&(liveRoom.ytId||liveRoom.listenDriveId)&&!liveRoom.listenSelfCtrl&&!liveRoom.listenVideoStarted;
   if(holdForVideo){
     paused=true;pausedRem=rem0;
     $('pauseBtn').textContent='▶';$('timer').classList.add('paused');
-    $('stuNoticeBanner').textContent='⏸ Sensei YouTube Video চালু করলে Listening Timer শুরু হবে…';
+    $('stuNoticeBanner').textContent='⏸ Sensei Listening Audio/Video চালু করলে Listening Timer শুরু হবে…';
     $('stuNoticeBanner').classList.remove('hide');
   }else{
     paused=false;pausedRem=0;
@@ -1912,9 +1926,9 @@ $('backToReviewBtn').onclick=()=>$('missingListenModal').classList.add('hide');
 $('askListenHomeBtn').onclick=()=>{if(confirm('Home-এ ফিরে যাবে? চলমান exam মুছে যাবে।'))goHome()};
 $('yesListenBtn').onclick=()=>{
   $('p3ytErr').textContent='';
-  const ytRaw=$('p3yt').value.trim(),ytId=ytIdOf(ytRaw);
-  if(ytRaw&&!ytId){$('p3ytErr').textContent='সঠিক YouTube link দাও (অথবা খালি রাখো)।';return}
-  cfg.ytId=ytId;
+  const p3m=parseListenMedia($('p3yt').value);
+  if(!p3m.ok){$('p3ytErr').textContent='সঠিক YouTube বা Google Drive link দাও (অথবা খালি রাখো)।';return}
+  cfg.ytId=p3m.ytId;cfg.listenDriveId=p3m.listenDriveId;
   const lp=(pdf&&!cfg.driveId&&$('p3pages').value.trim())?parsePages($('p3pages').value,pdf.numPages):[];
   cfg.parts.push({label:'Listening',listen:true,mondai:cloneMondai(),pages:lp,q:LISTEN_TOTAL,m:Math.max(1,+$('p3m').value||30)});
   ans.push([]);marks.push([]);flags.push([]);used.push(0);
@@ -3232,7 +3246,7 @@ function startLiveStudent(room){
   $('listenMode').value=room.lMode||'later';
   lastGlobalDeltaTs=room.globalDeltaTs||0;
   lastStuDeltaTs=0;examinerLocked=false;liveDeduct=0;
-  beginExam(stuName,room.driveId||'',parts,room.examName||'',room.ytId||'');
+  beginExam(stuName,room.driveId||'',parts,room.examName||'',room.ytId||'',room.listenDriveId||'');
   syncStudentLive(true);
 }
 function isProtectedPart(){return !!(liveRoomId&&!$('exam').classList.contains('hide')&&cfg?.parts?.[part]&&!cfg.parts[part].listen)}
@@ -3294,7 +3308,7 @@ function resumeLiveStudentFromRecord(r,me,stuId){
   examinerLocked=!!me.locked;
   liveDeduct=+(me.deduct||0);
   currentExamId='live_'+liveRoomId;
-  cfg={name:me.name||(curStudent&&curStudent.name)||'Student',driveId:r.driveId||'',examName:r.examName||'',ytId:r.ytId||'',style:$('style').value,parts};
+  cfg={name:me.name||(curStudent&&curStudent.name)||'Student',driveId:r.driveId||'',examName:r.examName||'',ytId:r.ytId||'',listenDriveId:r.listenDriveId||'',style:$('style').value,parts};
   ans=parts.map((pt,i)=>unpackAns((me.ans&&me.ans[i])||'',pt.q));
   marks=parts.map((pt,i)=>unpackMarks((me.marks&&me.marks[i])||'',pt.q));
   flags=parts.map(()=>[]);
@@ -3414,7 +3428,7 @@ async function checkHashLive(){
       const onStu=sSnap=>{if(!liveRoom)return;if(!liveRoom.students)liveRoom.students={};liveRoom.students[liveStuId]=sSnap.val();handleRoomSnap(liveRoom)};
       stuRef.on('value',onStu);
       lightUnsubs.push(()=>stuRef.off('value',onStu));
-      const ctrlKeys=['status','published','notice','globalDeltaTs','globalDeltaSec','p1q','p2q','p1pages','p2pages','hasListen','lMode','listenStarted','listenVideoStarted','listenSelfCtrl','ytId','ytSync','lMondai','p1Tot','p2Tot','lTot','passTotal'];
+      const ctrlKeys=['status','published','notice','globalDeltaTs','globalDeltaSec','p1q','p2q','p1pages','p2pages','hasListen','lMode','listenStarted','listenVideoStarted','listenSelfCtrl','ytId','listenDriveId','ytSync','lMondai','p1Tot','p2Tot','lTot','passTotal'];
       ctrlKeys.forEach(k=>{
         const kr=baseRef.child(k);
         const onK=kSnap=>{if(!liveRoom)return;liveRoom[k]=kSnap.val();handleRoomSnap(liveRoom)};
@@ -3644,21 +3658,21 @@ async function checkHashLive(){
         toast('Sensei Video চালু করেছেন — Listening Timer শুরু!');
       }
       const selfCtrl=!!r.listenSelfCtrl;
-      const newYtId=r.ytId||'';
-      const ytChanged=(cfg.ytId||'')!==newYtId;
-      cfg.ytId=newYtId;
+      const newYtId=r.ytId||'',newDriveMedia=r.listenDriveId||'';
+      const ytChanged=(cfg.ytId||'')!==newYtId||(cfg.listenDriveId||'')!==newDriveMedia;
+      cfg.ytId=newYtId;cfg.listenDriveId=newDriveMedia;
       if(ytChanged||(lastSelfCtrl!==null&&lastSelfCtrl!==selfCtrl)){
         const remNow=paused?pausedRem:Math.max(0,(endAt-Date.now())/1000);
         const prevCur=cur;
         startPart(part,false,remNow).then(()=>{cur=prevCur;refresh();if(examinerLocked)setPaused(true,true)});
-        if(ytChanged)toast(newYtId?'Sensei Listening YouTube Link পরিবর্তন করেছেন!':'Sensei Listening YouTube Link সরিয়েছেন!');
+        if(ytChanged)toast((newYtId||newDriveMedia)?'Sensei Listening Link পরিবর্তন করেছেন!':'Sensei Listening Link সরিয়েছেন!');
         else toast(selfCtrl?'এখন তুমি নিজেই Listening Audio/Video control করতে পারবে!':'Sensei Listening Sync চালু করেছেন!');
-      }else if(!selfCtrl){
+      }else if(!selfCtrl&&newYtId){
         applyYtSync();
       }
       lastSelfCtrl=selfCtrl;
     }else{
-      if(cfg)cfg.ytId=r.ytId||'';
+      if(cfg){cfg.ytId=r.ytId||'';cfg.listenDriveId=r.listenDriveId||'';}
       lastSelfCtrl=!!r.listenSelfCtrl;
     }
   };
@@ -4184,7 +4198,7 @@ async function loadExaminerHistory(){
       dateStr:new Date().toLocaleString(),createdAt:Date.now(),status:'live',
       driveId:src.driveId||'',pdfUrl:src.pdfUrl||'',onePart:!!src.onePart,onlyListen:false,oneTotal:src.oneTotal||100,
       p1q:src.p1q,p1m:src.p1m,p1pages:src.p1pages||'',p2q:src.p2q||0,p2m:src.p2m||0,p2pages:src.p2pages||'',
-      hasListen:!!src.hasListen,lm:src.lm||30,lMode:src.lMode||'later',lMondai:src.lMondai?[...src.lMondai]:null,listenSelfCtrl:!!src.listenSelfCtrl,p3pages:src.p3pages||'',ytId:src.ytId||'',
+      hasListen:!!src.hasListen,lm:src.lm||30,lMode:src.lMode||'later',lMondai:src.lMondai?[...src.lMondai]:null,listenSelfCtrl:!!src.listenSelfCtrl,p3pages:src.p3pages||'',ytId:src.ytId||'',listenDriveId:src.listenDriveId||'',
       passTotal:src.passTotal||58,listenStarted:false,published:false,linkLocked:false
     };
     if(src.keys)newRoom.keys=src.keys;
@@ -4308,15 +4322,15 @@ $('exCreateBtn').onclick=()=>{
   const p1pages=onlyListen?'':$('exP1pages').value.trim(),p2pages=(onePart||onlyListen)?'':$('exP2pages').value.trim(),p3pages=$('exP3pages').value.trim();
   const hasListen=onlyListen||$('exHasListen').value==='1';
   const lm=+$('exLm').value||30,lMode=$('exLMode').value,listenSelfCtrl=$('exLSelfCtrl').value==='1';
-  const ytRaw=$('exYt').value.trim(),ytId=ytIdOf(ytRaw);
+  const exMedia=parseListenMedia($('exYt').value);
   if(!examName){$('exCreateErr').textContent='Exam Name দাও।';return}
   if(!onlyListen&&!f&&!driveId){$('exCreateErr').textContent='Question PDF select করো অথবা Google Drive link দাও।';return}
   if(!onlyListen&&(!p1q||(!onePart&&!p2q))){$('exCreateErr').textContent='Questions সংখ্যা দাও।';return}
   if(!onlyListen&&(!p1pages||(!onePart&&!p2pages))){$('exCreateErr').textContent='Pages দেওয়া বাধ্যতামূলক!';return}
-  if(hasListen&&ytRaw&&!ytId){$('exCreateErr').textContent='সঠিক YouTube link দাও।';return}
+  if(hasListen&&!exMedia.ok){$('exCreateErr').textContent='সঠিক YouTube বা Google Drive link দাও।';return}
   const srcLbl=f?('PDF ('+f.name+')'):(driveId?'Google Drive Link':'Listening Pad');
   const modeLbl=onlyListen?`Only Listening (${oneTotal} marks)`:(onePart?`1 Part (${oneTotal} marks${hasListen?' + Listening 60':''})`:'2 Parts');
-  pendingExDraft={examName,driveId:f?'':driveId,hasPdf:!!f,onePart,onlyListen,oneTotal,hasListen,lMode,listenSelfCtrl,ytId};
+  pendingExDraft={examName,driveId:f?'':driveId,hasPdf:!!f,onePart,onlyListen,oneTotal,hasListen,lMode,listenSelfCtrl,ytId:exMedia.ytId,listenDriveId:exMedia.listenDriveId};
   $('exConfSub').textContent=`Exam: ${examName} · ${modeLbl} · Source: ${srcLbl}`;
   $('ecP1Wrap').classList.toggle('hide',onlyListen);
   $('ecP1q').value=p1q;$('ecP1m').value=p1m;$('ecP1p').value=p1pages;
@@ -4386,7 +4400,7 @@ $('ecGoBtn').onclick=async()=>{
     examName:pendingExDraft.examName,examinerId:curExaminer.id,examinerName:curExaminer.name,
     dateStr:new Date().toLocaleString(),createdAt:Date.now(),
     status:'live',driveId:pendingExDraft.driveId,pdfUrl,onePart,onlyListen,oneTotal,p1q,p1m,p1pages,p2q,p2m,p2pages,
-    hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,listenSelfCtrl:!!pendingExDraft.listenSelfCtrl,p3pages,ytId:pendingExDraft.ytId,
+    hasListen:pendingExDraft.hasListen,lm,lMode:pendingExDraft.lMode,listenSelfCtrl:!!pendingExDraft.listenSelfCtrl,p3pages,ytId:pendingExDraft.ytId,listenDriveId:pendingExDraft.listenDriveId||'',
     passTotal,listenStarted:onlyListen,published:false
   };
   if(!onlyListen){roomObj.batchGroupId=rid;roomObj.batchNum=1;roomObj.baseExamName=pendingExDraft.examName}
@@ -4573,19 +4587,24 @@ function openLiveControl(rid){
       $('lcAudioCtrl').disabled=(r.status==='ended');
       $('lcStartListenBtn').textContent=r.listenStarted?'Listening Started ✓':'Start Listening for All';
       $('lcStartListenBtn').disabled=!!r.listenStarted;
-      if(document.activeElement!==$('lcYtInput'))$('lcYtInput').value=r.ytId?'https://youtu.be/'+r.ytId:'';
+      if(document.activeElement!==$('lcYtInput'))$('lcYtInput').value=r.ytId?'https://youtu.be/'+r.ytId:(r.listenDriveId?'https://drive.google.com/file/d/'+r.listenDriveId+'/view':'');
       $('lcYtInput').disabled=(r.status==='ended');
-      $('lcYtSaveBtn').textContent=r.ytId?'Change Link':'Add Link';
+      $('lcYtSaveBtn').textContent=(r.ytId||r.listenDriveId)?'Change Link':'Add Link';
       $('lcYtSaveBtn').disabled=(r.status==='ended');
-      $('lcYtWrap').classList.toggle('hide',!(r.ytId&&!r.listenSelfCtrl));
-      if(r.ytId&&!r.listenSelfCtrl){
-        if(mountedYtId!==r.ytId){
-          mountedYtId=r.ytId;
+      const showYtBox=!!(r.ytId&&!r.listenSelfCtrl);
+      const showDriveBox=!!(!r.ytId&&r.listenDriveId);
+      $('lcYtWrap').classList.toggle('hide',!(showYtBox||showDriveBox));
+      $('lcYtCtrlBtns').classList.toggle('hide',!showYtBox);
+      $('lcDriveCtrlBar').classList.toggle('hide',!showDriveBox);
+      if(showDriveBox)$('lcDriveStartTimerBtn').classList.toggle('hide',!!r.listenSelfCtrl||!!r.listenVideoStarted);
+      if(showYtBox){
+        if(mountedYtId!=='yt:'+r.ytId){
+          mountedYtId='yt:'+r.ytId;
           if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
           if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
           const targetId=r.ytId;
           loadYtApi().then(()=>{
-            if(mountedYtId!==targetId)return;
+            if(mountedYtId!=='yt:'+targetId)return;
             $('lcYtBox').innerHTML='<div id="lcYtTarget"></div>';
             const pv={playsinline:1,rel:0,modestbranding:1};
             if(location.protocol.startsWith('http'))pv.origin=location.origin;
@@ -4594,6 +4613,13 @@ function openLiveControl(rid){
             }});
             lcYtTimer=setInterval(()=>{try{if(lcYtPlayer&&lcYtPlayer.getPlayerState&&lcYtPlayer.getPlayerState()===1)pushYtSync(true)}catch(e){}},10000);
           }).catch(()=>{});
+        }
+      }else if(showDriveBox){
+        if(mountedYtId!=='drv:'+r.listenDriveId){
+          mountedYtId='drv:'+r.listenDriveId;
+          if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
+          if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
+          $('lcYtBox').innerHTML=`<iframe src="https://drive.google.com/file/d/${r.listenDriveId}/preview" style="width:100%;height:100%;border:0" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
         }
       }else{
         mountedYtId='';
@@ -4819,10 +4845,15 @@ $('lcAudioCtrl').onchange=()=>{
 $('lcYtSaveBtn').onclick=async()=>{
   if(!lcRoomId||!lcRoomData)return;
   const raw=$('lcYtInput').value.trim();
-  const id=ytIdOf(raw)||(/^[a-zA-Z0-9_-]{11}$/.test(raw)?raw:'');
-  if(!id){toast('সঠিক YouTube link বা Video ID দাও!');return}
-  await db().ref('rooms/'+lcRoomId).update({ytId:id,ytSync:null});
-  toast(lcRoomData.ytId?'YouTube Link পরিবর্তন হয়েছে!':'YouTube Link যোগ হয়েছে!');
+  const m=parseListenMedia(raw);
+  if(!raw||!m.ok){toast('সঠিক YouTube বা Google Drive link দাও!');return}
+  await db().ref('rooms/'+lcRoomId).update({ytId:m.ytId,listenDriveId:m.listenDriveId,ytSync:null});
+  toast((lcRoomData.ytId||lcRoomData.listenDriveId)?'Listening Link পরিবর্তন হয়েছে!':'Listening Link যোগ হয়েছে!');
+};
+$('lcDriveStartTimerBtn').onclick=async()=>{
+  if(!lcRoomId)return;
+  await db().ref('rooms/'+lcRoomId+'/listenVideoStarted').set(true);
+  toast('Students-এর Listening Timer শুরু হয়েছে!');
 };
 $('lcListenToggleBtn').onclick=async()=>{
   if(!lcRoomId||!lcRoomData||lcRoomData.onlyListen)return;
@@ -4835,7 +4866,7 @@ $('lcListenToggleBtn').onclick=async()=>{
     const oldPass=+(lcRoomData.passTotal||defaultPassForRoom(lcRoomData,oldMax));
     upd.passTotal=Math.max(1,Math.round(oldPass*newMax/oldMax));
   }
-  if(!turnOn){upd.ytId='';upd.listenStarted=false;upd.ytSync=null}
+  if(!turnOn){upd.ytId='';upd.listenDriveId='';upd.listenStarted=false;upd.ytSync=null}
   await db().ref('rooms/'+lcRoomId).update(upd);
   toast(turnOn?'Listening চালু হয়েছে!':'Listening বন্ধ করা হয়েছে!');
 };
