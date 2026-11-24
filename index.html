@@ -5028,7 +5028,7 @@ function computeExcelWeights(stuMarkStrs,qCount,partTotal){
     let ok=0;
     for(const ms of stuMarkStrs)if(ms[q-1]==='o')ok++;
     const p=S?ok/S:0,errRate=S?(S-ok)/S:0;
-    const wq=p<=0.20?1.5:(p<=0.45?1.25:(p<=0.72?1.0:(p<=0.86?0.8:0.6)));
+    const wq=S<=1?1:(p<=0.20?1.5:(p<=0.45?1.25:(p<=0.72?1.0:(p<=0.86?0.8:0.6))));
     w.push(wq);sumW+=wq;
     stats.push({q,errPct:Math.round(errRate*100)});
   }
@@ -5044,7 +5044,7 @@ function computePartWeights(stuMarkStrs,qCount,partTotal){
     let ok=0;
     for(const ms of stuMarkStrs)if(ms[q-1]==='o')ok++;
     const errRate=S?(S-ok)/S:0;
-    const wq=1+errRate*2;
+    const wq=S<=1?1:(1+errRate*2);
     w.push(wq);sumW+=wq;
     stats.push({q,errPct:Math.round(errRate*100)});
   }
@@ -5060,6 +5060,7 @@ function computePartIRT(stuMarkStrs,qCount,partTotal){
     const ms=stuMarkStrs[s]||'';
     for(let q=0;q<qCount;q++)if(ms[q]==='o'){okQ[q]++;rawS[s]++}
   }
+  if(S<=1)return{scores:rawS.map(r=>Math.round((r/qCount)*targetTot*10)/10)};
   const b=okQ.map(ok=>{
     const p=(ok+0.5)/(S+1);
     return Math.max(-4,Math.min(4,-Math.log(p/(1-p))));
