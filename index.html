@@ -858,6 +858,8 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button type="button" class="btn sec" id="lcCopyLinkBtn">Copy Student Link</button>
       <button type="button" class="btn sec" id="lcLinkLockBtn">Lock Link</button>
+      <button type="button" class="btn sec" id="lcKioskBtn">📌 App Pin: Off</button>
+      <button type="button" class="btn sec" id="lcAppOnlyBtn">📱 App-Only: Off</button>
       <button type="button" class="btn sec" id="lcEndBtn" style="color:var(--bad)">End Exam</button>
       <button type="button" class="btn sec" id="lcBackBtn">Back</button>
     </div>
@@ -3505,6 +3507,24 @@ function recordAwayReturn(){
     db().ref(`rooms/${liveRoomId}/alerts`).push({type:'away',stuName:cfg?.name||'Student',sec:dur,ts:Date.now()});
   }
 }
+window.onNativeAppSwitched=(pkg,label,awaySec)=>{
+  if(!liveRoomId||!liveStuId||$('exam').classList.contains('hide'))return;
+  const appName=label||pkg||'Unknown App';
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}/lastSwitchedApp`).set(appName);
+  db().ref(`rooms/${liveRoomId}/students/${liveStuId}/lastSwitchedCount`).transaction(v=>(v||0)+1,(err,ok,snap)=>{
+    if(ok&&snap){
+      db().ref(`rooms/${liveRoomId}/alerts`).push({type:'app',stuName:cfg?.name||'Student',appName,sec:awaySec||0,count:snap.val(),ts:Date.now()});
+    }
+  });
+};
+function syncNativeKiosk(r,me){
+  try{
+    if(!window.ExamAppBridge||typeof window.ExamAppBridge.setKiosk!=='function')return;
+    const active=!!(r&&me&&!me.kicked&&r.status!=='ended'&&!$('exam').classList.contains('hide'));
+    const pinOn=active&&(me.kioskOverride!==undefined?!!me.kioskOverride:!!r.kioskEnabled);
+    window.ExamAppBridge.setKiosk(pinOn);
+  }catch(e){}
+}
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){
     if(liveRoomId&&liveStuId&&!$('exam').classList.contains('hide'))awayStartedAt=Date.now();
@@ -3619,6 +3639,12 @@ async function checkHashLive(){
         $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
         return;
       }
+      if(r.appOnly&&!window.ExamAppBridge){
+        $('lwTitle').textContent=r.examName||'Live Exam';
+        $('lwSub').textContent='📱 এই Exam-টি শুধুমাত্র Project Mock Android App থেকে দেওয়া যাবে। Chrome বা অন্য browser থেকে নয়।';
+        $('lwJoinBox').classList.add('hide');$('lwSpinBox').classList.add('hide');
+        return;
+      }
       if(r.linkLocked){
         $('lwTitle').textContent=r.examName||'Live Exam';
         $('lwSub').textContent='🔒 এই Exam-এর Link সাময়িকভাবে Lock করা আছে। Examiner Unlock করলে আবার join করতে পারবে।';
@@ -3655,7 +3681,7 @@ async function checkHashLive(){
       const onStu=sSnap=>{if(!liveRoom)return;if(!liveRoom.students)liveRoom.students={};liveRoom.students[liveStuId]=sSnap.val();handleRoomSnap(liveRoom)};
       stuRef.on('value',onStu);
       lightUnsubs.push(()=>stuRef.off('value',onStu));
-      const ctrlKeys=['status','published','notice','globalDeltaTs','globalDeltaSec','p1q','p2q','p1pages','p2pages','hasListen','lMode','listenStarted','listenVideoStarted','listenSelfCtrl','ytId','listenDriveId','ytSync','lMondai','p1Tot','p2Tot','lTot','passTotal'];
+      const ctrlKeys=['status','published','notice','globalDeltaTs','globalDeltaSec','p1q','p2q','p1pages','p2pages','hasListen','lMode','listenStarted','listenVideoStarted','listenSelfCtrl','ytId','listenDriveId','ytSync','lMondai','p1Tot','p2Tot','lTot','passTotal','kioskEnabled','appOnly'];
       ctrlKeys.forEach(k=>{
         const kr=baseRef.child(k);
         const onK=kSnap=>{if(!liveRoom)return;liveRoom[k]=kSnap.val();handleRoomSnap(liveRoom)};
@@ -3668,7 +3694,9 @@ async function checkHashLive(){
       liveRoomRef.on('value',s=>handleRoomSnap(s.val()));
       return;
     }
+    syncNativeKiosk(r,me);
     if(r.status==='ended'&&me&&me.status!=='finished'){
+      syncNativeKiosk(r,null);
       if(!$('exam').classList.contains('hide')){
         const remNow=paused?pausedRem:Math.max(0,(endAt-Date.now())/1000);
         used[part]=Math.min(limit,limit-remNow);
@@ -4861,6 +4889,12 @@ function openLiveControl(rid){
       $('lcYtBox').innerHTML='';
       $('lcYtWrap').classList.add('hide');
     }
+    $('lcKioskBtn').textContent=r.kioskEnabled?'📌 App Pin: On':'📌 App Pin: Off';
+    $('lcKioskBtn').style.color=r.kioskEnabled?'var(--ok)':'';
+    $('lcKioskBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/kioskEnabled').set(!r.kioskEnabled)};
+    $('lcAppOnlyBtn').textContent=r.appOnly?'📱 App-Only: On':'📱 App-Only: Off';
+    $('lcAppOnlyBtn').style.color=r.appOnly?'var(--ac)':'';
+    $('lcAppOnlyBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/appOnly').set(!r.appOnly)};
     const stus=r.students?Object.entries(r.students):[];
     const disp=buildStuDisp(stus.map(([,s])=>s));
     $('lcStuCount').textContent=stus.length;
@@ -4872,11 +4906,13 @@ function openLiveControl(rid){
       const stTxt=s.kicked?'🚫 Kicked':s.locked?('🔒 Locked'+(s.lockReason?' ('+s.lockReason+')':'')):s.status==='waiting_listen'?'Waiting Listening':s.status==='finished'?'Finished':(s.partLabel||'Active');
       const qTxt=(s.status==='finished'||s.kicked)?'—':(s.part===2?'L·Q'+s.cur:'Q'+s.cur);
       const ded=+(s.deduct||0),tsw=+(s.tabSwitches||0),ssa=+(s.ssAttempts||0),wrn=+(s.warnCount||0),awy=+(s.awaySec||0),spl=+(s.splitCount||0);
+      const stuPin=(s.kioskOverride!==undefined?!!s.kioskOverride:!!r.kioskEnabled);
+      const swApp=s.lastSwitchedApp||'';
       const pIdx=s.part||0;
       const partMin=r.onlyListen?(r.lm||30):(r.onePart?(pIdx===0?(r.p1m||20):(r.lm||30)):(pIdx===0?(r.p1m||20):(pIdx===1?(r.p2m||40):(r.lm||30))));
       const elapsedSec=Math.max(0,(partMin*60)-(s.rem||0));
       return `<tr class="stu-main">
-        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x${awy?` (${awy}s away)`:''}</div>`:''}${spl?`<div class="mu" style="color:var(--bad);font-size:11px">📱 Split-Screen: ${spl}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
+        <td><b>${esc(disp(s))}</b>${ded?`<div class="mu" style="color:var(--bad);font-size:11px">Mark Deduct: −${ded}</div>`:''}${wrn?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Warnings: ${wrn}x</div>`:''}${tsw?`<div class="mu" style="color:#d97706;font-size:11px">⚠ Tab Switch: ${tsw}x${awy?` (${awy}s away)`:''}</div>`:''}${swApp?`<div class="mu" style="color:var(--bad);font-size:11px">🚨 App: ${esc(swApp)} (${s.lastSwitchedCount||1}x)</div>`:''}${spl?`<div class="mu" style="color:var(--bad);font-size:11px">📱 Split-Screen: ${spl}x</div>`:''}${ssa?`<div class="mu" style="color:var(--bad);font-size:11px">📸 SS Attempt: ${ssa}x</div>`:''}</td>
         <td>${esc(stTxt)}</td>
         <td>${esc(qTxt)}</td>
         <td>${(s.status==='finished'||s.kicked)?'—':fmt(elapsedSec)}</td>
@@ -4885,6 +4921,7 @@ function openLiveControl(rid){
           <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="-60" style="padding:4px 8px;font-size:11px">−1m</button>
           <button type="button" class="btn sec lc-stime" data-s="${esc(sid)}" data-d="60" style="padding:4px 8px;font-size:11px">+1m</button>
           <button type="button" class="btn sec lc-slock" data-s="${esc(sid)}" data-lk="${s.locked?1:0}" style="padding:4px 8px;font-size:11px;color:${s.locked?'var(--ok)':'var(--bad)'}">${s.locked?'On':'Off'}</button>
+          <button type="button" class="btn sec lc-skiosk" data-s="${esc(sid)}" data-pin="${stuPin?1:0}" style="padding:4px 8px;font-size:11px;color:${stuPin?'var(--ac)':''}">${stuPin?'📌 Pin: On':'📌 Pin: Off'}</button>
           <button type="button" class="btn sec lc-scool" data-s="${esc(sid)}" style="padding:4px 8px;font-size:11px">⏳ 30s</button>
           <button type="button" class="btn sec lc-swarn" data-s="${esc(sid)}" data-w="${wrn}" style="padding:4px 8px;font-size:11px;color:#d97706">⚠ Warn</button>
           <button type="button" class="btn sec lc-sded" data-s="${esc(sid)}" data-ded="${ded}" style="padding:4px 8px;font-size:11px">−Mark</button>
@@ -4902,20 +4939,24 @@ function openLiveControl(rid){
     if(newestAlert&&newestAlert.ts>lastLcAlertTs){
       lastLcAlertTs=newestAlert.ts;
       const msg=newestAlert.type==='lock'?`🔒 ${newestAlert.stuName} Auto-Locked (${newestAlert.reason})`
+        :(newestAlert.type==='app'?`🚨 ${newestAlert.stuName} অন্য App খুলেছে: ${newestAlert.appName} (${newestAlert.count||1}x)`
         :(newestAlert.type==='ss'?`📸 ${newestAlert.stuName} Screenshot চেষ্টা করেছে (${newestAlert.count||1}x)`
         :(newestAlert.type==='split'?`📱 ${newestAlert.stuName} Split-Screen / Floating Window খুলেছে (${newestAlert.count||1}x)`
         :(newestAlert.type==='away'?`⏱ ${newestAlert.stuName} ${newestAlert.sec||0}s বাইরে ছিল`
         :(newestAlert.type==='tab'?`⚠ ${newestAlert.stuName} ${newestAlert.count||3}x Page/Tab পরিবর্তন করেছে`
-        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`))));
+        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`)))));
       toast(msg);
-      playBeep((newestAlert.type==='lock'||newestAlert.type==='ss'||newestAlert.type==='tab'||newestAlert.type==='split'||newestAlert.type==='away')?2:1);
+      playBeep((newestAlert.type==='lock'||newestAlert.type==='app'||newestAlert.type==='ss'||newestAlert.type==='tab'||newestAlert.type==='split'||newestAlert.type==='away')?2:1);
     }
     $('lcNotifBody').innerHTML=alertList.length?alertList.slice(0,20).map(a=>{
       const tStr=a.ts?new Date(a.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
       const txt=a.type==='lock'?`🔒 <b>${esc(a.stuName)}</b>-এর Exam Auto-Lock হয়েছে (${esc(a.reason||'')})`
+        :(a.type==='app'?`🚨 <b>${esc(a.stuName)}</b> অন্য App খুলেছে: <b>${esc(a.appName||'Unknown')}</b> (${a.count||1}x)`
         :(a.type==='ss'?`📸 <b>${esc(a.stuName)}</b> Screenshot নেওয়ার চেষ্টা করেছে (${a.count||1}x)`
+        :(a.type==='split'?`📱 <b>${esc(a.stuName)}</b> Split-Screen খুলেছে (${a.count||1}x)`
+        :(a.type==='away'?`⏱ <b>${esc(a.stuName)}</b> ${a.sec||0}s বাইরে ছিল`
         :(a.type==='tab'?`⚠ <b>${esc(a.stuName)}</b> ${a.count||3}x Page/Tab পরিবর্তন করেছে`
-        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`));
+        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`)))));
       return `<div style="padding:5px 0;border-bottom:1px dashed var(--bd);display:flex;justify-content:space-between;gap:8px"><span>${txt}</span><span class="mu" style="font-size:11px;white-space:nowrap">${tStr}</span></div>`;
     }).join(''):'<div class="mu">কোনো notification নেই।</div>';
     $('lcClearNotifsBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/alerts').remove()};
@@ -4925,6 +4966,11 @@ function openLiveControl(rid){
     $('lcStuBody').querySelectorAll('.lc-slock').forEach(b=>b.onclick=()=>{
       const lk=b.dataset.lk!=='1';
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}`).update({locked:lk,lockReason:lk?'Manual Lock':null});
+    });
+    $('lcStuBody').querySelectorAll('.lc-skiosk').forEach(b=>b.onclick=()=>{
+      const nextPin=b.dataset.pin!=='1';
+      db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/kioskOverride`).set(nextPin);
+      toast(nextPin?'Student-এর App Pin ON করা হয়েছে':'Student-এর App Pin OFF করা হয়েছে');
     });
     $('lcStuBody').querySelectorAll('.lc-scool').forEach(b=>b.onclick=()=>{
       db().ref(`rooms/${lcRoomId}/students/${b.dataset.s}/coolUntil`).set(Date.now()+30000);
@@ -5801,6 +5847,12 @@ function openSummaryPanel(rid){
     $('lsTitle').textContent=(r.examName||'Mock Exam')+' — Summary';
     $('lsSub').innerHTML=`Teacher: <b>${esc(r.examinerName||'Sensei')}</b> · ${esc(r.dateStr||'')} · <span class="pill ${r.status==='ended'?'end':'live'}">${r.status==='ended'?'ENDED':'LIVE'}</span>`;
     $('lsPubBadge').classList.toggle('hide',!r.published);
+    $('lcKioskBtn').textContent=r.kioskEnabled?'📌 App Pin: On':'📌 App Pin: Off';
+    $('lcKioskBtn').style.color=r.kioskEnabled?'var(--ok)':'';
+    $('lcKioskBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/kioskEnabled').set(!r.kioskEnabled)};
+    $('lcAppOnlyBtn').textContent=r.appOnly?'📱 App-Only: On':'📱 App-Only: Off';
+    $('lcAppOnlyBtn').style.color=r.appOnly?'var(--ac)':'';
+    $('lcAppOnlyBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/appOnly').set(!r.appOnly)};
     const stus=r.students?Object.entries(r.students):[];
     renderSummaryInto(r,stus,{
       sumBodyId:'lsSumBody',
