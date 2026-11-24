@@ -766,6 +766,11 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <button type="button" class="btn sec" id="smCloseBtn" style="padding:5px 10px">✕</button>
     </div>
     <div class="mu" style="margin:4px 0 10px">Ekhane fixed mock add korle sob student home screen-e pabe. Listening video-te exact min:sec limit dile answer sheet lock thakbe.</div>
+    <div style="margin-bottom:10px;padding:10px;border:1px dashed var(--ac);border-radius:10px;background:var(--bg)">
+      <div class="mu" style="font-weight:700;color:var(--ac)">📡 Live Exam Room theke Import (Optional)</div>
+      <select id="smLiveRoomSel" style="margin-top:4px"><option value="">-- Manual add (kono live room select koro ni) --</option></select>
+      <div class="mu" id="smLiveImportHint" style="font-size:11px;margin-top:4px">Live/past room select korle Title, Qs, Listening link, PDF &amp; Answer Key auto fill hobe.</div>
+    </div>
     <label>Mock Title</label>
     <input id="smTitle" placeholder="e.g. N5 Full Mock #1">
     <div class="row" style="margin-top:8px">
@@ -802,8 +807,17 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <input id="smListenUrl" type="url" placeholder="https://youtu.be/... ba https://drive.google.com/file/d/.../view" style="margin-top:4px">
       <div class="mu" id="smLimHint" style="margin-top:4px;font-size:11px">0 min 0 sec rakhle kono video limit thakbe na.</div>
     </div>
+    <div id="smKeysWrap" style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg)">
+      <div class="mu" style="font-weight:700">🔑 Answer Keys (Optional — save korle student auto-grade pabe)</div>
+      <div id="smKey1Wrap" style="margin-top:6px"><div class="mu" style="font-size:11px">Part 1 Answer Key</div><input id="smKey1" placeholder="e.g. 1 3 2 4 ... ba ABCD"></div>
+      <div id="smKey2Wrap" style="margin-top:6px"><div class="mu" style="font-size:11px">Part 2 Answer Key</div><input id="smKey2" placeholder="e.g. 2 1 4 3 ..."></div>
+      <div id="smKey3Wrap" style="margin-top:6px"><div class="mu" style="font-size:11px">Listening Answer Key</div><input id="smKey3" placeholder="e.g. 1 2 3 4 ..."></div>
+    </div>
     <div id="smErr" class="mu" style="color:var(--bad);margin-top:8px"></div>
-    <button type="button" class="btn" id="smSaveBtn" style="margin-top:10px">Save Sensei Mock</button>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button type="button" class="btn" id="smSaveBtn" style="flex:1;margin-top:0">Save Sensei Mock</button>
+      <button type="button" class="btn sec hide" id="smCancelEditBtn" style="width:auto;margin-top:0">Cancel Edit</button>
+    </div>
     <div style="margin-top:14px;border-top:1px solid var(--bd);padding-top:10px">
       <h4 style="margin:0 0 6px">Saved Sensei Mocks</h4>
       <div id="smAdminList" class="mu">Loading…</div>
@@ -2223,6 +2237,22 @@ function showReport(keepTime){
   if(cfg.driveId){drv.href=`https://drive.google.com/file/d/${cfg.driveId}/view`;drv.classList.remove('hide')}
   else drv.classList.add('hide');
   if(!keepTime||!repTime)repTime=new Date().toLocaleString();
+  if(!liveRoomId&&cfg&&cfg.senseiKeys){
+    const sk=cfg.senseiKeys;
+    const sk1=parseKeyTokens(sk.k1||''),sk2=parseKeyTokens(sk.k2||''),sk3=parseKeyTokens(sk.k3||'');
+    cfg.parts.forEach((P,pi)=>{
+      const keyArr=P.listen?sk3:(pi===0?sk1:sk2);
+      if(!keyArr.length)return;
+      const A=ans[pi]||[],M=marks[pi]||(marks[pi]=[]);
+      const tot=P.listen?(P.q||LISTEN_TOTAL):(P.q||keyArr.length);
+      for(let q=1;q<=tot;q++){
+        if(M[q]==='ok'||M[q]==='bad')continue;
+        const kVal=keyArr[q-1];
+        if(!kVal)continue;
+        if(A[q]>0)M[q]=(A[q]===kVal)?'ok':'bad';
+      }
+    });
+  }
   saveCurrentExamToHistory();
   $('repName').textContent=(cfg.examName?'Exam Name: '+cfg.examName+' · ':'')+cfg.name+' · '+repTime;
   let html='',txt=`Report Card\n${cfg.examName?'Exam Name: '+cfg.examName+'\n':''}Name: ${cfg.name}\nDate: ${repTime}\n`;
@@ -6074,8 +6104,76 @@ async function startSenseiMock(id){
     }
   }
   beginExam(name,m.driveId||'',parts,m.title,m.ytId||'',m.listenDriveId||'',m.listenMaxSec||0);
+  if(m.keys&&(m.keys.k1||m.keys.k2||m.keys.k3))cfg.senseiKeys=m.keys;
   if(senseiPdfPages){cfg.senseiPdfPages=senseiPdfPages;cfg.senseiMockId=id;startPart(0)}
 }
+
+let smLiveRoomsCache={},smEditId='',smSourceRoomId='',smEditHasPdf=false;
+function resetSmForm(){
+  smEditId='';smSourceRoomId='';smEditHasPdf=false;
+  $('smLiveRoomSel').value='';
+  $('smLiveImportHint').textContent='Live/past room select korle Title, Qs, Listening link, PDF & Answer Key auto fill hobe.';
+  $('smLiveImportHint').style.color='';
+  $('smTitle').value='';$('smLevel').value='Mock';$('smMode').value='2';
+  $('smFile').value='';$('smDrive').value='';
+  $('smP1q').value=21;$('smP1m').value=20;$('smP1pages').value='';
+  $('smP2q').value=22;$('smP2m').value=40;$('smP2pages').value='';
+  $('smHasListen').value='1';$('smLm').value=30;$('smMaxMin').value=0;$('smMaxSec').value=0;
+  $('smListenUrl').value='';$('smKey1').value='';$('smKey2').value='';$('smKey3').value='';
+  $('smSaveBtn').textContent='Save Sensei Mock';
+  $('smCancelEditBtn').classList.add('hide');
+  syncSmModalUi();updateSmLimHint();
+}
+async function loadSmLiveRooms(){
+  const sel=$('smLiveRoomSel');
+  if(!sel)return;
+  sel.innerHTML='<option value="">-- Loading live rooms... --</option>';
+  try{
+    const snap=await getFb().ref('rooms').once('value');
+    smLiveRoomsCache=snap.val()||{};
+    const entries=Object.entries(smLiveRoomsCache).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+    sel.innerHTML='<option value="">-- Manual add (kono live room select koro ni) --</option>'+entries.map(([rid,r])=>{
+      const st=r.status==='live'?'LIVE':'ENDED';
+      const hasK=(r.keys&&(r.keys.k1||r.keys.k2||r.keys.k3))?' · 🔑Key':'';
+      return `<option value="${esc(rid)}">[${st}] ${esc(r.examName||'Untitled')} — ${esc(r.examinerName||'Sensei')}${hasK}</option>`;
+    }).join('');
+  }catch(e){
+    sel.innerHTML='<option value="">-- Live rooms load kora jayni --</option>';
+  }
+}
+$('smLiveRoomSel').onchange=()=>{
+  const rid=$('smLiveRoomSel').value;
+  if(!rid||!smLiveRoomsCache[rid]){
+    smSourceRoomId='';
+    $('smLiveImportHint').textContent='Live/past room select korle Title, Qs, Listening link, PDF & Answer Key auto fill hobe.';
+    $('smLiveImportHint').style.color='';
+    return;
+  }
+  const r=smLiveRoomsCache[rid];
+  $('smTitle').value=r.examName||'';
+  const mode=r.onlyListen?'listen':(r.onePart?'1':'2');
+  $('smMode').value=mode;
+  if(!r.onlyListen){
+    $('smP1q').value=r.p1q||21;$('smP1m').value=r.p1m||20;$('smP1pages').value=r.p1pages||'';
+    if(!r.onePart){$('smP2q').value=r.p2q||22;$('smP2m').value=r.p2m||40;$('smP2pages').value=r.p2pages||'';}
+  }
+  $('smHasListen').value=(r.hasListen||r.onlyListen)?'1':'0';
+  $('smLm').value=r.lm||30;
+  $('smDrive').value=r.driveId?`https://drive.google.com/file/d/${r.driveId}/view`:'';
+  $('smFile').value='';
+  if(r.ytId)$('smListenUrl').value=`https://youtu.be/${r.ytId}`;
+  else if(r.listenDriveId)$('smListenUrl').value=`https://drive.google.com/file/d/${r.listenDriveId}/view`;
+  else $('smListenUrl').value='';
+  $('smKey1').value=(r.keys&&r.keys.k1)||'';
+  $('smKey2').value=(r.keys&&r.keys.k2)||'';
+  $('smKey3').value=(r.keys&&r.keys.k3)||'';
+  smSourceRoomId=(!r.driveId&&r.hasPdf)?rid:'';
+  $('smLiveImportHint').textContent=smSourceRoomId
+    ?'✅ Imported! Live room er uploaded PDF + Answer Key + Listening link auto-save hobe.'
+    :'✅ Imported! Title, Qs, Listening link & Answer Key fill hoyeche — dorkar hole edit kore Save dao.';
+  $('smLiveImportHint').style.color='var(--ok)';
+  syncSmModalUi();updateSmLimHint();
+};
 
 function syncSmModalUi(){
   const mode=$('smMode').value;
@@ -6086,6 +6184,9 @@ function syncSmModalUi(){
   $('smHasListenWrap').classList.toggle('hide',isLis);
   const showLis=isLis||$('smHasListen').value==='1';
   $('smListenFields').classList.toggle('hide',!showLis);
+  $('smKey1Wrap').classList.toggle('hide',isLis);
+  $('smKey2Wrap').classList.toggle('hide',mode!=='2');
+  $('smKey3Wrap').classList.toggle('hide',!showLis);
 }
 function updateSmLimHint(){
   const mn=Math.max(0,+$('smMaxMin').value||0),sc=Math.max(0,Math.min(59,+$('smMaxSec').value||0));
@@ -6108,6 +6209,36 @@ $('smMaxMin').oninput=updateSmLimHint;
 $('smMaxSec').oninput=updateSmLimHint;
 $('smListenUrl').oninput=updateSmLimHint;
 
+function loadSmForEdit(id){
+  const m=getMergedSenseiMocks().find(x=>x.id===id);
+  if(!m)return;
+  smEditId=id;smSourceRoomId='';smEditHasPdf=!!m.hasPdf;
+  $('smLiveRoomSel').value='';
+  $('smTitle').value=m.title||'';
+  $('smLevel').value=m.level||'Mock';
+  $('smMode').value=m.mode||'2';
+  $('smFile').value='';
+  $('smDrive').value=m.driveId?`https://drive.google.com/file/d/${m.driveId}/view`:'';
+  $('smP1q').value=m.p1q||21;$('smP1m').value=m.p1m||20;$('smP1pages').value=m.p1pages||'';
+  $('smP2q').value=m.p2q||22;$('smP2m').value=m.p2m||40;$('smP2pages').value=m.p2pages||'';
+  $('smHasListen').value=m.hasListen?'1':'0';
+  $('smLm').value=m.lm||30;
+  const secTot=Math.max(0,+m.listenMaxSec||0);
+  $('smMaxMin').value=Math.floor(secTot/60);$('smMaxSec').value=secTot%60;
+  if(m.ytId)$('smListenUrl').value=`https://youtu.be/${m.ytId}`;
+  else if(m.listenDriveId)$('smListenUrl').value=`https://drive.google.com/file/d/${m.listenDriveId}/view`;
+  else $('smListenUrl').value='';
+  $('smKey1').value=(m.keys&&m.keys.k1)||'';
+  $('smKey2').value=(m.keys&&m.keys.k2)||'';
+  $('smKey3').value=(m.keys&&m.keys.k3)||'';
+  $('smSaveBtn').textContent='Update Sensei Mock';
+  $('smCancelEditBtn').classList.remove('hide');
+  $('smLiveImportHint').textContent=smEditHasPdf?'✏️ Edit mode: Ager uploaded PDF saved ache (notun PDF na dile oitai thakbe).':'✏️ Edit mode: Update kore "Update Sensei Mock" chapo.';
+  $('smLiveImportHint').style.color='var(--ac)';
+  syncSmModalUi();updateSmLimHint();
+  $('senseiMockModal').querySelector('.modal')?.scrollTo({top:0,behavior:'smooth'});
+}
+
 function renderSenseiMocksAdmin(){
   const box=$('smAdminList');
   if(!box)return;
@@ -6116,31 +6247,35 @@ function renderSenseiMocksAdmin(){
   box.innerHTML=list.map(m=>{
     const isFixed=SENSEI_FIXED_MOCKS.some(x=>x.id===m.id);
     const lim=m.listenMaxSec>0?` · 🔒 ${fmtMmSs(m.listenMaxSec)}`:'';
+    const hasK=(m.keys&&(m.keys.k1||m.keys.k2||m.keys.k3))?' · 🔑Key':'';
     return `<div class="sm-card">
       <div style="flex:1;min-width:160px">
         <b>${esc(m.title)}</b> <span class="sm-badge">${esc(m.level||'Mock')}</span>
-        <div class="mu" style="font-size:11px">${esc(m.mode==='listen'?'Only Listening':m.mode+' Part(s)')}${lim}</div>
+        <div class="mu" style="font-size:11px">${esc(m.mode==='listen'?'Only Listening':m.mode+' Part(s)')}${lim}${hasK}</div>
       </div>
-      ${isFixed?'<span class="mu" style="font-size:11px">Hardcoded</span>':`<button type="button" class="btn sec sm-del-btn" data-id="${esc(m.id)}" style="padding:5px 10px;font-size:12px;color:var(--bad)">Delete</button>`}
+      ${isFixed?'<span class="mu" style="font-size:11px">Hardcoded</span>':`<div style="display:flex;gap:6px"><button type="button" class="btn sec sm-edit-btn" data-id="${esc(m.id)}" style="padding:5px 10px;font-size:12px">Edit</button><button type="button" class="btn sec sm-del-btn" data-id="${esc(m.id)}" style="padding:5px 10px;font-size:12px;color:var(--bad)">Delete</button></div>`}
     </div>`;
   }).join('');
+  box.querySelectorAll('.sm-edit-btn').forEach(b=>b.onclick=()=>loadSmForEdit(b.dataset.id));
   box.querySelectorAll('.sm-del-btn').forEach(b=>b.onclick=async()=>{
     if(!confirm('Ei Sensei Mock delete korbe?'))return;
     try{
       await getFb().ref('senseiMocks/'+b.dataset.id).remove();
       await getFb().ref('senseiMockPdfs/'+b.dataset.id).remove();
+      if(smEditId===b.dataset.id)resetSmForm();
       toast('Mock deleted');
     }catch(e){toast('Delete failed: '+e.message)}
   });
 }
 
-$('smFile').onchange=()=>{if($('smFile').files[0])$('smDrive').value=''};
-$('smDrive').oninput=()=>{if(driveIdOf($('smDrive').value))$('smFile').value=''};
+$('smFile').onchange=()=>{if($('smFile').files[0]){$('smDrive').value='';smSourceRoomId='';}};
+$('smDrive').oninput=()=>{if(driveIdOf($('smDrive').value)){$('smFile').value='';smSourceRoomId='';}};
+$('smCancelEditBtn').onclick=resetSmForm;
 
 document.querySelectorAll('.open-sm-mgr-btn').forEach(b=>b.onclick=()=>{
   initSenseiMocksSync();
-  syncSmModalUi();
-  updateSmLimHint();
+  resetSmForm();
+  loadSmLiveRooms();
   renderSenseiMocksAdmin();
   $('smErr').textContent='';
   $('senseiMockModal').classList.remove('hide');
@@ -6154,17 +6289,20 @@ $('smSaveBtn').onclick=async()=>{
   const mode=$('smMode').value;
   const f=$('smFile').files[0];
   const driveId=mode==='listen'?'':(f?'':driveIdOf($('smDrive').value));
+  const keepExistingPdf=!!(smEditId&&smEditHasPdf&&!f&&!driveId);
+  const copyRoomPdf=!!(smSourceRoomId&&!f&&!driveId);
   if(!title){$('smErr').textContent='Mock Title dao.';return}
-  if(mode!=='listen'&&!f&&!driveId){$('smErr').textContent='Question PDF upload koro othoba Google Drive link dao.';return}
+  if(mode!=='listen'&&!f&&!driveId&&!keepExistingPdf&&!copyRoomPdf){$('smErr').textContent='Question PDF upload koro othoba Google Drive link dao.';return}
   const hasListen=mode==='listen'||$('smHasListen').value==='1';
   const med=parseListenMedia($('smListenUrl').value);
   if(hasListen&&$('smListenUrl').value.trim()&&!med.ok){$('smErr').textContent='Sothik YouTube ba Google Drive link dao.';return}
   const mn=Math.max(0,+$('smMaxMin').value||0),sc=Math.max(0,Math.min(59,+$('smMaxSec').value||0));
   const listenMaxSec=hasListen?(mn*60+sc):0;
-  const id='sm_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
+  const isEdit=!!smEditId;
+  const id=isEdit?smEditId:('sm_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5));
   try{
-    $('smSaveBtn').disabled=true;$('smSaveBtn').textContent=f?'PDF processing…':'Saving…';
-    let hasPdf=false,pdfPages=null;
+    $('smSaveBtn').disabled=true;$('smSaveBtn').textContent=f?'PDF processing…':(isEdit?'Updating…':'Saving…');
+    let hasPdf=keepExistingPdf,pdfPages=null;
     if(mode!=='listen'&&f){
       await setWorker();
       const doc=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
@@ -6181,7 +6319,18 @@ $('smSaveBtn').onclick=async()=>{
         pdfPages[n]=c.toDataURL('image/jpeg',0.72);
       }
       hasPdf=true;
+    }else if(mode!=='listen'&&copyRoomPdf){
+      $('smSaveBtn').textContent='Copying PDF…';
+      const rSnap=await getFb().ref('roomPdfs/'+smSourceRoomId).once('value');
+      const rPgs=rSnap.val();
+      if(rPgs&&Object.keys(rPgs).length){pdfPages=rPgs;hasPdf=true}
     }
+    const keys={
+      k1:mode==='listen'?'':$('smKey1').value.trim(),
+      k2:mode==='2'?$('smKey2').value.trim():'',
+      k3:hasListen?$('smKey3').value.trim():''
+    };
+    const prev=isEdit?senseiMocksMap[id]:null;
     const obj={
       id,title,level,mode,driveId,hasPdf,
       p1q:Math.max(1,+$('smP1q').value||21),
@@ -6195,19 +6344,20 @@ $('smSaveBtn').onclick=async()=>{
       ytId:med.ytId||'',
       listenDriveId:med.listenDriveId||'',
       listenMaxSec,
-      createdAt:Date.now(),
-      createdBy:curExaminer?curExaminer.name:'Admin'
+      keys,
+      createdAt:(prev&&prev.createdAt)||Date.now(),
+      updatedAt:Date.now(),
+      createdBy:(prev&&prev.createdBy)||(curExaminer?curExaminer.name:'Admin')
     };
     if(pdfPages){
       $('smSaveBtn').textContent='Uploading PDF…';
       await getFb().ref('senseiMockPdfs/'+id).set(pdfPages);
     }
     await getFb().ref('senseiMocks/'+id).set(obj);
-    $('smTitle').value='';$('smFile').value='';$('smDrive').value='';$('smListenUrl').value='';$('smMaxMin').value=0;$('smMaxSec').value=0;
-    updateSmLimHint();
-    toast('Sensei Mock saved!');
+    resetSmForm();
+    toast(isEdit?'Sensei Mock updated!':'Sensei Mock saved!');
   }catch(e){$('smErr').textContent='Save failed: '+e.message}
-  finally{$('smSaveBtn').disabled=false;$('smSaveBtn').textContent='Save Sensei Mock'}
+  finally{$('smSaveBtn').disabled=false;$('smSaveBtn').textContent=smEditId?'Update Sensei Mock':'Save Sensei Mock'}
 };
 
 (()=>{
