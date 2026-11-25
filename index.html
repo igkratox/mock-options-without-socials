@@ -910,6 +910,7 @@ html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
       <button type="button" class="btn sec" id="lcLinkLockBtn">Lock Link</button>
       <button type="button" class="btn sec" id="lcKioskBtn">📌 App Pin: Off</button>
       <button type="button" class="btn sec" id="lcAppOnlyBtn">📱 App-Only: Off</button>
+      <button type="button" class="btn sec" id="lcAddSmBtn">🎓 Add as Sensei Mock</button>
       <button type="button" class="btn sec" id="lcEndBtn" style="color:var(--bad)">End Exam</button>
       <button type="button" class="btn sec" id="lcBackBtn">Back</button>
     </div>
@@ -5212,6 +5213,73 @@ $('lcCopyLinkBtn').onclick=async()=>{
   const url=location.origin+location.pathname+'#live='+lcRoomId;
   try{await navigator.clipboard.writeText(url);$('lcCopyLinkBtn').textContent='Copied ✓';setTimeout(()=>$('lcCopyLinkBtn').textContent='Copy Student Link',2500)}
   catch(e){prompt('Student Link:',url)}
+};
+$('lcAddSmBtn').onclick=async()=>{
+  const r=lcRoomData,rid=lcRoomId;
+  if(!r||!rid)return;
+  if(!r.onlyListen&&!r.driveId&&!r.hasPdf){toast('Question PDF বা Drive link নেই।');return}
+  const btn=$('lcAddSmBtn'),prevTxt=btn.textContent;
+  btn.disabled=true;btn.textContent='⏳ Adding…';
+  try{
+    const id='sm_rm_'+rid;
+    const mode=r.onlyListen?'listen':(r.onePart?'1':'2');
+    const hasListen=!!(r.hasListen||r.onlyListen);
+    let hasPdf=false;
+    if(!r.onlyListen&&!r.driveId&&r.hasPdf){
+      let rPgs=roomPdfCache[rid]||null;
+      if(!rPgs){
+        const rSnap=await db().ref('roomPdfs/'+rid).once('value');
+        rPgs=rSnap.val();
+      }
+      if(rPgs&&Object.keys(rPgs).length){
+        await db().ref('senseiMockPdfs/'+id).set(rPgs);
+        hasPdf=true;
+      }else if(r.pdfUrl){
+        // Fallback if roomPdfs was already cleaned up
+        hasPdf=false;
+      }
+    }
+    const rt=roomPartTotals(r);
+    const prev=senseiMocksMap[id]||null;
+    const obj={
+      id,
+      title:r.examName||'Mock Exam',
+      level:(prev&&prev.level)||'JFT',
+      mode,
+      driveId:r.onlyListen?'':(r.driveId||''),
+      hasPdf,
+      p1q:Math.max(1,+r.p1q||21),
+      p1m:Math.max(1,+r.p1m||20),
+      p1pages:r.p1pages||'',
+      p2q:Math.max(1,+r.p2q||22),
+      p2m:Math.max(1,+r.p2m||40),
+      p2pages:r.p2pages||'',
+      hasListen,
+      lm:Math.max(1,+r.lm||30),
+      ytId:r.ytId||'',
+      listenDriveId:r.listenDriveId||'',
+      listenMaxSec:(prev&&prev.listenMaxSec)||0,
+      keys:{
+        k1:r.onlyListen?'':((r.keys&&r.keys.k1)||''),
+        k2:(!r.onlyListen&&!r.onePart)?((r.keys&&r.keys.k2)||''):'',
+        k3:hasListen?((r.keys&&r.keys.k3)||''):''
+      },
+      qPts:Array.isArray(r.qPts)?r.qPts:[],
+      partTotals:{p1Tot:rt.p1Tot,p2Tot:rt.p2Tot,lTot:rt.lTot},
+      createdAt:(prev&&prev.createdAt)||Date.now(),
+      updatedAt:Date.now(),
+      createdBy:r.examinerName||(curExaminer?curExaminer.name:'Admin')
+    };
+    await db().ref('senseiMocks/'+id).set(obj);
+    btn.textContent='✓ Added to Sensei Mocks';
+    toast('🎓 Sensei Provided Mock-e direct add hoyeche!');
+    setTimeout(()=>{if(btn)btn.textContent=prevTxt},2500);
+  }catch(e){
+    btn.textContent=prevTxt;
+    toast('Add failed: '+e.message);
+  }finally{
+    btn.disabled=false;
+  }
 };
 $('lcEndBtn').onclick=()=>{
   if(confirm('Exam বন্ধ করে দেবে? (PDF pages-ও Firebase থেকে delete হয়ে যাবে, result থাকবে)')){db().ref('rooms/'+lcRoomId).update({status:'ended',pdfPages:null,hasPdf:null,lobbyChat:null});db().ref('roomPdfs/'+lcRoomId).remove();}
