@@ -3242,11 +3242,11 @@ function syncStudentLive(force){
   if(marksPacked)payload.marks=marksPacked;
   db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update(payload);
 }
-function setLiveWait(st,title,sub,pill){
+function setLiveWait(st,title,sub,pill,skipAlert){
   stopYt();clearInterval(tick);
   syncStudentLive(true);
   db().ref(`rooms/${liveRoomId}/students/${liveStuId}`).update({status:st,used:used.map(x=>Math.round(x||0)),updatedAt:Date.now()});
-  if(st==='waiting_listen'&&liveRoomId){
+  if(st==='waiting_listen'&&liveRoomId&&!skipAlert){
     db().ref(`rooms/${liveRoomId}/alerts`).push({type:'wait',stuName:cfg?.name||'Student',ts:Date.now()});
   }
   hideAllViews();
@@ -3684,7 +3684,7 @@ function resumeLiveStudentFromRecord(r,me,stuId){
       hideAllViews();$('exam').classList.remove('hide');
       startPart(lIdx,false);
     }else{
-      setLiveWait('waiting_listen','Listening-এর জন্য অপেক্ষা','অন্যান্যরা শেষ করলে ও Sensei শুরু করলে Listening একসাথে শুরু হবে…','Listening-এর জন্য অপেক্ষা করা হচ্ছে');
+      setLiveWait('waiting_listen','Listening-এর জন্য অপেক্ষা','অন্যান্যরা শেষ করলে ও Sensei শুরু করলে Listening একসাথে শুরু হবে…','Listening-এর জন্য অপেক্ষা করা হচ্ছে',true);
     }
     return;
   }
@@ -5069,7 +5069,8 @@ function openLiveControl(rid){
         :(newestAlert.type==='split'?`📱 ${newestAlert.stuName} Split-Screen / Floating Window খুলেছে (${newestAlert.count||1}x)`
         :(newestAlert.type==='away'?`⏱ ${newestAlert.stuName} ${newestAlert.sec||0}s বাইরে ছিল`
         :(newestAlert.type==='tab'?`⚠ ${newestAlert.stuName} ${newestAlert.count||3}x Page/Tab পরিবর্তন করেছে`
-        :`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`))))));
+        :(newestAlert.type==='wait'?`🎧 ${newestAlert.stuName} Listening-এর জন্য অপেক্ষা করছে`
+        :`🔔 ${newestAlert.stuName}`)))))));
       toast(msg);
       playBeep((newestAlert.type==='lock'||newestAlert.type==='app'||newestAlert.type==='overlay'||newestAlert.type==='ss'||newestAlert.type==='tab'||newestAlert.type==='split'||newestAlert.type==='away')?2:1);
     }
@@ -5082,7 +5083,8 @@ function openLiveControl(rid){
         :(a.type==='split'?`📱 <b>${esc(a.stuName)}</b> Split-Screen খুলেছে (${a.count||1}x)`
         :(a.type==='away'?`⏱ <b>${esc(a.stuName)}</b> ${a.sec||0}s বাইরে ছিল`
         :(a.type==='tab'?`⚠ <b>${esc(a.stuName)}</b> ${a.count||3}x Page/Tab পরিবর্তন করেছে`
-        :`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`))))));
+        :(a.type==='wait'?`🎧 <b>${esc(a.stuName)}</b> 2nd Part শেষ করে Listening-এর জন্য অপেক্ষা করছে`
+        :`🔔 <b>${esc(a.stuName)}</b>`)))))));
       return `<div style="padding:5px 0;border-bottom:1px dashed var(--bd);display:flex;justify-content:space-between;gap:8px"><span>${txt}</span><span class="mu" style="font-size:11px;white-space:nowrap">${tStr}</span></div>`;
     }).join(''):'<div class="mu">কোনো notification নেই।</div>';
     $('lcClearNotifsBtn').onclick=()=>{if(lcRoomId)db().ref('rooms/'+lcRoomId+'/alerts').remove()};
