@@ -3476,6 +3476,42 @@ async function loadStuLiveHistory(){
   }catch(e){el.innerHTML='<div class="mu">Load করা যায়নি।</div>'}
 }
 const roomPdfCache={};
+function idbPdfOpen(){
+  return new Promise((res,rej)=>{
+    if(!window.indexedDB)return rej();
+    const rq=indexedDB.open('pm_pdf_cache',1);
+    rq.onupgradeneeded=()=>{const d=rq.result;if(!d.objectStoreNames.contains('pdfs'))d.createObjectStore('pdfs',{keyPath:'k'})};
+    rq.onsuccess=()=>res(rq.result);
+    rq.onerror=()=>rej();
+  });
+}
+async function idbPdfGet(k){
+  try{
+    const d=await idbPdfOpen();
+    return await new Promise(res=>{
+      const tx=d.transaction('pdfs','readonly'),rq=tx.objectStore('pdfs').get(k);
+      rq.onsuccess=()=>res(rq.result?rq.result.v:null);
+      rq.onerror=()=>res(null);
+    });
+  }catch(e){return null}
+}
+async function idbPdfSet(k,v){
+  if(!v)return;
+  try{
+    const d=await idbPdfOpen();
+    await new Promise(res=>{
+      const tx=d.transaction('pdfs','readwrite'),st=tx.objectStore('pdfs');
+      st.put({k,v,ts:Date.now()});
+      const allRq=st.getAll();
+      allRq.onsuccess=()=>{
+        const rows=(allRq.result||[]).sort((a,b)=>(a.ts||0)-(b.ts||0));
+        while(rows.length>8){const old=rows.shift();if(old&&old.k!==k)st.delete(old.k)}
+      };
+      tx.oncomplete=()=>res();
+      tx.onerror=()=>res();
+    });
+  }catch(e){}
+}
 function getRoomPdf(r,rid){
   return (r&&r.pdfPages)||(rid&&roomPdfCache[rid])||null;
 }
@@ -3483,8 +3519,12 @@ async function ensureRoomPdf(rid,r){
   if(!rid||!r||r.pdfPages||!r.hasPdf||roomPdfCache[rid]!==undefined)return;
   roomPdfCache[rid]=null;
   try{
-    const snap=await db().ref('roomPdfs/'+rid).once('value');
-    const val=snap.val();
+    let val=await idbPdfGet('room_'+rid);
+    if(!val){
+      const snap=await db().ref('roomPdfs/'+rid).once('value');
+      val=snap.val();
+      if(val)idbPdfSet('room_'+rid,val);
+    }
     roomPdfCache[rid]=val||null;
     if(val&&rid===liveRoomId&&liveRoom&&typeof buildLiveParts==='function'){
       if(cfg&&cfg.parts){
@@ -4792,12 +4832,18 @@ $('ecGoBtn').onclick=async()=>{
 };
 
 /* Live Examiner Control Room */
-let lcYtTimer=null,lcBatchRooms=[];
-async function refreshBatchRooms(r,rid){
-  if(!r||r.onlyListen||!r.examinerId){lcBatchRooms=[];return}
+let lcYtTimer=null,lcBatchRooms=[],lcBatchKey='',lcBatchTs=0;
+async function refreshBatchRooms(r,rid,force){
+  if(!r||r.onlyListen||!r.examinerId){lcBatchRooms=[];lcBatchKey='';return}
   const gid=r.batchGroupId||rid;
+  const key=rid+'|'+gid;
+  if(!force&&lcBatchKey===key&&Date.now()-lcBatchTs<60000)return;
+  lcBatchKey=key;lcBatchTs=Date.now();
   try{
-    const snap=await db().ref('rooms').orderByChild('examinerId').equalTo(r.examinerId).once('value');
+    const q=r.batchGroupId
+      ?db().ref('rooms').orderByChild('batchGroupId').equalTo(r.batchGroupId)
+      :db().ref('rooms').orderByChild('examinerId').equalTo(r.examinerId);
+    const snap=await q.once('value');
     const all=snap.val()||{};
     lcBatchRooms=Object.entries(all).filter(([id,x])=>(x.batchGroupId||id)===gid).sort((a,b)=>(a[1].batchNum||1)-(b[1].batchNum||1));
   }catch(e){lcBatchRooms=[]}
@@ -4841,9 +4887,12 @@ function openLiveControl(rid){
   if(lcYtTimer){clearInterval(lcYtTimer);lcYtTimer=null}
   if(lcYtPlayer){try{lcYtPlayer.destroy()}catch(e){}lcYtPlayer=null}
   let mountedYtId='',lastLcAlertTs=Date.now();
-  lcRoomRef=db().ref('rooms/'+rid);
-  lcRoomRef.on('value',async snap=>{
-    const r=snap.val();
+  const baseLcRef=db().ref('rooms/'+rid);
+  const lcUnsubs=[];
+  let lcRenderQueued=false,lcDestroyed=false;
+  lcRoomRef={off:()=>{lcDestroyed=true;lcUnsubs.forEach(fn=>{try{fn()}catch(e){}})}};
+  const renderLcRoom=async r=>{
+    if(lcDestroyed||lcRoomId!==rid)return;
     if(!r){
       if(lcRoomRef){lcRoomRef.off();lcRoomRef=null}
       toast('এই Live Exam আর পাওয়া যায়নি।');
@@ -5203,7 +5252,42 @@ function openLiveControl(rid){
       }
     });
     renderLiveSummary(r,stus);
-  });
+  };
+  const scheduleLcRender=()=>{
+    if(lcDestroyed||lcRenderQueued)return;
+    lcRenderQueued=true;
+    requestAnimationFrame(()=>{lcRenderQueued=false;if(!lcDestroyed&&lcRoomData)renderLcRoom(lcRoomData)});
+  };
+  baseLcRef.once('value').then(snap=>{
+    if(lcDestroyed||lcRoomId!==rid)return;
+    const initR=snap.val();
+    if(!initR){renderLcRoom(null);return}
+    lcRoomData=initR;
+    renderLcRoom(lcRoomData);
+    const stuRef=baseLcRef.child('students');
+    const onStuAdd=s=>{if(!lcRoomData)return;if(!lcRoomData.students)lcRoomData.students={};lcRoomData.students[s.key]=s.val();scheduleLcRender()};
+    const onStuRem=s=>{if(!lcRoomData||!lcRoomData.students)return;delete lcRoomData.students[s.key];scheduleLcRender()};
+    stuRef.on('child_added',onStuAdd);stuRef.on('child_changed',onStuAdd);stuRef.on('child_removed',onStuRem);
+    lcUnsubs.push(()=>stuRef.off('child_added',onStuAdd),()=>stuRef.off('child_changed',onStuAdd),()=>stuRef.off('child_removed',onStuRem));
+    const alRef=baseLcRef.child('alerts');
+    const onAlAdd=s=>{if(!lcRoomData)return;if(!lcRoomData.alerts)lcRoomData.alerts={};lcRoomData.alerts[s.key]=s.val();scheduleLcRender()};
+    const onAlRem=s=>{if(!lcRoomData||!lcRoomData.alerts)return;delete lcRoomData.alerts[s.key];scheduleLcRender()};
+    alRef.on('child_added',onAlAdd);alRef.on('child_changed',onAlAdd);alRef.on('child_removed',onAlRem);
+    lcUnsubs.push(()=>alRef.off('child_added',onAlAdd),()=>alRef.off('child_changed',onAlAdd),()=>alRef.off('child_removed',onAlRem));
+    const lcCtrlKeys=['status','linkLocked','p1q','p2q','p1Tot','p2Tot','lTot','p1pages','p2pages','pdfUrl','hasPdf','hasListen','onlyListen','lMode','listenStarted','listenVideoStarted','listenSelfCtrl','ytId','listenDriveId','kioskEnabled','appOnly','published','notice','globalDeltaTs','globalDeltaSec','qPts','passTotal','gradeMode','resultType','lMondai','keys'];
+    lcCtrlKeys.forEach(k=>{
+      const kr=baseLcRef.child(k);
+      const onK=s=>{
+        if(!lcRoomData)return;
+        const v=s.val();
+        if(k==='status'&&v===null){renderLcRoom(null);return}
+        lcRoomData[k]=v;
+        scheduleLcRender();
+      };
+      kr.on('value',onK);
+      lcUnsubs.push(()=>kr.off('value',onK));
+    });
+  }).catch(()=>{if(!lcDestroyed&&lcRoomId===rid)toast('Live Control লোড করা যায়নি।')});
 }
 $('lcLinkLockBtn').onclick=()=>{
   if(!lcRoomData)return;
@@ -6628,8 +6712,13 @@ async function startSenseiMock(id){
   if(m.hasPdf&&!m.driveId){
     toast('Question PDF load hocche…');
     try{
-      const snap=await getFb().ref('senseiMockPdfs/'+id).once('value');
-      senseiPdfPages=snap.val()||{};
+      const cacheKey='sm_'+id+'_'+(m.updatedAt||m.createdAt||0);
+      senseiPdfPages=await idbPdfGet(cacheKey);
+      if(!senseiPdfPages){
+        const snap=await getFb().ref('senseiMockPdfs/'+id).once('value');
+        senseiPdfPages=snap.val()||{};
+        if(Object.keys(senseiPdfPages).length)idbPdfSet(cacheKey,senseiPdfPages);
+      }
       const nums=Object.keys(senseiPdfPages).map(Number).filter(n=>n>0);
       maxPage=nums.length?Math.max(...nums):0;
     }catch(e){toast('PDF load failed: '+e.message);return}
